@@ -38,8 +38,8 @@ Dos proyectos Django separados y desacoplados:
 ### 1. Clonar el repositorio
 
 \`\`\`bash
-git clone https://github.com/TU_USUARIO/inventario-conalep.git
-cd inventario-conalep
+git clone https://github.com/TU_USUARIO/InventaCore.git
+cd InventaCore
 \`\`\`
 
 ### 2. Crear entorno virtual e instalar dependencias
@@ -111,7 +111,7 @@ Acceder a `http://localhost:8001` en el navegador.
 
 ## Documentación
 
-- **Requerimientos Funcionales (23 RF) y No Funcionales (11 RNF):** `RF y RNF Proyecto Conalep (2).pdf`
+- **Requerimientos Funcionales (23 RF) y No Funcionales (11 RNF):** `RF y RNF Proyecto Conalep.pdf`
 - **Diagrama Entidad-Relación y Modelo Relacional:** `CONALEP_DER_final_16-10-2026.md`
 - **Diccionario de Datos:** `CONALEP_Diccionario_de_Datos_v2.xlsx`
 - **Script SQL inicial:** `InventaCore_db.sql`
