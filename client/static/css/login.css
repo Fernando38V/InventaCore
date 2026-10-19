@@ -1,0 +1,232 @@
+/* InventaCore — M1 Login */
+
+.login {
+  display: grid;
+  grid-template-columns: minmax(360px, 44%) 1fr;
+  min-height: 100vh;
+}
+
+/* ---------- Panel de marca ---------- */
+
+.login__brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 48px;
+  color: #ffffff;
+  background: linear-gradient(158deg, #007e67 0%, #00604f 52%, #00453a 100%);
+  overflow: hidden;
+}
+
+.login__brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.login__brand > * {
+  position: relative;
+  z-index: 1;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+}
+
+.brand-mark__name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.brand-mark__tag {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.login__claim {
+  max-width: 400px;
+  margin: 8vh 0;
+}
+
+.login__claim h2 {
+  font-size: 34px;
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+}
+
+.login__claim p {
+  margin-top: 16px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.login__institution {
+  padding-top: 20px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.62);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.login__institution strong {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- Panel del formulario ---------- */
+
+.login__panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  background: #ffffff;
+}
+
+.login__card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login__eyebrow {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--ic-primary);
+  background: var(--ic-primary-soft);
+  border-radius: 4px;
+}
+
+.login__title {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ic-ink);
+}
+
+.login__subtitle {
+  margin-top: 8px;
+  margin-bottom: 30px;
+  font-size: 14.5px;
+  color: var(--ic-muted);
+}
+
+/* Mostrar / ocultar contraseña */
+
+.password-field {
+  position: relative;
+}
+
+.password-field .form-control {
+  padding-right: 3rem;
+}
+
+.password-field__toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--ic-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.password-field__toggle:hover {
+  color: var(--ic-ink);
+  background: var(--ic-bg);
+}
+
+.password-field__toggle:focus-visible {
+  outline: 2px solid var(--ic-primary);
+  outline-offset: 1px;
+}
+
+/* Nota de recuperación */
+
+.login__recovery {
+  display: flex;
+  gap: 9px;
+  margin-top: 26px;
+  padding-top: 22px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ic-muted);
+  border-top: 1px solid var(--ic-border);
+}
+
+.login__recovery svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #8a9793;
+}
+
+.login__footer {
+  margin-top: 34px;
+  font-size: 11.5px;
+  text-align: center;
+  color: #8a9793;
+}
+
+/* ---------- Responsivo ---------- */
+
+@media (max-width: 900px) {
+  .login {
+    grid-template-columns: 1fr;
+  }
+
+  .login__brand {
+    padding: 22px 24px;
+    min-height: auto;
+  }
+
+  .login__claim,
+  .login__institution {
+    display: none;
+  }
+
+  .login__panel {
+    padding: 36px 24px 56px;
+  }
+}

@@ -1,0 +1,88 @@
+/* InventaCore — identidad visual
+   Cambiar aquí = cambiar en todo el sistema. */
+
+:root {
+  /* Marca */
+  --ic-primary: #007e67;
+  --ic-primary-hover: #006653;
+  --ic-primary-active: #004d3f;
+  --ic-primary-soft: #e6f4f1;
+  --ic-primary-rgb: 0, 126, 103;
+
+  /* Tinta y texto */
+  --ic-ink: #0e1a17;
+  --ic-text: #1f2a27;
+  --ic-muted: #5b6b67;
+
+  /* Superficies */
+  --ic-bg: #f6f8f7;
+  --ic-border: #dde3e1;
+}
+
+/* Base tipográfica */
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ic-text);
+  background: var(--ic-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Enlaces */
+a {
+  color: var(--ic-primary-hover);
+}
+a:hover {
+  color: var(--ic-primary-active);
+}
+
+/* Botón primario */
+.btn-primary {
+  --bs-btn-bg: var(--ic-primary);
+  --bs-btn-border-color: var(--ic-primary);
+  --bs-btn-hover-bg: var(--ic-primary-hover);
+  --bs-btn-hover-border-color: var(--ic-primary-hover);
+  --bs-btn-active-bg: var(--ic-primary-active);
+  --bs-btn-active-border-color: var(--ic-primary-active);
+  --bs-btn-disabled-bg: var(--ic-primary);
+  --bs-btn-disabled-border-color: var(--ic-primary);
+  font-weight: 600;
+}
+
+/* Campos */
+.form-label {
+  margin-bottom: 0.4rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ic-text);
+}
+
+.form-control {
+  min-height: 46px;
+  border-color: var(--ic-border);
+}
+
+.form-control::placeholder {
+  color: #8a9793;
+}
+
+.form-control:focus {
+  border-color: var(--ic-primary);
+  box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
+}
+
+/* Alerta de error */
+.alert-danger {
+  --bs-alert-color: #b42318;
+  --bs-alert-bg: #fef3f2;
+  --bs-alert-border-color: #fecdca;
+  font-size: 13.5px;
+}
