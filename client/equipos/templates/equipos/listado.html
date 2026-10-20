@@ -1,0 +1,37 @@
+{% extends "base/layout_app.html" %}
+
+{% block title %}Equipos · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Equipos{% endblock %}
+{% block page_subtitle %}Inventario de equipo de cómputo registrado{% endblock %}
+
+{% block app_content %}
+<div class="info-card">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Marbete</th>
+        <th>Folio</th>
+        <th>Marca / Modelo</th>
+        <th>Ubicación</th>
+        <th>Estado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eq in equipos %}
+      <tr>
+        <td>{{ eq.marbete_oficial }}</td>
+        <td>{{ eq.folio_interno }}</td>
+        <td>{{ eq.marca }} {{ eq.modelo }}</td>
+        <td>{{ eq.ubicacion }}</td>
+        <td>{{ eq.estado_registro }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'equipos:detalle' eq.num %}">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

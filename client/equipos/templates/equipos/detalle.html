@@ -1,0 +1,328 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Equipo {{ equipo.folio_interno }} · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Detalle de Equipo{% endblock %}
+{% block page_subtitle %}Consulta y trazabilidad del equipo{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'equipos:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver al listado
+</a>
+
+<div class="equipo-header">
+  <div class="equipo-header__qr">
+    <svg width="40" height="40"><use href="#icon-qr"/></svg>
+  </div>
+
+  <div class="equipo-header__main">
+    <div class="equipo-header__top">
+      <h2 class="equipo-header__title">{{ equipo.marca }} {{ equipo.modelo }}</h2>
+      <span class="badge-estado badge-estado--registro">{{ equipo.estado_registro }}</span>
+      <span class="badge-estado badge-estado--operativo">{{ equipo.estado_operativo }}</span>
+    </div>
+    <p class="equipo-header__ids">
+      Marbete <strong>{{ equipo.marbete_oficial }}</strong>
+      <span class="equipo-header__dot">·</span>
+      Folio <strong>{{ equipo.folio_interno }}</strong>
+    </p>
+  </div>
+
+  <div class="equipo-header__actions">
+    <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" type="button">
+      <svg width="15" height="15"><use href="#icon-printer"/></svg>
+      Imprimir QR
+    </button>
+    {% if usuario.rol == 'ADMIN' %}
+    <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="#">
+      <svg width="15" height="15"><use href="#icon-edit"/></svg>
+      Editar
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="info-grid">
+
+  <section class="info-card">
+    <h3 class="info-card__title">Información general</h3>
+    <dl class="info-list">
+      <div><dt>Categoría</dt><dd>{{ equipo.categoria }}</dd></div>
+      <div><dt>Marca</dt><dd>{{ equipo.marca }}</dd></div>
+      <div><dt>Modelo</dt><dd>{{ equipo.modelo }}</dd></div>
+      <div><dt>Número de serie</dt><dd>{{ equipo.num_serie }}</dd></div>
+      <div><dt>Color</dt><dd>{{ equipo.color|default:"No especificado" }}</dd></div>
+      <div><dt>Origen</dt><dd>{{ equipo.origen }}</dd></div>
+      <div><dt>Fecha de adquisición</dt><dd>{{ equipo.fecha_adquisicion|default:"No especificada" }}</dd></div>
+      <div><dt>Costo de adquisición</dt><dd>${{ equipo.costo_adquisicion|default:"0.00" }} MXN</dd></div>
+      <div><dt>Fecha de alta en el sistema</dt><dd>{{ equipo.fecha_alta }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="info-card">
+    <h3 class="info-card__title">Ubicación y resguardo</h3>
+    <dl class="info-list">
+      <div>
+        <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-pin"/></svg> Ubicación</dt>
+        <dd>{{ equipo.ubicacion }}</dd>
+      </div>
+      <div>
+        <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-user-circle"/></svg> Resguardante actual</dt>
+        <dd>{{ equipo.resguardante|default:"Sin asignar" }}</dd>
+      </div>
+      <div>
+        <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-check-circle"/></svg> Estado de registro</dt>
+        <dd>{{ equipo.estado_registro }}</dd>
+      </div>
+      <div>
+        <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-clock"/></svg> Estado operativo</dt>
+        <dd>{{ equipo.estado_operativo }}</dd>
+      </div>
+    </dl>
+  </section>
+
+</div>
+
+<section class="info-card info-card--full">
+  <h3 class="info-card__title">Descripción</h3>
+  <p class="info-card__text">{{ equipo.descripcion|default:"Sin descripción registrada." }}</p>
+</section>
+
+<section class="info-card info-card--full">
+  <h3 class="info-card__title">Historial de movimientos</h3>
+  <ol class="timeline">
+    {% for mov in movimientos %}
+    <li class="timeline__item">
+      <span class="timeline__dot">
+        <svg width="13" height="13"><use href="#icon-check-circle"/></svg>
+      </span>
+      <div class="timeline__content">
+        <p class="timeline__title">{{ mov.tipo }}</p>
+        <p class="timeline__detail">{{ mov.detalle }}</p>
+        <p class="timeline__meta">{{ mov.fecha }} · {{ mov.usuario }}</p>
+      </div>
+    </li>
+    {% empty %}
+    <li class="timeline__empty">Este equipo no tiene movimientos registrados.</li>
+    {% endfor %}
+  </ol>
+</section>
+
+{% endblock app_content %}
+
+{% block extra_css %}
+<style>
+    .ic-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 16px;
+    padding: 7px 13px 7px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background .14s ease, color .14s ease, border-color .14s ease;
+  }
+
+  .ic-back:hover {
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-color: var(--ic-primary);
+  }
+
+  .equipo-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .equipo-header__qr {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-radius: 12px;
+  }
+
+  .equipo-header__main { flex: 1; min-width: 0; }
+
+  .equipo-header__top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .equipo-header__title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--ic-ink);
+  }
+
+  .equipo-header__ids {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--ic-muted);
+  }
+
+  .equipo-header__ids strong { color: var(--ic-text); font-weight: 600; }
+  .equipo-header__dot { margin: 0 6px; color: var(--ic-border-strong, #C3CCC9); }
+
+  .equipo-header__actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .badge-estado {
+    padding: 3px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 999px;
+  }
+  .badge-estado--registro { color: #067647; background: #ECFDF3; }
+  .badge-estado--operativo { color: #175CD3; background: #EFF8FF; }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .info-card {
+    padding: 20px 22px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+    margin-bottom: 18px;
+  }
+  .info-card--full { grid-column: 1 / -1; margin-bottom: 18px; }
+  .info-grid .info-card { margin-bottom: 0; }
+
+  .info-card__title {
+    margin-bottom: 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ic-ink);
+  }
+
+  .info-card__text { font-size: 13.5px; line-height: 1.65; color: var(--ic-text); }
+
+  .info-list { display: flex; flex-direction: column; gap: 13px; }
+  .info-list > div { display: flex; justify-content: space-between; gap: 12px; }
+  .info-list dt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--ic-muted);
+    flex-shrink: 0;
+  }
+  .info-list__icon { color: var(--ic-subtle, #8A9793); }
+  .info-list dd { font-size: 13px; font-weight: 600; color: var(--ic-text); text-align: right; }
+
+  .timeline { list-style: none; padding: 0; margin: 0; }
+
+  .timeline__item {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    padding-bottom: 22px;
+    padding-left: 2px;
+  }
+  .timeline__item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 26px;
+    bottom: 0;
+    width: 1.5px;
+    background: var(--ic-border);
+  }
+
+  .timeline__dot {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-radius: 50%;
+  }
+
+  .timeline__title { font-size: 13.5px; font-weight: 700; color: var(--ic-ink); }
+  .timeline__detail { margin-top: 2px; font-size: 13px; color: var(--ic-text); }
+  .timeline__meta { margin-top: 3px; font-size: 11.5px; color: var(--ic-subtle, #8A9793); }
+
+  .timeline__empty { font-size: 13px; color: var(--ic-muted); }
+
+  @media (max-width: 760px) {
+    .info-grid { grid-template-columns: 1fr; }
+    .equipo-header { flex-wrap: wrap; }
+  }
+
+  @media (max-width: 620px) {
+
+    .equipo-header {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 12px 14px;
+      padding: 16px;
+    }
+
+    .equipo-header__qr {
+      width: 52px;
+      height: 52px;
+    }
+
+    .equipo-header__main { grid-column: 2; }
+
+    .equipo-header__title {
+      font-size: 16.5px;
+      line-height: 1.25;
+    }
+
+    .equipo-header__ids {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 12px;
+    }
+
+    .equipo-header__dot { display: none; }
+
+    .equipo-header__actions {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .equipo-header__actions .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .info-list > div {
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .info-list dd { text-align: left; }
+  }
+</style>
+{% endblock %}
