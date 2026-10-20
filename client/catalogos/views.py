@@ -1,3 +1,5 @@
-from django.shortcuts import render
+from django.http import HttpResponse
 
-# Create your views here.
+
+def listado_catalogos(request):
+    return HttpResponse("Catálogos — pendiente de construir.")

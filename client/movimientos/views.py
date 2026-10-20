@@ -1,3 +1,5 @@
-from django.shortcuts import render
+from django.http import HttpResponse
 
-# Create your views here.
+
+def listado_movimientos(request):
+    return HttpResponse("Movimientos — pendiente de construir (M7/M8).")

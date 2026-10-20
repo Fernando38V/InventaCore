@@ -1,3 +1,5 @@
-from django.shortcuts import render
+from django.http import HttpResponse
 
-# Create your views here.
+
+def listado_auditoria(request):
+    return HttpResponse("Bitácora — pendiente de construir.")

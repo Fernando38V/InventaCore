@@ -1,3 +1,9 @@
-from django.shortcuts import render
+from django.http import HttpResponse
 
-# Create your views here.
+
+def dashboard(request):
+    return HttpResponse("Dashboard — pendiente de construir.")
+
+
+def listado_reportes(request):
+    return HttpResponse("Reportes — pendiente de construir.")
