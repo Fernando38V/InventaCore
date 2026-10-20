@@ -1,0 +1,23 @@
+{% load static %}
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}InventaCore{% endblock %}</title>
+
+    <link
+      rel="stylesheet"
+      href="{% static 'vendor/bootstrap/bootstrap.min.css' %}"
+    />
+    <link rel="stylesheet" href="{% static 'css/brand.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/layout.css' %}" />
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    {% block content %}{% endblock %}
+
+    <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

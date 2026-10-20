@@ -1,0 +1,216 @@
+{% extends "base/base_app.html" %}
+{% load static %}
+
+{% block content %}
+{% include "base/_icons.html" %}
+
+<div class="app" id="app">
+  <div class="app__overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__brand">
+      <span class="sidebar__logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+          <rect x="5.5" y="6" width="21" height="14.5" rx="2.1" fill="none" stroke="#fff" stroke-width="2"/>
+          <path d="M14 20.5 L18 20.5 L19 23 L13 23 Z" fill="#fff"/>
+          <rect x="10.5" y="23.4" width="11" height="2" rx="1" fill="#fff"/>
+          <rect x="8.2" y="8.6" width="6.4" height="6.4" fill="none" stroke="#fff" stroke-width="1.5"/>
+          <rect x="10.1" y="10.5" width="2.6" height="2.6" fill="#fff"/>
+          <rect x="17" y="8.6" width="1.9" height="1.9" fill="#fff"/>
+          <rect x="20" y="8.6" width="1.9" height="1.9" fill="#fff" opacity="0.55"/>
+          <rect x="17" y="11.6" width="1.9" height="1.9" fill="#fff" opacity="0.55"/>
+          <rect x="20" y="11.6" width="1.9" height="1.9" fill="#fff"/>
+          <rect x="17" y="14.6" width="1.9" height="1.9" fill="#fff" opacity="0.55"/>
+        </svg>
+      </span>
+      <span class="sidebar__brand-text">
+        <span class="sidebar__brand-name">InventaCore</span>
+        <span class="sidebar__brand-tag">Control de inventario</span>
+      </span>
+    </div>
+
+    <nav class="sidebar__nav">
+
+      <a class="sidebar__link {% block nav_dashboard %}{% endblock %}" href="{% url 'reportes:dashboard' %}">
+        <svg class="sidebar__icon"><use href="#icon-dashboard"/></svg>
+        <span>Dashboard</span>
+      </a>
+
+      <p class="sidebar__group-label">Operación</p>
+
+      <a class="sidebar__link {% block nav_equipos %}{% endblock %}" href="{% url 'equipos:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-box"/></svg>
+        <span>Equipos</span>
+      </a>
+
+      <a class="sidebar__link {% block nav_movimientos %}{% endblock %}" href="{% url 'movimientos:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-swap"/></svg>
+        <span>Movimientos</span>
+      </a>
+
+      <a class="sidebar__link {% block nav_reportes %}{% endblock %}" href="{% url 'reportes:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-chart"/></svg>
+        <span>Reportes</span>
+      </a>
+
+      {% if usuario.rol == 'ADMIN' %}
+      <p class="sidebar__group-label">Administración</p>
+
+      <a class="sidebar__link {% block nav_personal %}{% endblock %}" href="{% url 'personal:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-people"/></svg>
+        <span>Personal</span>
+      </a>
+
+      <a class="sidebar__link {% block nav_catalogos %}{% endblock %}" href="{% url 'catalogos:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-list"/></svg>
+        <span>Catálogos</span>
+      </a>
+
+      <a class="sidebar__link {% block nav_usuarios %}{% endblock %}" href="{% url 'usuarios:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-user-gear"/></svg>
+        <span>Usuarios y Roles</span>
+      </a>
+
+      <a class="sidebar__link {% block nav_auditoria %}{% endblock %}" href="{% url 'auditoria:listado' %}">
+        <svg class="sidebar__icon"><use href="#icon-clipboard"/></svg>
+        <span>Bitácora</span>
+      </a>
+      {% endif %}
+
+    </nav>
+
+    <div class="sidebar__footer">
+      <button class="sidebar__logout" type="button" data-bs-toggle="modal" data-bs-target="#modalLogout">
+        <svg width="16" height="16"><use href="#icon-logout"/></svg>
+        <span>Cerrar sesión</span>
+      </button>
+      <div class="sidebar__version-row">
+        <span>InventaCore</span>
+        <span class="sidebar__version">v1.0</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="app__main">
+
+    <header class="topbar">
+      <button class="topbar__toggle" id="sidebarToggle" type="button" aria-label="Contraer menú">
+        <svg><use href="#icon-menu"/></svg>
+      </button>
+
+      <div class="topbar__titles">
+        <h1 class="topbar__title">{% block page_title %}{% endblock %}</h1>
+        <p class="topbar__subtitle">{% block page_subtitle %}{% endblock %}</p>
+      </div>
+
+      <div class="topbar__actions">
+        <div class="dropdown">
+          <button class="topbar__user" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="topbar__avatar">{{ usuario.nombre_completo|slice:":1" }}</span>
+            <span class="topbar__user-info">
+              <span class="topbar__user-name">{{ usuario.nombre_completo }}</span>
+              <span class="topbar__user-role">{{ usuario.rol_nombre }}</span>
+            </span>
+            <svg class="topbar__caret"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'usuarios:perfil' %}">
+                <svg width="16" height="16"><use href="#icon-user-circle"/></svg> Perfil
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <main class="app__content">
+      {% block app_content %}{% endblock %}
+    </main>
+
+  </div>
+</div>
+
+<!-- Modal: confirmación de cierre de sesión -->
+<div class="modal fade" id="modalLogout" tabindex="-1" aria-labelledby="modalLogoutLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="logout-modal__icon">
+          <svg width="22" height="22"><use href="#icon-logout"/></svg>
+        </div>
+        <h2 class="logout-modal__title" id="modalLogoutLabel">¿Cerrar sesión?</h2>
+        <p class="logout-modal__text">
+          Tu sesión se cerrará y volverás a la pantalla de inicio.
+          No se perderá ningún cambio guardado.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <a class="btn btn-danger btn-sm" href="{% url 'usuarios:logout' %}">
+          Sí, cerrar sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var app     = document.getElementById('app');
+    var toggle  = document.getElementById('sidebarToggle');
+    var overlay = document.getElementById('sidebarOverlay');
+    if (!app || !toggle) return;
+
+    var STORAGE_KEY = 'ic_sidebar_collapsed';
+    var mq = window.matchMedia('(max-width: 1024px)');
+
+    if (!mq.matches && localStorage.getItem(STORAGE_KEY) === '1') {
+      app.classList.add('app--collapsed');
+    }
+
+    function closeDrawer() {
+      app.classList.remove('app--drawer-open');
+      document.body.style.overflow = '';
+    }
+
+    toggle.addEventListener('click', function () {
+      if (mq.matches) {
+        var abierto = app.classList.toggle('app--drawer-open');
+        document.body.style.overflow = abierto ? 'hidden' : '';
+        return;
+      }
+      app.classList.toggle('app--collapsed');
+      localStorage.setItem(
+        STORAGE_KEY,
+        app.classList.contains('app--collapsed') ? '1' : '0'
+      );
+    });
+
+    if (overlay) overlay.addEventListener('click', closeDrawer);
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeDrawer();
+    });
+
+    app.querySelectorAll('.sidebar__link').forEach(function (link) {
+      link.addEventListener('click', function () {
+        if (mq.matches) closeDrawer();
+      });
+    });
+
+    // Al cruzar el punto de quiebre: cerrar el cajón y liberar el scroll
+    mq.addEventListener('change', function (e) {
+      closeDrawer();
+      if (e.matches) {
+        app.classList.remove('app--collapsed');
+      } else if (localStorage.getItem(STORAGE_KEY) === '1') {
+        app.classList.add('app--collapsed');
+      }
+    });
+  })();
+</script>
+{% endblock %}
