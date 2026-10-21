@@ -1,0 +1,585 @@
+{% extends "base/layout_app.html" %}
+
+{% block title %}Registrar equipo · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Registrar equipo{% endblock %}
+{% block page_subtitle %}Alta de un nuevo equipo en el inventario{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'equipos:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver al listado
+</a>
+
+<div class="form-layout">
+<form method="post" novalidate class="form-equipo" id="formEquipo">
+{% csrf_token %}
+
+  <section class="form-card">
+    <h2 class="form-card__title">Identificación</h2>
+
+    <div class="campo">
+      <label class="campo__label" for="origen">Origen <span class="campo__req">*</span></label>
+      <select class="campo__control" name="origen" id="origen" required>
+        {% for o in origenes %}
+        <option value="{{ o.codigo }}" {% if v.origen == o.codigo %}selected{% endif %}>{{ o.nombre }}</option>
+        {% endfor %}
+      </select>
+      {% if errores.origen %}<p class="campo__error">{{ errores.origen }}</p>{% endif %}
+    </div>
+
+    <div class="campo" id="campoMarbete">
+      <label class="campo__label" for="marbete_oficial">Marbete oficial <span class="campo__req">*</span></label>
+      <input class="campo__control" type="text" name="marbete_oficial" id="marbete_oficial"
+             value="{{ v.marbete_oficial|default:'' }}" autocomplete="off">
+      <p class="campo__ayuda">Lo asigna el gobierno del estado.</p>
+      <p class="campo__ayuda" id="previewFolio"></p>
+      {% if errores.marbete_oficial %}<p class="campo__error">{{ errores.marbete_oficial }}</p>{% endif %}
+    </div>
+
+    <div class="campo" id="campoFolio">
+      <label class="campo__label" for="folio_interno">Folio interno</label>
+      <div class="campo__folio">
+        <input class="campo__control" type="text" name="folio_interno" id="folio_interno"
+               value="{{ folio_sugerido }}" readonly>
+        <button class="campo__folio-btn" type="button" id="btnEditarFolio">Editar</button>
+      </div>
+      <p class="campo__ayuda" id="ayudaFolio">El sistema lo asigna automáticamente.</p>
+      {% if errores.folio_interno %}<p class="campo__error">{{ errores.folio_interno }}</p>{% endif %}
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2 class="form-card__title">Información general</h2>
+
+    <div class="campo-grid">
+      <div class="campo">
+        <label class="campo__label" for="categoria">Categoría <span class="campo__req">*</span></label>
+        <select class="campo__control" name="categoria" id="categoria" required>
+          <option value=""></option>
+          {% for c in categorias %}
+          <option value="{{ c.codigo }}" {% if v.categoria == c.codigo %}selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+        {% if errores.categoria %}<p class="campo__error">{{ errores.categoria }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="num_serie">Número de serie <span class="campo__req">*</span></label>
+        <input class="campo__control" type="text" name="num_serie" id="num_serie"
+               value="{{ v.num_serie|default:'' }}" autocomplete="off">
+        {% if errores.num_serie %}<p class="campo__error">{{ errores.num_serie }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="marca">Marca <span class="campo__req">*</span></label>
+        <input class="campo__control" type="text" name="marca" id="marca"
+               value="{{ v.marca|default:'' }}" autocomplete="off">
+        {% if errores.marca %}<p class="campo__error">{{ errores.marca }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="modelo">Modelo <span class="campo__req">*</span></label>
+        <input class="campo__control" type="text" name="modelo" id="modelo"
+               value="{{ v.modelo|default:'' }}" autocomplete="off">
+        {% if errores.modelo %}<p class="campo__error">{{ errores.modelo }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="color">Color</label>
+        <input class="campo__control" type="text" name="color" id="color"
+               value="{{ v.color|default:'' }}" autocomplete="off">
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="fecha_adquisicion">Fecha de adquisición</label>
+        <input class="campo__control" type="date" name="fecha_adquisicion" id="fecha_adquisicion"
+               value="{{ v.fecha_adquisicion|default:'' }}" max="{{ hoy }}">
+        {% if errores.fecha_adquisicion %}<p class="campo__error">{{ errores.fecha_adquisicion }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="costo_adquisicion">Costo de adquisición (MXN)</label>
+        <input class="campo__control" type="number" step="0.01" min="0"
+               name="costo_adquisicion" id="costo_adquisicion"
+               value="{{ v.costo_adquisicion|default:'' }}">
+        {% if errores.costo_adquisicion %}<p class="campo__error">{{ errores.costo_adquisicion }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label">Estado de registro</label>
+        <div class="campo__derivado">
+          <span class="badge-estado badge-estado--ambar" id="badgeRegistro">Pendiente</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="campo campo--check">
+      <label class="campo__check" for="donado">
+        <input type="checkbox" name="donado" id="donado" {% if request.POST.donado %}checked{% endif %}>
+        <span>El equipo fue donado</span>
+      </label>
+    </div>
+
+    <div class="campo">
+      <label class="campo__label" for="descripcion">Descripción</label>
+      <textarea class="campo__control" name="descripcion" id="descripcion" rows="3">{{ v.descripcion|default:'' }}</textarea>
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2 class="form-card__title">Ubicación y resguardo</h2>
+
+    <div class="campo-grid">
+      <div class="campo">
+        <label class="campo__label" for="ubicacion">Ubicación <span class="campo__req">*</span></label>
+        <select class="campo__control" name="ubicacion" id="ubicacion" required>
+          <option value=""></option>
+          {% for u in ubicaciones %}
+          <option value="{{ u.codigo }}" {% if v.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>
+          {% endfor %}
+        </select>
+        {% if errores.ubicacion %}<p class="campo__error">{{ errores.ubicacion }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="resguardante">Resguardante <span class="campo__req">*</span></label>
+        <select class="campo__control" name="resguardante" id="resguardante" required>
+          <option value=""></option>
+          {% for p in personal %}
+          <option value="{{ p }}" {% if v.resguardante == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+        {% if errores.resguardante %}<p class="campo__error">{{ errores.resguardante }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="estado_operativo">Estado operativo</label>
+        <select class="campo__control" name="estado_operativo" id="estado_operativo">
+          {% for e in estados_operativos %}
+          <option value="{{ e.codigo }}" {% if v.estado_operativo == e.codigo %}selected{% endif %}>{{ e.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <div class="form-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'equipos:listado' %}">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Registrar equipo</button>
+  </div>
+
+</form>
+
+  <aside class="form-resumen">
+    <h2 class="form-resumen__title">Resumen del alta</h2>
+
+    <dl class="form-resumen__lista">
+      <div>
+        <dt>Identificador</dt>
+        <dd id="rIdentificador">Sin capturar</dd>
+      </div>
+      <div>
+        <dt>Origen</dt>
+        <dd id="rOrigen">Activo</dd>
+      </div>
+      <div>
+        <dt>Equipo</dt>
+        <dd id="rEquipo">Sin capturar</dd>
+      </div>
+      <div>
+        <dt>Número de serie</dt>
+        <dd id="rSerie">Sin capturar</dd>
+      </div>
+      <div>
+        <dt>Categoría</dt>
+        <dd id="rCategoria">Sin capturar</dd>
+      </div>
+      <div>
+        <dt>Ubicación</dt>
+        <dd id="rUbicacion">Sin capturar</dd>
+      </div>
+      <div>
+        <dt>Resguardante</dt>
+        <dd id="rResguardante">Sin capturar</dd>
+      </div>
+    </dl>
+
+    <p class="form-resumen__nota">
+      La etiqueta con el código QR se genera al guardar el equipo.
+    </p>
+  </aside>
+
+</div>
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  var origen = document.getElementById('origen');
+  var cMarbete = document.getElementById('campoMarbete');
+  var cFolio = document.getElementById('campoFolio');
+  var inputMarbete = document.getElementById('marbete_oficial');
+  var inputFolio = document.getElementById('folio_interno');
+  var btnEditar = document.getElementById('btnEditarFolio');
+  var ayudaFolio = document.getElementById('ayudaFolio');
+  var previewFolio = document.getElementById('previewFolio');
+  var costo = document.getElementById('costo_adquisicion');
+  var donado = document.getElementById('donado');
+  var badge = document.getElementById('badgeRegistro');
+
+  var rIdentificador = document.getElementById('rIdentificador');
+  var rOrigen = document.getElementById('rOrigen');
+  var rEquipo = document.getElementById('rEquipo');
+  var rSerie = document.getElementById('rSerie');
+  var rCategoria = document.getElementById('rCategoria');
+  var rUbicacion = document.getElementById('rUbicacion');
+  var rResguardante = document.getElementById('rResguardante');
+
+  var folioSugerido = inputFolio.value;
+
+  function textoDe(id) {
+    var el = document.getElementById(id);
+    if (!el) { return ''; }
+    if (el.tagName === 'SELECT') {
+      var op = el.options[el.selectedIndex];
+      return op && op.value ? op.text : '';
+    }
+    return el.value.trim();
+  }
+
+  function sincronizarResumen() {
+    var ident = origen.value === 'ACT'
+      ? inputMarbete.value.trim()
+      : inputFolio.value.trim();
+    var equipo = [textoDe('marca'), textoDe('modelo')].filter(Boolean).join(' ');
+
+    rIdentificador.textContent = ident || 'Sin capturar';
+    rOrigen.textContent = textoDe('origen') || 'Activo';
+    rEquipo.textContent = equipo || 'Sin capturar';
+    rSerie.textContent = textoDe('num_serie') || 'Sin capturar';
+    rCategoria.textContent = textoDe('categoria') || 'Sin capturar';
+    rUbicacion.textContent = textoDe('ubicacion') || 'Sin capturar';
+    rResguardante.textContent = textoDe('resguardante') || 'Sin capturar';
+  }
+
+  function sincronizarIdentificador() {
+    var esActivo = origen.value === 'ACT';
+
+    cMarbete.hidden = !esActivo;
+    cFolio.hidden = esActivo;
+    inputMarbete.required = esActivo;
+    inputFolio.required = !esActivo;
+
+    previewFolio.hidden = !esActivo;
+    if (esActivo) {
+      previewFolio.innerHTML = 'Se asignará el folio interno <strong>' + folioSugerido + '</strong>.';
+    }
+
+    sincronizarResumen();
+  }
+
+  origen.addEventListener('change', sincronizarIdentificador);
+  sincronizarIdentificador();
+
+  function aplicarFolio() {
+    inputFolio.readOnly = true;
+    btnEditar.textContent = 'Editar';
+    ayudaFolio.textContent = 'El sistema lo asigna automáticamente.';
+  }
+
+  btnEditar.addEventListener('click', function () {
+    if (inputFolio.readOnly) {
+      inputFolio.readOnly = false;
+      inputFolio.focus();
+      inputFolio.select();
+      btnEditar.textContent = 'Listo';
+      ayudaFolio.textContent = 'Si lo cambias, dejará de seguir el consecutivo del sistema.';
+    } else {
+      aplicarFolio();
+    }
+    sincronizarResumen();
+  });
+
+  inputFolio.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      aplicarFolio();
+      sincronizarResumen();
+    }
+  });
+
+  function sincronizarEstado() {
+    if (donado.checked) {
+      badge.textContent = 'Donado';
+      badge.className = 'badge-estado badge-estado--violeta';
+      return;
+    }
+
+    var monto = Number(costo.value);
+
+    if (costo.value.trim() !== '' && monto > 0) {
+      badge.textContent = 'Registrado';
+      badge.className = 'badge-estado badge-estado--verde';
+    } else {
+      badge.textContent = 'Pendiente';
+      badge.className = 'badge-estado badge-estado--ambar';
+    }
+  }
+
+  costo.addEventListener('input', sincronizarEstado);
+  donado.addEventListener('change', sincronizarEstado);
+
+  document.querySelectorAll('#formEquipo input, #formEquipo select').forEach(function (el) {
+    el.addEventListener('input', sincronizarResumen);
+    el.addEventListener('change', sincronizarResumen);
+  });
+
+  sincronizarEstado();
+  sincronizarResumen();
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ic-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 16px;
+    padding: 7px 13px 7px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background .14s ease, color .14s ease, border-color .14s ease;
+  }
+
+  .ic-back:hover {
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-color: var(--ic-primary);
+  }
+
+  .form-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 316px;
+    gap: 20px;
+    align-items: start;
+    max-width: 1360px;
+  }
+
+  .form-equipo { max-width: none; }
+
+  .form-resumen {
+    position: sticky;
+    top: 88px;
+    padding: 20px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .form-resumen__title {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ic-ink);
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .form-resumen__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-resumen__lista > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .form-resumen__lista dt {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--ic-subtle);
+  }
+
+  .form-resumen__lista dd {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-text);
+    word-break: break-word;
+  }
+
+  .form-resumen__nota {
+    margin-top: 16px;
+    padding-top: 14px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ic-muted);
+    border-top: 1px solid var(--ic-border);
+  }
+
+  .form-card {
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .form-card__title {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ic-ink);
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .campo { margin-bottom: 14px; }
+  .campo:last-child { margin-bottom: 0; }
+
+  .campo__label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ic-text);
+  }
+
+  .campo__req { color: #B42318; }
+
+  .campo__control {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+  }
+
+  .campo__control:focus {
+    outline: none;
+    border-color: var(--ic-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
+  }
+
+  .campo__control[readonly] {
+    color: var(--ic-muted);
+    background: #FBFCFC;
+  }
+
+  textarea.campo__control { min-height: 82px; resize: vertical; }
+
+  .campo__ayuda {
+    margin: 5px 0 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ic-muted);
+  }
+
+  .campo__error {
+    margin: 5px 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #B42318;
+  }
+
+  .campo__folio { display: flex; gap: 8px; }
+  .campo__folio .campo__control { flex: 1; }
+
+  .campo__folio-btn {
+    flex-shrink: 0;
+    min-width: 78px;
+    padding: 0 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ic-primary-hover);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .campo__folio-btn:hover {
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-color: var(--ic-primary);
+  }
+
+  .campo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 18px;
+  }
+
+  .campo-grid .campo { min-width: 0; }
+
+  .campo__derivado {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+  }
+
+  .campo--check { margin-top: 2px; }
+
+  .campo__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--ic-text);
+    cursor: pointer;
+  }
+
+  .campo__check input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: var(--ic-primary);
+    cursor: pointer;
+  }
+
+  .form-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-bottom: 24px;
+  }
+
+  .form-acciones .btn { min-width: 130px; }
+
+  @media (max-width: 760px) {
+    .campo-grid { grid-template-columns: 1fr; }
+    .form-card { padding: 16px; }
+    .form-acciones {
+      flex-direction: column-reverse;
+      position: sticky;
+      bottom: 0;
+      padding: 12px 0 16px;
+      background: var(--ic-bg);
+    }
+    .form-acciones .btn { width: 100%; }
+  }
+
+  @media (max-width: 1180px) {
+    .form-layout { grid-template-columns: 1fr; }
+    .form-resumen { display: none; }
+  }
+</style>
+{% endblock %}

@@ -25,9 +25,13 @@
       <span class="badge-estado badge-estado--operativo">{{ equipo.estado_operativo }}</span>
     </div>
     <p class="equipo-header__ids">
-      Marbete <strong>{{ equipo.marbete_oficial }}</strong>
+      {% if equipo.marbete_oficial %}
+        Marbete <strong>{{ equipo.marbete_oficial }}</strong>
+      {% else %}
+        Folio interno <strong>{{ equipo.folio_interno }}</strong>
+      {% endif %}
       <span class="equipo-header__dot">·</span>
-      Folio <strong>{{ equipo.folio_interno }}</strong>
+      {{ equipo.origen }}
     </p>
   </div>
 
