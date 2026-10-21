@@ -1,7 +1,3 @@
-/* ============================================================
-   InventaCore — Layout del área autenticada (sidebar + topbar)
-   ============================================================ */
-
 .app {
   display: grid;
   grid-template-columns: 264px 1fr;
@@ -12,8 +8,6 @@
 .app--collapsed {
   grid-template-columns: 76px 1fr;
 }
-
-/* ---------- Sidebar ---------- */
 
 .sidebar {
   position: sticky;
@@ -33,7 +27,6 @@
     transform 0.22s ease;
 }
 
-.sidebar--brand,
 .sidebar__brand {
   display: flex;
   align-items: center;
@@ -136,8 +129,6 @@
   white-space: nowrap;
 }
 
-/* ---------- Cerrar sesión ---------- */
-
 .sidebar__logout {
   display: flex;
   align-items: center;
@@ -183,8 +174,6 @@
   font-weight: 600;
 }
 
-/* ---------- Sidebar colapsado (solo escritorio) ---------- */
-
 .app--collapsed .sidebar__brand-text,
 .app--collapsed .sidebar__group-label,
 .app--collapsed .sidebar__link span,
@@ -210,8 +199,6 @@
   display: none;
 }
 
-/* ---------- Columna principal ---------- */
-
 .app__main {
   display: flex;
   flex-direction: column;
@@ -222,8 +209,6 @@
   flex: 1;
   padding: 26px 32px 48px;
 }
-
-/* ---------- Topbar ---------- */
 
 .topbar {
   position: sticky;
@@ -327,6 +312,7 @@
   font-weight: 600;
   color: var(--ic-ink);
 }
+
 .topbar__user-role {
   font-size: 11px;
   color: var(--ic-muted);
@@ -337,8 +323,6 @@
   height: 14px;
   color: rgba(255, 255, 255, 0.7);
 }
-
-/* ---------- Modal de cerrar sesión ---------- */
 
 #modalLogout .modal-content {
   border: none;
@@ -392,9 +376,48 @@
   border-color: #912018;
 }
 
-/* ============================================================
-   Responsivo: sidebar como cajón deslizante
-   ============================================================ */
+.badge-estado {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-estado + .badge-estado {
+  margin-left: 6px;
+}
+
+.badge-estado--verde {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.badge-estado--azul {
+  color: #175cd3;
+  background: #eff8ff;
+}
+
+.badge-estado--ambar {
+  color: #b54708;
+  background: #fffaeb;
+}
+
+.badge-estado--rojo {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.badge-estado--gris {
+  color: #475467;
+  background: #f2f4f7;
+}
+
+.badge-estado--violeta {
+  color: #6941c6;
+  background: #f4ebff;
+}
 
 .app__overlay {
   display: none;
@@ -418,7 +441,6 @@
     box-shadow: 0 0 40px rgba(9, 40, 33, 0.28);
   }
 
-  /* Dentro del cajón siempre se ve completo */
   .app--collapsed .sidebar__brand-text,
   .app--collapsed .sidebar__group-label,
   .app--collapsed .sidebar__version-row {
@@ -467,10 +489,31 @@
   .topbar {
     padding: 12px 16px;
   }
+
   .topbar__user-info {
     display: none;
   }
+
   .app__content {
     padding: 20px 18px 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .topbar__title {
+    font-size: 16px;
+  }
+
+  .topbar__subtitle {
+    display: none;
+  }
+
+  .app__content {
+    padding: 16px 14px 32px;
   }
 }

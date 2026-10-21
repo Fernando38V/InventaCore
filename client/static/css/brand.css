@@ -17,6 +17,10 @@
   /* Superficies */
   --ic-bg: #f6f8f7;
   --ic-border: #dde3e1;
+  --ic-subtle: #8a9793;
+  --ic-border-strong: #c3ccc9;
+
+  color-scheme: light;
 }
 
 /* Base tipográfica */
