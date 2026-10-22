@@ -1,0 +1,645 @@
+{% extends "base/layout_app.html" %}
+
+{% block title %}Movimientos · InventaCore{% endblock %}
+{% block nav_movimientos %}active{% endblock %}
+{% block page_title %}Movimientos{% endblock %}
+{% block page_subtitle %}Trazabilidad del equipo electrónico del Departamento de Informática{% endblock %}
+
+{% block app_content %}
+
+{% if registrado %}
+<div class="aviso-ok">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  Movimiento <strong>{{ registrado }}</strong> registrado correctamente.
+</div>
+{% endif %}
+
+<div class="lista-header">
+  <p class="lista-header__conteo">
+    {% if hay_filtros %}
+      <strong>{{ total }}</strong> movimiento{{ total|pluralize }} encontrado{{ total|pluralize }}
+    {% else %}
+      <strong>{{ total }}</strong> movimiento{{ total|pluralize }} registrado{{ total|pluralize }}
+    {% endif %}
+  </p>
+
+  <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="{% url 'movimientos:nuevo' %}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Nuevo movimiento
+  </a>
+</div>
+
+<form class="filtros" method="get" action="{% url 'movimientos:listado' %}" id="formFiltros">
+
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q" value="{{ f.q }}"
+             placeholder="Folio, equipo, tipo o personal"
+             aria-label="Buscar movimiento">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+  </div>
+
+  <div class="filtros__selects">
+    <select class="filtros__select" name="tipo" data-autosubmit aria-label="Filtrar por tipo">
+      <option value="">Todos los tipos</option>
+      {% for t in tipos %}
+      <option value="{{ t.codigo }}" {% if f.tipo == t.codigo %}selected{% endif %}>{{ t.nombre }}</option>
+      {% endfor %}
+    </select>
+
+    <select class="filtros__select" name="ubicacion" data-autosubmit aria-label="Filtrar por ubicación">
+      <option value="">Todas las ubicaciones</option>
+      {% for u in ubicaciones %}
+      <option value="{{ u.codigo }}" {% if f.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>
+      {% endfor %}
+    </select>
+
+    {% if hay_filtros %}
+    <a class="filtros__limpiar" href="{% url 'movimientos:listado' %}">Limpiar</a>
+    {% endif %}
+  </div>
+
+</form>
+
+{% if movimientos %}
+
+<div class="tabla-wrap">
+  <table class="tabla-equipos">
+    <thead>
+      <tr>
+        <th>Folio</th>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Equipo</th>
+        <th>Recorrido</th>
+        <th>Personal</th>
+        <th><span class="visually-hidden">Acciones</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      <tr>
+        <td data-label="Folio">
+          <span class="celda-id">{{ m.folio }}</span>
+          {% if m.genera_resguardo %}
+          <span class="celda-secundaria">Genera resguardo</span>
+          {% endif %}
+        </td>
+        <td data-label="Fecha" class="celda-fecha">
+          <span class="celda-fuerte">{{ m.fecha_dia }}</span>
+          <span class="celda-secundaria">{{ m.fecha_hora }}</span>
+        </td>
+        <td data-label="Tipo">{{ m.tipo.nombre }}</td>
+        <td data-label="Equipo">
+          <a class="celda-enlace" href="{% url 'equipos:detalle' m.equipo.num %}">{{ m.equipo.identificador }}</a>
+          <span class="celda-secundaria">{{ m.equipo.descripcion }}</span>
+        </td>
+        <td data-label="Recorrido" class="celda-recorrido">
+          {% if m.tipo.codigo == 'BAJA' %}
+            <span class="celda-origen">{{ m.ubicacion_origen.nombre }}</span>
+            <span class="celda-flecha">→</span>
+            <span class="celda-baja">Baja del inventario</span>
+          {% elif m.ubicacion_origen %}
+            <span class="celda-origen">{{ m.ubicacion_origen.nombre }}</span>
+            <span class="celda-flecha">→</span>
+            <span class="celda-destino">{{ m.ubicacion_llegada.nombre }}</span>
+          {% else %}
+            <span class="celda-destino">{{ m.ubicacion_llegada.nombre }}</span>
+          {% endif %}
+        </td>
+        <td data-label="Personal" class="celda-personal">
+          <span class="celda-fuerte">{{ m.personal_asigna.nombre }}</span>
+          {% if m.personal_entrega %}
+          <span class="celda-secundaria">Recibe de {{ m.personal_entrega.nombre }}</span>
+          {% else %}
+          <span class="celda-secundaria">Asigna</span>
+          {% endif %}
+        </td>
+        <td class="celda-accion">
+          <a class="celda-accion__link" href="{% url 'equipos:detalle' m.equipo.num %}"
+             aria-label="Ver el equipo de este movimiento">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="paginacion" aria-label="Paginación del listado">
+
+  <p class="paginacion__rango">
+    Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ total }}
+  </p>
+
+  <div class="paginacion__controles">
+    {% if page_obj.has_previous %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.previous_page_number }}">Anterior</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Anterior</span>
+    {% endif %}
+
+    {% for p in rango_paginas %}
+      {% if p == pagina_elipsis %}
+        <span class="paginacion__puntos">…</span>
+      {% elif p == page_obj.number %}
+        <span class="paginacion__num is-active">{{ p }}</span>
+      {% else %}
+        <a class="paginacion__num" href="{{ qs_prefijo }}page={{ p }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.next_page_number }}">Siguiente</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Siguiente</span>
+    {% endif %}
+  </div>
+
+</nav>
+{% endif %}
+
+{% else %}
+
+<div class="vacio">
+  <div class="vacio__icono">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/></svg>
+  </div>
+  {% if hay_filtros %}
+    <h2 class="vacio__titulo">Ningún movimiento coincide</h2>
+    <p class="vacio__texto">Prueba con otra búsqueda o quita los filtros aplicados.</p>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientos:listado' %}">Limpiar filtros</a>
+  {% else %}
+    <h2 class="vacio__titulo">Todavía no hay movimientos registrados</h2>
+    <p class="vacio__texto">Cuando se dé de alta o se reubique un equipo aparecerá aquí.</p>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+  document.querySelectorAll('[data-autosubmit]').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      document.getElementById('formFiltros').submit();
+    });
+  });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .aviso-ok {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 15px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #067647;
+    background: #ECFDF3;
+    border: 1px solid #ABEFC6;
+    border-radius: 10px;
+  }
+
+  .lista-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .lista-header__conteo {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--ic-muted);
+  }
+
+  .lista-header__conteo strong {
+    color: var(--ic-ink);
+    font-weight: 700;
+  }
+
+  .filtros {
+    padding: 13px 16px;
+    margin-bottom: 14px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .filtros__busqueda {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+
+  .filtros__campo {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .filtros__lupa {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    color: var(--ic-muted);
+    pointer-events: none;
+  }
+
+  .filtros__input {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 14px 9px 38px;
+    font-size: 13.5px;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+  }
+
+  .filtros__input::placeholder { color: var(--ic-subtle); }
+
+  .filtros__input:focus {
+    outline: none;
+    border-color: var(--ic-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
+  }
+
+  .filtros__btn {
+    flex-shrink: 0;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .filtros__selects {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .filtros__select {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 30px 7px 11px;
+    font-size: 12.5px;
+    color: var(--ic-text);
+    background-color: #FFFFFF;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b67' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+
+  .filtros__select:focus {
+    outline: none;
+    border-color: var(--ic-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
+  }
+
+  .filtros__select option {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--ic-text);
+    background-color: #FFFFFF;
+  }
+
+  .filtros__limpiar {
+    justify-self: start;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ic-primary-hover);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .filtros__limpiar:hover {
+    color: var(--ic-primary-active);
+    text-decoration: underline;
+  }
+
+  .tabla-wrap {
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .tabla-equipos {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .tabla-equipos th {
+    padding: 9px 16px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--ic-muted);
+    background: #FBFCFC;
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .tabla-equipos td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--ic-text);
+    vertical-align: middle;
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .tabla-equipos tbody tr:last-child td { border-bottom: none; }
+  .tabla-equipos tbody tr:hover { background: #FCFDFD; }
+
+  .celda-id {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ic-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .celda-enlace {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ic-primary-hover);
+    text-decoration: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .celda-enlace:hover { text-decoration: underline; }
+
+  .celda-secundaria {
+    display: block;
+    margin-top: 1px;
+    font-size: 11.5px;
+    color: var(--ic-subtle);
+  }
+
+  .celda-fuerte {
+    display: block;
+    font-weight: 600;
+    color: var(--ic-ink);
+  }
+
+  .celda-fecha { white-space: nowrap; }
+
+  .celda-recorrido {
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .celda-origen {
+    color: var(--ic-muted);
+    text-decoration: line-through;
+  }
+
+  .celda-flecha {
+    margin: 0 5px;
+    color: var(--ic-subtle);
+  }
+
+  .celda-destino {
+    font-weight: 600;
+    color: var(--ic-ink);
+  }
+
+  .celda-baja {
+    font-weight: 600;
+    color: #B42318;
+  }
+
+  .celda-personal { max-width: 220px; }
+
+  .celda-accion {
+    width: 44px;
+    text-align: right;
+    padding-right: 12px;
+  }
+
+  .celda-accion__link {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    color: var(--ic-muted);
+    border-radius: 7px;
+    text-decoration: none;
+  }
+
+  .celda-accion__link:hover {
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+  }
+
+  .paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .paginacion__rango {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--ic-muted);
+  }
+
+  .paginacion__controles {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .paginacion__btn,
+  .paginacion__num {
+    display: inline-grid;
+    place-items: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 11px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
+  .paginacion__btn:hover,
+  .paginacion__num:hover {
+    color: var(--ic-primary);
+    border-color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+  }
+
+  .paginacion__num.is-active {
+    color: #FFFFFF;
+    font-weight: 700;
+    background: var(--ic-primary);
+    border-color: var(--ic-primary);
+  }
+
+  .paginacion__btn.is-disabled {
+    color: var(--ic-subtle);
+    background: #FBFCFC;
+    cursor: default;
+  }
+
+  .paginacion__puntos {
+    padding: 0 4px;
+    font-size: 12.5px;
+    color: var(--ic-subtle);
+  }
+
+  .vacio {
+    padding: 58px 24px;
+    text-align: center;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .vacio__icono {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    color: var(--ic-muted);
+    background: var(--ic-bg);
+    border-radius: 50%;
+  }
+
+  .vacio__titulo {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--ic-ink);
+  }
+
+  .vacio__texto {
+    margin: 6px 0 16px;
+    font-size: 13.5px;
+    color: var(--ic-muted);
+  }
+
+  @media (max-width: 1180px) {
+    .celda-personal { max-width: none; }
+  }
+
+  @media (max-width: 900px) {
+    .filtros__selects { grid-template-columns: 1fr; }
+    .filtros__limpiar { grid-column: 1 / -1; }
+  }
+
+  @media (max-width: 760px) {
+
+    .tabla-equipos thead { display: none; }
+
+    .tabla-equipos,
+    .tabla-equipos tbody,
+    .tabla-equipos tr,
+    .tabla-equipos td {
+      display: block;
+      width: 100%;
+    }
+
+    .tabla-equipos tr {
+      padding: 16px;
+      border-bottom: 1px solid var(--ic-border);
+    }
+
+    .tabla-equipos tbody tr:last-child { border-bottom: none; }
+
+    .tabla-equipos td {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 5px 0;
+      border: none;
+      text-align: left;
+    }
+
+    .tabla-equipos td::before {
+      content: attr(data-label);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--ic-subtle);
+    }
+
+    .celda-accion {
+      width: 100%;
+      padding-top: 10px;
+    }
+
+    .celda-accion::before { display: none; }
+
+    .celda-accion__link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 36px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ic-primary-hover);
+      border: 1px solid var(--ic-border);
+      border-radius: 8px;
+    }
+
+    .celda-accion__link::after { content: "Ver equipo"; }
+    .celda-accion__link svg { display: none; }
+
+    .paginacion { justify-content: center; }
+  }
+
+  @media (max-width: 560px) {
+    .lista-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .lista-header .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .filtros__busqueda { flex-direction: column; }
+    .filtros__btn { width: 100%; }
+  }
+</style>
+{% endblock %}

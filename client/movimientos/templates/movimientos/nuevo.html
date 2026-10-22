@@ -1,0 +1,622 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Nuevo movimiento · InventaCore{% endblock %}
+{% block nav_movimientos %}active{% endblock %}
+{% block page_title %}Nuevo movimiento{% endblock %}
+{% block page_subtitle %}Registra el cambio de ubicación, resguardante o estado de un equipo{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'movimientos:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver a movimientos
+</a>
+
+<div class="form-layout">
+
+<form method="post" novalidate id="formMovimiento">
+  {% csrf_token %}
+  <input type="hidden" name="bloqueado" value="{{ bloqueado|yesno:'1,0' }}">
+
+  <div class="mov-card">
+    <h3 class="mov-card__title">Equipo</h3>
+
+    {% if equipo_fijo %}
+      <input type="hidden" name="equipo" value="{{ equipo_fijo.num }}">
+      <div class="equipo-fijo">
+        <div class="equipo-fijo__id">{{ equipo_fijo.identificador }}</div>
+        <div class="equipo-fijo__desc">{{ equipo_fijo.marca }} {{ equipo_fijo.modelo }}</div>
+        <div class="equipo-fijo__meta">
+          Actualmente en <strong>{{ equipo_fijo.ubicacion.nombre }}</strong>,
+          resguardado por <strong>{{ equipo_fijo.resguardante.nombre }}</strong>
+        </div>
+      </div>
+      <a class="equipo-fijo__cambiar" href="{% url 'movimientos:nuevo' %}">Elegir otro equipo</a>
+    {% else %}
+      <div class="campo">
+        <label class="campo__label" for="equipo">Selecciona el equipo</label>
+        <select class="campo__select {% if errores.equipo %}is-error{% endif %}" name="equipo" id="equipo" required>
+          <option value="">Buscar por identificador o modelo…</option>
+          {% for e in equipos %}
+          <option value="{{ e.num }}" {% if v.equipo_num == e.num|stringformat:"s" %}selected{% endif %}
+                  data-id="{{ e.identificador }}"
+                  data-desc="{{ e.marca }} {{ e.modelo }}"
+                  data-ubicacion="{{ e.ubicacion.nombre }}" data-resguardante="{{ e.resguardante.nombre }}">
+            {{ e.identificador }} — {{ e.marca }} {{ e.modelo }}
+          </option>
+          {% endfor %}
+        </select>
+        {% if errores.equipo %}<p class="campo__error">{{ errores.equipo }}</p>{% endif %}
+
+        <div class="equipo-fijo" id="equipoPreview" hidden>
+          <div class="equipo-fijo__id" id="equipoPreviewId"></div>
+          <div class="equipo-fijo__desc" id="equipoPreviewDesc"></div>
+          <div class="equipo-fijo__meta" id="equipoPreviewMeta"></div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="mov-card">
+    <h3 class="mov-card__title">Tipo de movimiento</h3>
+
+    <div class="campo">
+      <label class="campo__label" for="tipo">¿Qué va a pasar con el equipo?</label>
+      <select class="campo__select {% if errores.tipo %}is-error{% endif %}" name="tipo" id="tipo" required>
+        <option value="">Selecciona el tipo</option>
+        {% for t in tipos %}
+        <option value="{{ t.codigo }}" {% if v.tipo == t.codigo %}selected{% endif %}>{{ t.nombre }}</option>
+        {% endfor %}
+      </select>
+      {% if errores.tipo %}<p class="campo__error">{{ errores.tipo }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="mov-card" id="bloqueUbicacion" hidden>
+    <h3 class="mov-card__title" id="tituloUbicacion">Ubicación</h3>
+    <div class="campo">
+      <label class="campo__label" for="ubicacion" id="labelUbicacion">Ubicación</label>
+      <select class="campo__select {% if errores.ubicacion %}is-error{% endif %}" name="ubicacion" id="ubicacion">
+        <option value="">Selecciona la ubicación</option>
+        {% for u in ubicaciones %}
+        {% if u.codigo != 'UBI-NOLOC' %}
+        <option value="{{ u.codigo }}" {% if v.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      {% if errores.ubicacion %}<p class="campo__error">{{ errores.ubicacion }}</p>{% endif %}
+      <p class="campo__ayuda" id="ayudaUbicacion"></p>
+    </div>
+  </div>
+
+  <div class="mov-card" id="bloqueResguardante" hidden>
+    <h3 class="mov-card__title">Resguardante</h3>
+    <div class="campo">
+      <label class="campo__label" for="resguardante">Nuevo resguardante</label>
+      <select class="campo__select" name="resguardante" id="resguardante">
+        <option value="">Selecciona el resguardante</option>
+        {% for p in personal %}
+        <option value="{{ p }}" {% if v.resguardante == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+      <p class="campo__ayuda">Especifica una nueva ubicación, un nuevo resguardante, o ambos.</p>
+    </div>
+  </div>
+
+  <div class="mov-card">
+    <h3 class="mov-card__title">Motivo y fecha</h3>
+
+    <div class="campo">
+      <label class="campo__label" for="motivo">Motivo del movimiento</label>
+      <textarea class="campo__textarea {% if errores.motivo %}is-error{% endif %}"
+                name="motivo" id="motivo" rows="3"
+                placeholder="Describe brevemente por qué se registra este movimiento">{{ v.motivo }}</textarea>
+      {% if errores.motivo %}<p class="campo__error">{{ errores.motivo }}</p>{% endif %}
+    </div>
+
+    <div class="campo campo--corto">
+      <label class="campo__label" for="fecha">Fecha del movimiento</label>
+      <input class="campo__input {% if errores.fecha %}is-error{% endif %}"
+             type="date" name="fecha" id="fecha" value="{{ v.fecha }}" max="{{ hoy }}">
+      {% if errores.fecha %}<p class="campo__error">{{ errores.fecha }}</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="mov-acciones">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientos:listado' %}">Cancelar</a>
+    <button class="btn btn-primary btn-sm" type="button" id="btnAbrirConfirmar">Registrar movimiento</button>
+  </div>
+
+</form>
+
+  <aside class="mov-resumen">
+    <h2 class="mov-resumen__title">Resumen del movimiento</h2>
+    <dl class="mov-resumen__lista">
+      <div><dt>Equipo</dt><dd id="rsEquipo">Sin seleccionar</dd></div>
+      <div><dt>Tipo de movimiento</dt><dd id="rsTipo">Sin seleccionar</dd></div>
+      <div><dt>Nueva ubicación</dt><dd id="rsUbicacion">—</dd></div>
+      <div><dt>Nuevo resguardante</dt><dd id="rsResguardante">—</dd></div>
+      <div><dt>Fecha</dt><dd id="rsFecha">Sin capturar</dd></div>
+    </dl>
+    <p class="mov-resumen__nota">
+      El movimiento queda sellado con tu usuario al registrarse y no podrá eliminarse.
+    </p>
+  </aside>
+
+</div>
+
+<div class="modal fade" id="modalConfirmar" tabindex="-1" aria-labelledby="modalConfirmarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="confirmar-modal__icon">
+          <svg width="22" height="22"><use href="#icon-clipboard"/></svg>
+        </div>
+        <h2 class="confirmar-modal__title" id="modalConfirmarLabel">¿Confirmar este movimiento?</h2>
+        <dl class="confirmar-modal__resumen" id="resumenMovimiento"></dl>
+        <p class="confirmar-modal__aviso">
+          El registro queda sellado con tu usuario y la fecha de hoy.
+          Una vez guardado, no podrá eliminarse.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          Revisar de nuevo
+        </button>
+        <button type="submit" form="formMovimiento" class="btn btn-primary btn-sm">
+          Sí, registrar movimiento
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  var tipoSel = document.getElementById('tipo');
+  var bloqueUbicacion = document.getElementById('bloqueUbicacion');
+  var bloqueResguardante = document.getElementById('bloqueResguardante');
+  var tituloUbicacion = document.getElementById('tituloUbicacion');
+  var labelUbicacion = document.getElementById('labelUbicacion');
+  var ayudaUbicacion = document.getElementById('ayudaUbicacion');
+  var ubicacionSel = document.getElementById('ubicacion');
+  var resguardanteSel = document.getElementById('resguardante');
+  var equipoSel = document.getElementById('equipo');
+  var motivoTxt = document.getElementById('motivo');
+  var fechaInput = document.getElementById('fecha');
+
+  var NOMBRE_TIPO = {};
+  document.querySelectorAll('#tipo option').forEach(function (op) {
+    if (op.value) NOMBRE_TIPO[op.value] = op.text;
+  });
+
+  function sincronizarTipo() {
+    var tipo = tipoSel.value;
+
+    bloqueUbicacion.hidden = !(tipo === 'REUB' || tipo === 'REPA' || tipo === 'RETE' || tipo === 'BAJA');
+    bloqueResguardante.hidden = (tipo !== 'REUB');
+
+    if (tipo === 'REUB') {
+      tituloUbicacion.textContent = 'Ubicación';
+      labelUbicacion.textContent = 'Nueva ubicación';
+      ayudaUbicacion.textContent = 'Déjala vacía si solo cambia el resguardante.';
+    } else if (tipo === 'REPA') {
+      tituloUbicacion.textContent = 'Ubicación';
+      labelUbicacion.textContent = 'Ubicación durante la reparación';
+      ayudaUbicacion.textContent = 'Normalmente queda como Sin ubicar / No localizado.';
+    } else if (tipo === 'RETE') {
+      tituloUbicacion.textContent = 'Ubicación';
+      labelUbicacion.textContent = 'Ubicación al regresar';
+      ayudaUbicacion.textContent = 'Indica a dónde vuelve el equipo.';
+    } else if (tipo === 'BAJA') {
+      tituloUbicacion.textContent = 'Ubicación';
+      labelUbicacion.textContent = 'Última ubicación conocida';
+      ayudaUbicacion.textContent = 'El equipo se marcará como baja del inventario.';
+    }
+
+    sincronizarResumen();
+  }
+
+  tipoSel.addEventListener('change', sincronizarTipo);
+  sincronizarTipo();
+
+  if (equipoSel) {
+    function sincronizarEquipo() {
+      var op = equipoSel.options[equipoSel.selectedIndex];
+      var preview = document.getElementById('equipoPreview');
+      if (op && op.value) {
+        document.getElementById('equipoPreviewId').textContent = op.dataset.id;
+        document.getElementById('equipoPreviewDesc').textContent = op.dataset.desc;
+        document.getElementById('equipoPreviewMeta').innerHTML =
+          'Actualmente en <strong>' + op.dataset.ubicacion + '</strong>, resguardado por <strong>' + op.dataset.resguardante + '</strong>';
+        preview.hidden = false;
+      } else {
+        preview.hidden = true;
+      }
+      sincronizarResumen();
+    }
+    equipoSel.addEventListener('change', sincronizarEquipo);
+    sincronizarEquipo();
+  }
+
+  if (ubicacionSel) ubicacionSel.addEventListener('change', sincronizarResumen);
+  if (resguardanteSel) resguardanteSel.addEventListener('change', sincronizarResumen);
+  fechaInput.addEventListener('input', sincronizarResumen);
+
+  function sincronizarResumen() {
+    var equipoTxt = 'Sin seleccionar';
+    if (equipoSel) {
+      var op = equipoSel.options[equipoSel.selectedIndex];
+      if (op && op.value) equipoTxt = op.dataset.id + ' — ' + op.dataset.desc;
+    } else {
+      var fijoId = document.querySelector('.equipo-fijo__id');
+      if (fijoId) equipoTxt = fijoId.textContent;
+    }
+    document.getElementById('rsEquipo').textContent = equipoTxt;
+
+    document.getElementById('rsTipo').textContent = NOMBRE_TIPO[tipoSel.value] || 'Sin seleccionar';
+
+    var ubicTxt = '—';
+    if (!bloqueUbicacion.hidden && ubicacionSel.value) {
+      ubicTxt = ubicacionSel.options[ubicacionSel.selectedIndex].text;
+    }
+    document.getElementById('rsUbicacion').textContent = ubicTxt;
+
+    var resgTxt = '—';
+    if (!bloqueResguardante.hidden && resguardanteSel.value) {
+      resgTxt = resguardanteSel.value;
+    }
+    document.getElementById('rsResguardante').textContent = resgTxt;
+
+    document.getElementById('rsFecha').textContent = fechaInput.value || 'Sin capturar';
+  }
+
+  function limpiarErrores() {
+    document.querySelectorAll('.is-error-js').forEach(function (el) {
+      el.classList.remove('is-error-js');
+    });
+    document.querySelectorAll('.campo__error-js').forEach(function (el) {
+      el.remove();
+    });
+  }
+
+  function marcarError(campo, mensaje) {
+    campo.classList.add('is-error-js');
+    var p = document.createElement('p');
+    p.className = 'campo__error campo__error-js';
+    p.textContent = mensaje;
+    campo.insertAdjacentElement('afterend', p);
+    campo.focus();
+  }
+
+  function validar() {
+    limpiarErrores();
+
+    if (!tipoSel.value) {
+      marcarError(tipoSel, 'Selecciona el tipo de movimiento.');
+      return false;
+    }
+    if (equipoSel && !equipoSel.value) {
+      marcarError(equipoSel, 'Selecciona el equipo.');
+      return false;
+    }
+    if (tipoSel.value === 'REUB' && !ubicacionSel.value && !resguardanteSel.value) {
+      marcarError(ubicacionSel, 'Especifica una nueva ubicación, un nuevo resguardante, o ambos.');
+      return false;
+    }
+    if (tipoSel.value === 'RETE' && !ubicacionSel.value) {
+      marcarError(ubicacionSel, 'Indica dónde se reintegra el equipo.');
+      return false;
+    }
+    if (!motivoTxt.value.trim()) {
+      marcarError(motivoTxt, 'El motivo es obligatorio.');
+      return false;
+    }
+    if (!fechaInput.value) {
+      marcarError(fechaInput, 'Falta la fecha.');
+      return false;
+    }
+    return true;
+  }
+
+  function construirResumenModal() {
+    sincronizarResumen();
+    var filas = [
+      ['Tipo', document.getElementById('rsTipo').textContent],
+      ['Equipo', document.getElementById('rsEquipo').textContent],
+    ];
+    if (!bloqueUbicacion.hidden && ubicacionSel.value) {
+      filas.push(['Nueva ubicación', document.getElementById('rsUbicacion').textContent]);
+    }
+    if (!bloqueResguardante.hidden && resguardanteSel.value) {
+      filas.push(['Nuevo resguardante', document.getElementById('rsResguardante').textContent]);
+    }
+    filas.push(['Fecha', document.getElementById('rsFecha').textContent]);
+
+    var html = '';
+    filas.forEach(function (f) {
+      html += '<div class="confirmar-modal__fila"><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>';
+    });
+    document.getElementById('resumenMovimiento').innerHTML = html;
+  }
+
+  document.getElementById('btnAbrirConfirmar').addEventListener('click', function () {
+    if (!validar()) return;
+    construirResumenModal();
+    var modal = new bootstrap.Modal(document.getElementById('modalConfirmar'));
+    modal.show();
+  });
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ic-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 16px;
+    padding: 7px 13px 7px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    text-decoration: none;
+  }
+
+  .ic-back:hover {
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-color: var(--ic-primary);
+  }
+
+  .form-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 316px;
+    gap: 20px;
+    align-items: start;
+    max-width: 1360px;
+  }
+
+  .mov-card {
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .mov-card__title {
+    margin-bottom: 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ic-ink);
+  }
+
+  .campo { margin-bottom: 4px; }
+  .campo--corto { max-width: 220px; }
+
+  .campo__label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ic-text);
+  }
+
+  .campo__select,
+  .campo__input,
+  .campo__textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--ic-text);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+  }
+
+  .campo__textarea { min-height: auto; resize: vertical; }
+
+  .campo__select:focus,
+  .campo__input:focus,
+  .campo__textarea:focus {
+    outline: none;
+    border-color: var(--ic-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
+  }
+
+  .campo__select.is-error,
+  .campo__input.is-error,
+  .campo__textarea.is-error,
+  .is-error-js {
+    border-color: #B42318;
+  }
+
+  .campo__error {
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #B42318;
+  }
+
+  .campo__ayuda {
+    margin-top: 5px;
+    font-size: 11.5px;
+    color: var(--ic-muted);
+    min-height: 14px;
+  }
+
+  .equipo-fijo {
+    margin-top: 10px;
+    padding: 14px 16px;
+    background: var(--ic-bg);
+    border: 1px solid var(--ic-border);
+    border-radius: 10px;
+  }
+
+  .equipo-fijo__id {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ic-primary-hover);
+  }
+
+  .equipo-fijo__desc {
+    margin-top: 1px;
+    font-size: 13px;
+    color: var(--ic-text);
+  }
+
+  .equipo-fijo__meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--ic-muted);
+  }
+
+  .equipo-fijo__meta strong { color: var(--ic-text); }
+
+  .equipo-fijo__cambiar {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ic-primary-hover);
+    text-decoration: none;
+  }
+
+  .equipo-fijo__cambiar:hover { text-decoration: underline; }
+
+  .mov-acciones {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mov-resumen {
+    position: sticky;
+    top: 88px;
+    padding: 20px;
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 12px;
+  }
+
+  .mov-resumen__title {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ic-ink);
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .mov-resumen__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mov-resumen__lista > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .mov-resumen__lista dt {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--ic-subtle);
+  }
+
+  .mov-resumen__lista dd {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-text);
+    word-break: break-word;
+  }
+
+  .mov-resumen__nota {
+    margin-top: 16px;
+    padding-top: 14px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ic-muted);
+    border-top: 1px solid var(--ic-border);
+  }
+
+  #modalConfirmar .modal-content {
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(9, 40, 33, 0.18);
+  }
+
+  #modalConfirmar .modal-body { padding: 30px 28px 16px; text-align: center; }
+
+  .confirmar-modal__icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 16px;
+    color: var(--ic-primary);
+    background: var(--ic-primary-soft);
+    border-radius: 50%;
+  }
+
+  .confirmar-modal__title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ic-ink);
+  }
+
+  .confirmar-modal__resumen {
+    margin: 16px 0 0;
+    text-align: left;
+  }
+
+  .confirmar-modal__fila {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    font-size: 12.5px;
+    border-bottom: 1px solid var(--ic-border);
+  }
+
+  .confirmar-modal__fila:last-child { border-bottom: none; }
+  .confirmar-modal__fila dt { color: var(--ic-muted); flex-shrink: 0; }
+  .confirmar-modal__fila dd { color: var(--ic-ink); font-weight: 600; text-align: right; }
+
+  .confirmar-modal__aviso {
+    margin-top: 10px;
+    padding-top: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ic-muted);
+    border-top: 1px solid var(--ic-border);
+  }
+
+  #modalConfirmar .modal-footer {
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 28px 24px;
+    border-top: none;
+  }
+
+  @media (max-width: 1180px) {
+    .form-layout { grid-template-columns: 1fr; }
+    .mov-resumen { display: none; }
+  }
+</style>
+{% endblock %}

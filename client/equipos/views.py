@@ -33,9 +33,9 @@ ORIGENES = [
 
 ESTADOS_OPERATIVOS = [
     {'codigo': 'UTIL', 'nombre': 'Útil'},
-    {'codigo': 'REP', 'nombre': 'En reparación'},
-    {'codigo': 'BAJA', 'nombre': 'De baja'},
-    {'codigo': 'INAC', 'nombre': 'Inactivo'},
+    {'codigo': 'OBS', 'nombre': 'Obsoleto'},
+    {'codigo': 'AUTB', 'nombre': 'Autorizado para baja'},
+    {'codigo': 'NOLOC', 'nombre': 'No localizado'},
 ]
 
 ESTADOS_REGISTRO = [
@@ -56,9 +56,9 @@ _PERSONAL = {
     'Diana Laura Espinoza Núñez': 1074,
 }
 
-_NOMBRE_OPERATIVO = {'UTIL': 'Útil', 'REP': 'En reparación',
-                     'BAJA': 'De baja', 'INAC': 'Inactivo'}
-_TONO_OPERATIVO = {'UTIL': 'azul', 'REP': 'ambar', 'BAJA': 'rojo', 'INAC': 'gris'}
+_NOMBRE_OPERATIVO = {'UTIL': 'Útil', 'OBS': 'Obsoleto',
+                     'AUTB': 'Autorizado para baja', 'NOLOC': 'No localizado'}
+_TONO_OPERATIVO = {'UTIL': 'azul', 'OBS': 'gris', 'AUTB': 'rojo', 'NOLOC': 'ambar'}
 _NOMBRE_REGISTRO = {'REG': 'Registrado', 'PEND': 'Pendiente', 'DON': 'Donado'}
 _TONO_REGISTRO = {'REG': 'verde', 'PEND': 'ambar', 'DON': 'azul'}
 
@@ -135,7 +135,7 @@ def _equipos_prueba():
                 marbete='02-520-00031', costo='9740.00',
                 fecha_adquisicion='2020-11-04', fecha_alta='2026-09-23'),
         _equipo(9, 'TP-Link', 'TL-SG1024', 'TPL4419KK', 'CAT-SWT', 'ENS',
-                'UBI-LAB2', 'Diana Laura Espinoza Núñez', 'REP', 'REG',
+                'UBI-NOLOC', 'Diana Laura Espinoza Núñez', 'UTIL', 'REG',
                 folio='0214300046-001',
                 fecha_adquisicion='2019-06-12', fecha_alta='2026-09-30'),
         _equipo(10, 'Grandstream', 'GXP1625', 'GS16P2201', 'CAT-TIP', 'ACT',
@@ -143,7 +143,7 @@ def _equipos_prueba():
                 marbete='02-520-00041', costo='1290.00',
                 fecha_adquisicion='2022-04-15', fecha_alta='2026-09-27'),
         _equipo(11, 'Grandstream', 'GXP1625', 'GS16P2202', 'CAT-TIP', 'ACT',
-                'UBI-OFI', 'María Elena Ruiz Soto', 'BAJA', 'REG',
+                'UBI-OFI', 'María Elena Ruiz Soto', 'AUTB', 'REG',
                 marbete='02-520-00042', costo='1290.00',
                 fecha_adquisicion='2022-04-15', fecha_alta='2026-09-27'),
         _equipo(12, 'JBL', 'Amplificada 60W', 'JBLA2023X7', 'CAT-ALT', 'ENS',
@@ -155,7 +155,7 @@ def _equipos_prueba():
                 marbete='02-520-00051', costo='86400.00',
                 fecha_adquisicion='2022-07-19', fecha_alta='2026-09-24'),
         _equipo(14, 'Lenovo', 'ThinkCentre M720', 'PF2B8C44', 'CAT-PCE', 'COM',
-                'UBI-NOLOC', 'Diana Laura Espinoza Núñez', 'BAJA', 'REG',
+                'UBI-NOLOC', 'Diana Laura Espinoza Núñez', 'AUTB', 'REG',
                 folio='E-02-520-0183',
                 fecha_adquisicion='2020-02-27', fecha_alta='2026-10-02'),
     ]

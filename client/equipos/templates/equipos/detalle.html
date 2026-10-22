@@ -41,6 +41,11 @@
       Imprimir QR
     </button>
     {% if usuario.rol == 'ADMIN' %}
+    <a class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+       href="{% url 'movimientos:nuevo' %}?equipo={{ equipo.num }}">
+      <svg width="15" height="15"><use href="#icon-swap"/></svg>
+      Mover equipo
+    </a>
     <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="#">
       <svg width="15" height="15"><use href="#icon-edit"/></svg>
       Editar
