@@ -1,7 +1,7 @@
 {% extends "base/layout_app.html" %}
 {% load static %}
 
-{% block title %}Equipo {{ equipo.folio_interno }} · InventaCore{% endblock %}
+{% block title %}Equipo {{ equipo.identificador }} · InventaCore{% endblock %}
 {% block nav_equipos %}active{% endblock %}
 {% block page_title %}Detalle de Equipo{% endblock %}
 {% block page_subtitle %}Consulta y trazabilidad del equipo{% endblock %}
@@ -14,15 +14,15 @@
 </a>
 
 <div class="equipo-header">
-  <div class="equipo-header__qr">
-    <svg width="40" height="40"><use href="#icon-qr"/></svg>
-  </div>
+  <a class="equipo-header__qr" href="{% url 'equipos:qr' equipo.num %}?descargar=1" title="Descargar código QR">
+    <img src="{% url 'equipos:qr' equipo.num %}" width="40" height="40" alt="Código QR del equipo">
+  </a>
 
   <div class="equipo-header__main">
     <div class="equipo-header__top">
       <h2 class="equipo-header__title">{{ equipo.marca }} {{ equipo.modelo }}</h2>
-      <span class="badge-estado badge-estado--registro">{{ equipo.estado_registro }}</span>
-      <span class="badge-estado badge-estado--operativo">{{ equipo.estado_operativo }}</span>
+      <span class="badge-estado badge-estado--{{ equipo.estado_registro.tono }}">{{ equipo.estado_registro.nombre }}</span>
+      <span class="badge-estado badge-estado--{{ equipo.estado_operativo.tono }}">{{ equipo.estado_operativo.nombre }}</span>
     </div>
     <p class="equipo-header__ids">
       {% if equipo.marbete_oficial %}
@@ -31,15 +31,16 @@
         Folio interno <strong>{{ equipo.folio_interno }}</strong>
       {% endif %}
       <span class="equipo-header__dot">·</span>
-      {{ equipo.origen }}
+      {{ equipo.origen.nombre }}
     </p>
   </div>
 
   <div class="equipo-header__actions">
-    <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" type="button">
+    <a class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+       href="{% url 'equipos:qr' equipo.num %}?descargar=1" download>
       <svg width="15" height="15"><use href="#icon-printer"/></svg>
-      Imprimir QR
-    </button>
+      Descargar QR
+    </a>
     {% if usuario.rol == 'ADMIN' %}
     <a class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
        href="{% url 'movimientos:nuevo' %}?equipo={{ equipo.num }}">
@@ -59,12 +60,12 @@
   <section class="info-card">
     <h3 class="info-card__title">Información general</h3>
     <dl class="info-list">
-      <div><dt>Categoría</dt><dd>{{ equipo.categoria }}</dd></div>
+      <div><dt>Categoría</dt><dd>{{ equipo.categoria.nombre }}</dd></div>
       <div><dt>Marca</dt><dd>{{ equipo.marca }}</dd></div>
       <div><dt>Modelo</dt><dd>{{ equipo.modelo }}</dd></div>
-      <div><dt>Número de serie</dt><dd>{{ equipo.num_serie }}</dd></div>
+      <div><dt>Número de serie</dt><dd>{{ equipo.num_serie|default:"No registrado" }}</dd></div>
       <div><dt>Color</dt><dd>{{ equipo.color|default:"No especificado" }}</dd></div>
-      <div><dt>Origen</dt><dd>{{ equipo.origen }}</dd></div>
+      <div><dt>Origen</dt><dd>{{ equipo.origen.nombre }}</dd></div>
       <div><dt>Fecha de adquisición</dt><dd>{{ equipo.fecha_adquisicion|default:"No especificada" }}</dd></div>
       <div><dt>Costo de adquisición</dt><dd>${{ equipo.costo_adquisicion|default:"0.00" }} MXN</dd></div>
       <div><dt>Fecha de alta en el sistema</dt><dd>{{ equipo.fecha_alta }}</dd></div>
@@ -76,19 +77,19 @@
     <dl class="info-list">
       <div>
         <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-pin"/></svg> Ubicación</dt>
-        <dd>{{ equipo.ubicacion }}</dd>
+        <dd>{{ equipo.ubicacion.nombre }}</dd>
       </div>
       <div>
         <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-user-circle"/></svg> Resguardante actual</dt>
-        <dd>{{ equipo.resguardante|default:"Sin asignar" }}</dd>
+        <dd>{{ equipo.resguardante.nombre|default:"Sin asignar" }}</dd>
       </div>
       <div>
         <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-check-circle"/></svg> Estado de registro</dt>
-        <dd>{{ equipo.estado_registro }}</dd>
+        <dd>{{ equipo.estado_registro.nombre }}</dd>
       </div>
       <div>
         <dt><svg width="14" height="14" class="info-list__icon"><use href="#icon-clock"/></svg> Estado operativo</dt>
-        <dd>{{ equipo.estado_operativo }}</dd>
+        <dd>{{ equipo.estado_operativo.nombre }}</dd>
       </div>
     </dl>
   </section>
@@ -157,15 +158,24 @@
     border-radius: 12px;
   }
 
-  .equipo-header__qr {
+    .equipo-header__qr {
     display: grid;
     place-items: center;
     width: 64px;
     height: 64px;
     flex-shrink: 0;
-    color: var(--ic-primary);
-    background: var(--ic-primary-soft);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
     border-radius: 12px;
+    overflow: hidden;
+    transition: border-color .14s ease;
+  }
+
+  .equipo-header__qr:hover { border-color: var(--ic-primary); }
+
+  .equipo-header__qr img {
+    width: 40px;
+    height: 40px;
   }
 
   .equipo-header__main { flex: 1; min-width: 0; }
@@ -193,15 +203,6 @@
   .equipo-header__dot { margin: 0 6px; color: var(--ic-border-strong, #C3CCC9); }
 
   .equipo-header__actions { display: flex; gap: 8px; flex-shrink: 0; }
-
-  .badge-estado {
-    padding: 3px 10px;
-    font-size: 11.5px;
-    font-weight: 700;
-    border-radius: 999px;
-  }
-  .badge-estado--registro { color: #067647; background: #ECFDF3; }
-  .badge-estado--operativo { color: #175CD3; background: #EFF8FF; }
 
   .info-grid {
     display: grid;
