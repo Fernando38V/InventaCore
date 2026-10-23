@@ -9,10 +9,25 @@
 {% block app_content %}
 
 {% if request.GET.creado %}
-<div class="aviso-ok">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-  Equipo registrado con el folio <strong>{{ request.GET.creado }}</strong>.
-</div>
+  {% if request.GET.estado == 'PEND' %}
+  <div class="aviso aviso--ambar">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>
+      Equipo <strong>{{ request.GET.creado }}</strong> registrado, queda en estado <strong>Pendiente</strong>.
+      {% if request.GET.falta %}Falta {{ request.GET.falta }} para completarlo.{% endif %}
+    </span>
+  </div>
+  {% elif request.GET.estado == 'DON' %}
+  <div class="aviso aviso--violeta">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    <span>Equipo <strong>{{ request.GET.creado }}</strong> registrado como <strong>Donado</strong>, sin costo de adquisición.</span>
+  </div>
+  {% else %}
+  <div class="aviso aviso--verde">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    <span>Equipo registrado con el folio <strong>{{ request.GET.creado }}</strong>.</span>
+  </div>
+  {% endif %}
 {% endif %}
 
 <div class="lista-header">
@@ -612,18 +627,36 @@
     }
   }
 
-    .aviso-ok {
+    .aviso {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 9px;
     padding: 11px 15px;
     margin-bottom: 14px;
     font-size: 13px;
     font-weight: 500;
+    line-height: 1.5;
+    border-radius: 10px;
+  }
+
+  .aviso svg { flex-shrink: 0; margin-top: 1px; }
+
+  .aviso--verde {
     color: #067647;
     background: #ECFDF3;
     border: 1px solid #ABEFC6;
-    border-radius: 10px;
+  }
+
+  .aviso--ambar {
+    color: #B54708;
+    background: #FFFAEB;
+    border: 1px solid #FEDF89;
+  }
+
+  .aviso--violeta {
+    color: #6941c6;
+    background: #f4ebff;
+    border: 1px solid #e9d7fe;
   }
 </style>
 {% endblock %}

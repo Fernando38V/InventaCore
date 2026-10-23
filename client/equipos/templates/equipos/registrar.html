@@ -66,9 +66,10 @@
       </div>
 
       <div class="campo">
-        <label class="campo__label" for="num_serie">Número de serie <span class="campo__req">*</span></label>
+        <label class="campo__label" for="num_serie">Número de serie</label>
         <input class="campo__control" type="text" name="num_serie" id="num_serie"
                value="{{ v.num_serie|default:'' }}" autocomplete="off">
+        <p class="campo__ayuda">Déjalo vacío si el equipo no lo tiene visible. Se puede capturar después.</p>
         {% if errores.num_serie %}<p class="campo__error">{{ errores.num_serie }}</p>{% endif %}
       </div>
 
@@ -228,6 +229,7 @@
   var ayudaFolio = document.getElementById('ayudaFolio');
   var previewFolio = document.getElementById('previewFolio');
   var costo = document.getElementById('costo_adquisicion');
+  var fecha = document.getElementById('fecha_adquisicion');
   var donado = document.getElementById('donado');
   var badge = document.getElementById('badgeRegistro');
 
@@ -314,23 +316,31 @@
 
   function sincronizarEstado() {
     if (donado.checked) {
+      costo.value = '';
+      costo.disabled = true;
+      costo.placeholder = 'No aplica para equipo donado';
       badge.textContent = 'Donado';
       badge.className = 'badge-estado badge-estado--violeta';
       return;
     }
 
-    var monto = Number(costo.value);
+    costo.disabled = false;
+    costo.placeholder = '';
 
-    if (costo.value.trim() !== '' && monto > 0) {
-      badge.textContent = 'Registrado';
-      badge.className = 'badge-estado badge-estado--verde';
-    } else {
+    var faltaCosto = costo.value.trim() === '' || Number(costo.value) <= 0;
+    var faltaFecha = fecha.value.trim() === '';
+
+    if (faltaCosto || faltaFecha) {
       badge.textContent = 'Pendiente';
       badge.className = 'badge-estado badge-estado--ambar';
+    } else {
+      badge.textContent = 'Registrado';
+      badge.className = 'badge-estado badge-estado--verde';
     }
   }
 
   costo.addEventListener('input', sincronizarEstado);
+  fecha.addEventListener('input', sincronizarEstado);
   donado.addEventListener('change', sincronizarEstado);
 
   document.querySelectorAll('#formEquipo input, #formEquipo select').forEach(function (el) {

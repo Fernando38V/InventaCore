@@ -2,6 +2,8 @@ from django.shortcuts import render
 from django.core.paginator import Paginator
 from django.shortcuts import redirect, reverse
 from datetime import date, datetime
+from urllib.parse import quote
+
 
 CATEGORIAS = [
     {'codigo': 'CAT-MON', 'nombre': 'Monitor'},
@@ -361,21 +363,33 @@ def _validar_equipo(datos):
         except ValueError:
             errores['fecha_adquisicion'] = 'La fecha no es válida.'
 
-    costo = txt('costo_adquisicion').replace(',', '')
-    monto = None
-    if costo:
-        try:
-            monto = '{:.2f}'.format(float(costo))
-        except ValueError:
-            errores['costo_adquisicion'] = 'El costo debe ser un número.'
-    limpio['costo_adquisicion'] = monto
+    donado = datos.get('donado') == 'on'
+    faltantes = []
 
-    if datos.get('donado') == 'on':
-        limpio['estado_registro'] = 'DON'
-    elif monto:
-        limpio['estado_registro'] = 'REG'
+    if donado:
+        limpio['costo_adquisicion'] = None
     else:
+        costo = txt('costo_adquisicion').replace(',', '')
+        monto = None
+        if costo:
+            try:
+                monto = '{:.2f}'.format(float(costo))
+            except ValueError:
+                errores['costo_adquisicion'] = 'El costo debe ser un número.'
+        limpio['costo_adquisicion'] = monto
+        if not monto:
+            faltantes.append('el costo de adquisición')
+        if not limpio['fecha_adquisicion']:
+            faltantes.append('la fecha de adquisición')
+
+    if donado:
+        limpio['estado_registro'] = 'DON'
+    elif faltantes:
         limpio['estado_registro'] = 'PEND'
+    else:
+        limpio['estado_registro'] = 'REG'
+
+    limpio['faltantes'] = faltantes
 
     limpio['estado_operativo'] = txt('estado_operativo') or 'UTIL'
     limpio['color'] = txt('color')
@@ -389,9 +403,12 @@ def registrar_equipo(request):
     if request.method == 'POST':
         errores, limpio = _validar_equipo(request.POST)
         if not errores:
-            return redirect(
-                '{}?creado={}'.format(
-                    reverse('equipos:listado'), limpio['folio_interno']))
+            qs = 'creado={}&estado={}'.format(
+                limpio['folio_interno'], limpio['estado_registro'])
+            if limpio['faltantes']:
+                mensaje = ' y '.join(limpio['faltantes'])
+                qs += '&falta={}'.format(quote(mensaje))
+            return redirect('{}?{}'.format(reverse('equipos:listado'), qs))
     else:
         limpio = {'origen': 'ACT', 'estado_operativo': 'UTIL'}
         errores = {}
