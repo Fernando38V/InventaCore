@@ -1,20 +1,14 @@
-/* InventaCore — identidad visual
-   Cambiar aquí = cambiar en todo el sistema. */
-
 :root {
-  /* Marca */
   --ic-primary: #007e67;
   --ic-primary-hover: #006653;
   --ic-primary-active: #004d3f;
   --ic-primary-soft: #e6f4f1;
   --ic-primary-rgb: 0, 126, 103;
 
-  /* Tinta y texto */
   --ic-ink: #0e1a17;
   --ic-text: #1f2a27;
   --ic-muted: #5b6b67;
 
-  /* Superficies */
   --ic-bg: #f6f8f7;
   --ic-border: #dde3e1;
   --ic-subtle: #8a9793;
@@ -23,7 +17,6 @@
   color-scheme: light;
 }
 
-/* Base tipográfica */
 body {
   font-family:
     system-ui,
@@ -40,7 +33,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Enlaces */
 a {
   color: var(--ic-primary-hover);
 }
@@ -48,7 +40,6 @@ a:hover {
   color: var(--ic-primary-active);
 }
 
-/* Botón primario */
 .btn-primary {
   --bs-btn-bg: var(--ic-primary);
   --bs-btn-border-color: var(--ic-primary);
@@ -61,7 +52,6 @@ a:hover {
   font-weight: 600;
 }
 
-/* Campos */
 .form-label {
   margin-bottom: 0.4rem;
   font-size: 13px;
@@ -83,7 +73,6 @@ a:hover {
   box-shadow: 0 0 0 0.2rem rgba(var(--ic-primary-rgb), 0.18);
 }
 
-/* Alerta de error */
 .alert-danger {
   --bs-alert-color: #b42318;
   --bs-alert-bg: #fef3f2;

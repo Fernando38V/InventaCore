@@ -1,12 +1,8 @@
-/* InventaCore — M1 Login */
-
 .login {
   display: grid;
   grid-template-columns: minmax(360px, 44%) 1fr;
   min-height: 100vh;
 }
-
-/* ---------- Panel de marca ---------- */
 
 .login__brand {
   position: relative;
@@ -114,8 +110,6 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ---------- Panel del formulario ---------- */
-
 .login__panel {
   display: flex;
   align-items: center;
@@ -156,8 +150,6 @@
   color: var(--ic-muted);
 }
 
-/* Mostrar / ocultar contraseña */
-
 .password-field {
   position: relative;
 }
@@ -193,8 +185,6 @@
   outline-offset: 1px;
 }
 
-/* Nota de recuperación */
-
 .login__recovery {
   display: flex;
   gap: 9px;
@@ -218,8 +208,6 @@
   text-align: center;
   color: #8a9793;
 }
-
-/* ---------- Responsivo ---------- */
 
 @media (max-width: 900px) {
   .login {

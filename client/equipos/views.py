@@ -3,11 +3,6 @@ from django.core.paginator import Paginator
 from django.shortcuts import redirect, reverse
 from datetime import date, datetime
 
-
-# ============================================================
-# Catálogos — mismos códigos que InventaCore_db.sql
-# ============================================================
-
 CATEGORIAS = [
     {'codigo': 'CAT-MON', 'nombre': 'Monitor'},
     {'codigo': 'CAT-PCE', 'nombre': 'Computadora de escritorio'},
@@ -332,12 +327,13 @@ def _validar_equipo(datos):
     for campo, etiqueta in (
         ('marca', 'la marca'),
         ('modelo', 'el modelo'),
-        ('num_serie', 'el número de serie'),
     ):
         valor = txt(campo)
         if not valor:
             errores[campo] = 'Falta {}.'.format(etiqueta)
         limpio[campo] = valor
+
+    limpio['num_serie'] = txt('num_serie') or None
 
     marbete = txt('marbete_oficial')
     folio = txt('folio_interno')
