@@ -130,7 +130,6 @@
   </div>
 </div>
 
-<!-- Modal: confirmación de cierre de sesión -->
 <div class="modal fade" id="modalLogout" tabindex="-1" aria-labelledby="modalLogoutLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -202,7 +201,6 @@
       });
     });
 
-    // Al cruzar el punto de quiebre: cerrar el cajón y liberar el scroll
     mq.addEventListener('change', function (e) {
       closeDrawer();
       if (e.matches) {
