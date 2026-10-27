@@ -1,48 +1,153 @@
 /* ==========================================================================
    SISTEMA DE CONTROL Y GESTIÓN DE INVENTARIO PARA EQUIPO ELECTRÓNICO
-   CONALEP TIJUANA II — Departamento de Informática
+   CONALEP Tijuana II — Departamento de Informática
    ==========================================================================
-   Script provisional — versión 16/10/2026
-   Verificado contra: RF y RNF Proyecto Conalep (2).pdf (23 RF + 11 RNF)
-   DER: 14 entidades, 19 relaciones (ver CONALEP_DER_final_16-10-2026.md)
-   Diccionario de datos: CONALEP_Diccionario_de_Datos_v2.xlsx
+   Script v3 (reescrito) — compatible con MySQL 8.0 y MariaDB 10.x (XAMPP).
+   Fuentes: Diccionario de datos v2 + RF-01..RF-23 + RNF-01..RNF-11.
+   Probado: se ejecuta de principio a fin en MariaDB 10.11 sin errores.
 
-   NOTA: Este script es PROVISIONAL. No se ha ejecutado aún en XAMPP/phpMyAdmin.
-   Pendiente de confirmar con Adad antes de usarse como definitivo.
+   COBERTURA DE REQUERIMIENTOS
+     RF-01..03  usuario, rol, personal
+     RF-04      categoria
+     RF-05..10  articulo, origen, estado_operativo, estado_registro
+     RF-11..13  ubicacion
+     RF-14..15  personal, departamento
+     RF-16..17  movimiento, tipo_movimiento
+     RF-18      resguardo
+     RF-19,20,23  sobre articulo (el QR se genera al vuelo, no tiene tabla)
+     RF-21      bitacora
+     RF-22      consultas sobre articulo y movimiento (no necesita tabla)
 
-   DECISIONES DE ESTE SCRIPT (para no olvidarlas):
-     - USUARIO.ultimo_acceso: NO existe (decisión 16/10/2026, se descartó).
-     - UBI-NOLOC: ubicación especial agregada para equipo no localizado
-       físicamente. No es un ESTADO_OPERATIVO porque "no localizado" no
-       responde si el equipo sirve o no — responde dónde está. Se trata
-       igual que cualquier otra ubicación: el equipo llega ahí mediante un
-       MOVIMIENTO de tipo "Cambio de ubicación", con motivo documentado.
-       Conserva trazabilidad completa (RNF-06) y queda cubierto por los
-       filtros de RF-09 sin agregar columnas nuevas a EQUIPO.
-     - UBICACION.responsable: queda NULL en los 3+1 registros. Pendiente
-       confirmar el nombre completo del nuevo jefe de Informática (Luis)
-       antes de poblarlo. RF-12 solo exige el campo, no que esté lleno
-       desde el día uno.
-     - Sin triggers ni procedimientos almacenados: la bitácora, la
-       generación de folios y las validaciones de negocio viven en Django
-       (ver justificación en el chat — RNF-09 exige mensajes claros al
-       usuario, y un trigger con SIGNAL no los da; además @usuario_actual
-       en triggers es poco confiable con pooling de conexiones, problema
-       ya documentado en mermax.sql). SQL solo garantiza lo que nunca debe
-       romperse: PK, FK, UNIQUE, NOT NULL.
-     - Orden de creación ajustado respecto al DER para que ninguna FK
-       necesite agregarse después con ALTER TABLE (a diferencia de Mermax).
+   CRITERIOS GENERALES
+     - Nombres de tablas y columnas en minúsculas y snake_case. Motivo: XAMPP
+       en Windows no distingue mayúsculas en tablas, pero un servidor Linux
+       sí. Así el script funciona igual en ambos.
+     - Ninguna tabla se elimina físicamente (RNF-06): las llaves foráneas usan
+       el comportamiento por defecto (RESTRICT) y no hay ON DELETE CASCADE.
+     - Sin triggers ni procedimientos por ahora (decisión de diseño abierta: la
+       inalterabilidad de bitácora y movimiento depende solo de Django). Las
+       reglas de negocio (estado de registro vs costo, folios, fechas,
+       bitácora) viven en Django, para dar mensajes claros (RNF-09). SQL
+       garantiza PK, FK, UNIQUE, NOT NULL y CHECK sobre reglas ya confirmadas
+       (identificador por origen, costo >= 0, estado de registro y que todo
+       movimiento cambie algo).
+     - Los CHECK se aplican en MySQL >= 8.0.16 y MariaDB >= 10.2. En versiones
+       anteriores se aceptan pero se ignoran, sin romper nada.
+     - Fechas con hora son DATETIME. Solo fecha_adquisicion es DATE.
 
-   CONVENCIÓN DE CÓDIGOS (ver tabla de notación en el chat):
-     DEP- (departamento) · CAT- (categoría) · UBI- (ubicación)
-     Sin prefijo: ROL, ORIGEN, ESTADO_OPERATIVO, ESTADO_REGISTRO,
-                  TIPO_MOVIMIENTO (catálogos de 2 a 4 valores fijos,
-                  donde el código corto ya es descriptivo por sí solo)
-     MOV- (folio de movimiento) · RES- (folio de resguardo)
+   NOMBRES (confirmado 27/10/2026): la tabla se llama articulo (no equipo) y
+   su llave a la persona a cargo se llama articulo.resguardante ->
+   personal(num), igual que el frontend. El DER la llama "personal"; hay que
+   actualizarlo. En movimiento: resguardante_anterior y resguardante_nuevo.
+
+   FUENTE DE VERDAD: DECISIONES.md y PENDIENTES.md (27/10/2026). Este script
+   aplica así las decisiones aprobadas por Fernando:
+     DEC-001  Roles ADMIN (todo, incluida la bitácora y administrar usuarios)
+              y CONSULTA (consulta; no modifica ni ve la bitácora, confirmado
+              27/10/2026). La
+              contadora y los jefes son ADMIN. El permiso se valida en la API.
+     DEC-002  (categorías vacías al arrancar, confirmado 27/10/2026)
+              categoria 1:M tipo_articulo 1:M articulo. articulo tiene FK SOLO
+              a tipo_articulo; la categoría sale de esa relación. Sin número de
+              cuenta contable.
+     DEC-003  ubicacion y resguardante NOT NULL desde el alta.
+     DEC-004  Sin triggers: la bitácora la escribe Django en la misma
+              transacción que el movimiento y la actualización del artículo.
+     DEC-005  QR = identificador técnico basado en la PK; sin tabla ni URL.
+     DEC-006  Tipos de movimiento: ALTA, REUB, REPA, RETE y BAJA. Ningún
+              movimiento sin cambio efectivo.
+     DEC-008  Estado de registro: Donado tiene prioridad; si no, con fecha y
+              costo es Registrado y si falta alguno, Pendiente.
+     DEC-010  Activo -> marbete sin folio; Comodato y Enser -> folio interno
+              generado 02143MMYY-NNN (consecutivo mensual desde 001, en
+              contador_folio). Serie opcional.
+     DEC-011  Obligatorios: tipo_articulo, origen, identificador, ubicación,
+              resguardante y estado operativo. Opcionales (NULL): marca,
+              modelo, serie, color, descripción, fecha y costo.
+     DEC-012  UBI-NOLOC y el estado NOLOC van siempre juntos (CHECK).
+     DEC-013  Ubicación y resguardante solo cambian por movimiento.
+     DEC-014  departamento y ubicacion son entidades distintas, sin relación.
+     DEC-015  Los catálogos se amplían desde el sistema y el SISTEMA genera
+              los códigos (la API; no hay columna extra).
+     DEC-016  movimiento.requiere_resguardo (lo fija el sistema); no existe
+              tipo_movimiento.genera_resguardo.
+
+   DECISIONES ANTERIORES QUE SIGUEN VIGENTES (conversaciones con Adad)
+     - numero_empleado es complemento de búsqueda; la PK es el consecutivo num.
+     - Login solo con usuario y contraseña; el Administrador restablece la
+       contraseña de otros y cada quien cambia la suya.
+     - fecha_movimiento admite fechas pasadas, no futuras (lo valida la API);
+       fecha_registro guarda la hora real de captura.
+     - Un empleado dado de baja conserva sus artículos hasta un movimiento; no
+       se puede elegir en asignaciones nuevas.
+     - Folios MOV-0001 y RES-0001 (contador_folio). El sistema arranca VACÍO;
+       no se importa el Excel. Los títulos firmados no cambian.
+     - Sesión: tokens de DRF (tabla authtoken_token, la crea Django).
+     - Bitácora: alta, modificación y movimiento con usuario, valor anterior,
+       valor nuevo y motivo (obligatorio al corregir). Sin inicios de sesión.
+
+   PENDIENTE (no se implementa como definitivo; ver PENDIENTES.md)
+     PEND-001  Diseño relacional de resguardos. La tabla resguardo de abajo
+               (1:1 con movimiento) es PROVISIONAL: DEC-007 pide resguardos
+               bajo demanda para varios artículos de una persona.
+     PEND-002  Folios: ¿Comodato y Enser comparten consecutivo? ¿qué pasa al
+               llegar a 999? Los folios del Excel tienen 10 dígitos antes del
+               guion y el nuevo 9. ¿Activo sin marbete conocido?
+     PEND-003  Significado de Obsoleto y AUTB; ¿estado "En reparación"?; ¿baja
+               de un bien no localizado? Hoy el CHECK de no localizado impide
+               dar de baja (AUTB) un artículo que sigue en UBI-NOLOC.
+     PEND-004  ¿El costo de un Donado se bloquea o se captura? Por eso el CHECK
+               de Donado NO exige ni prohíbe el costo.
+     PEND-005  PK de movimiento (num + folio único) y numero_empleado NULL.
+     PEND-006/007  Resguardos y personal que deja la institución.
+     PEND-010  valor_anterior y valor_nuevo como texto largo (Django ya los
+               crea LONGTEXT).
+
+ v2 (para actualizar el DD)
+     Nombres:  Movimiento.Personal_Asigna -> resguardante_nuevo
+               Movimiento.Personal_Entrega -> resguardante_anterior
+               Movimiento.Ubicacion_Llegada -> ubicacion_destino
+               Movimiento.Fecha -> fecha_movimiento
+               Equipo.Personal -> articulo.resguardante (la tabla Equipo pasa a articulo)
+               Ubicacion.personal -> responsable
+               Personal.Num/NombrePila/PrimerApell/SegApell -> num/nombre_pila/
+               primer_apellido/segundo_apellido
+     Tipos:    Resguardo.movimiento es VARCHAR(20) (el DD decía entero, pero la
+               PK de movimiento es el folio de texto).
+               Bitacora.valor_* son TEXT (el DD decía 255 caracteres).
+     Campos:   personal.numero_empleado (nuevo, decisión 1)
+               movimiento.fecha_registro (nuevo: hora real de captura, decisión 7)
+               articulo.num_serie pasa a NULL y UNIQUE (decisión 2)
+               articulo.marca y articulo.modelo pasan a NULL (decisión 27)
+               categoria.nombre pasa a VARCHAR(100) (decisión 26)
+               tabla tipo_articulo y articulo.tipo_articulo (decisión 31)
+               articulo.fecha_adquisicion pasa a NULL (decisión 3)
+     Quitado:  tipo_movimiento.genera_resguardo. Con el tipo fusionado REUB ya
+               no es un valor fijo del catálogo: la regla se calcula al crear
+               el movimiento (se genera resguardo si es ALTA o si cambió el
+               resguardante). Que exista la fila en resguardo ES el dato.
+     Datos:    ubicación UBI-NOLOC (decisión 10); estados operativos del
+               frontend (decisión 4); tipos de movimiento ALTA, REUB,
+               REPA y RETE (decisiones 5 y 14); Rol.nombre "Contadora" (el DD decía "contador";
+               RF dice Contadora)
+     Cambios del 27/10/2026 (sincronización con DECISIONES.md):
+               articulo ya no tiene categoria: solo tipo_articulo NOT NULL (DEC-002)
+               articulo.color y articulo.descripcion pasan a NULL (DEC-011)
+               chk_articulo_estado_registro: Donado ya no exige costo vacío
+               tipo_movimiento: se agrega BAJA (DEC-006); el CHECK de movimiento
+               la trata como REPA y RETE
+               movimiento.requiere_resguardo (DEC-016) y su CHECK
+               rol: OBS (Observador) se renombra CONSULTA (DEC-001)
+     Longitudes ajustadas para que quepan los datos: rol.descripcion 150,
+               articulo.modelo 60, categoria.nombre 100.
    ========================================================================== */
 
-DROP DATABASE IF EXISTS conalep_db;
-CREATE DATABASE conalep_db
+SET NAMES utf8mb4;
+
+-- ⚠ Descomentar SOLO para recrear la base en desarrollo: borra todos los datos.
+-- DROP DATABASE IF EXISTS conalep_db;
+
+CREATE DATABASE IF NOT EXISTS conalep_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE conalep_db;
 
@@ -51,281 +156,420 @@ USE conalep_db;
    BLOQUE 1 — CATÁLOGOS SIN DEPENDENCIAS
    ========================================================================== */
 
-CREATE TABLE ROL (
-    clave VARCHAR(10) NOT NULL,
-    nombre VARCHAR(50) NOT NULL UNIQUE,
-    descripcion VARCHAR(100),
-    PRIMARY KEY (clave)
-);
+CREATE TABLE rol (
+    clave        VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(50)  NOT NULL,
+    descripcion  VARCHAR(150) NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (clave),
+    UNIQUE KEY uq_rol_nombre (nombre)
+) ENGINE=InnoDB;
 
-CREATE TABLE DEPARTAMENTO (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(100) NOT NULL UNIQUE,
-    descripcion VARCHAR(150),
-    PRIMARY KEY (codigo)
-);
-
-CREATE TABLE CATEGORIA (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(60) NOT NULL UNIQUE,
-    descripcion VARCHAR(150),
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo)
-);
-
-CREATE TABLE ORIGEN (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(30) NOT NULL UNIQUE,
-    descripcion VARCHAR(150),
-    PRIMARY KEY (codigo)
-);
-
-CREATE TABLE ESTADO_OPERATIVO (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(60) NOT NULL UNIQUE,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo)
-);
-
-CREATE TABLE ESTADO_REGISTRO (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(30) NOT NULL UNIQUE,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo)
-);
-
-CREATE TABLE TIPO_MOVIMIENTO (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(60) NOT NULL UNIQUE,
-    genera_resguardo BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (codigo)
-);
-
-
-/* ==========================================================================
-   BLOQUE 2 — ENTIDADES MAESTRAS DE PERSONAS
-   (PERSONAL antes que UBICACION, para que UBICACION.responsable
-    pueda referenciarlo sin necesitar ALTER TABLE después)
-   ========================================================================== */
-
-CREATE TABLE PERSONAL (
-    numero INT AUTO_INCREMENT NOT NULL,
-    nombrePila VARCHAR(80) NOT NULL,
-    primerApell VARCHAR(80) NOT NULL,
-    segundoApell VARCHAR(80),
-    puesto VARCHAR(100),
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    departamento VARCHAR(10) NOT NULL,
-    PRIMARY KEY (numero),
-    CONSTRAINT fk_personal_departamento FOREIGN KEY (departamento) REFERENCES DEPARTAMENTO(codigo)
-);
-
-
-/* ==========================================================================
-   BLOQUE 3 — UBICACIÓN (depende de PERSONAL para su responsable)
-   ========================================================================== */
-
-CREATE TABLE UBICACION (
-    codigo VARCHAR(10) NOT NULL,
-    nombre VARCHAR(100) NOT NULL UNIQUE,
-    descripcion VARCHAR(150),
-    responsable INT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
+CREATE TABLE departamento (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(100) NOT NULL,
+    descripcion  VARCHAR(150) NOT NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
     PRIMARY KEY (codigo),
-    CONSTRAINT fk_ubicacion_responsable FOREIGN KEY (responsable) REFERENCES PERSONAL(numero)
-);
+    UNIQUE KEY uq_departamento_nombre (nombre)
+) ENGINE=InnoDB;
+
+CREATE TABLE categoria (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(100) NOT NULL,   -- DEC-002: sin número de cuenta contable
+    descripcion  VARCHAR(150) NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_categoria_nombre (nombre)
+) ENGINE=InnoDB;
+
+/* Decisión 37: último número usado de cada serie de folios. Claves: FI-MMAA
+   (folio interno de ese mes, p. ej. FI-1026), MOV y RES. Django bloquea la
+   fila al avanzarla, así dos altas simultáneas no reciben el mismo folio. */
+CREATE TABLE contador_folio (
+    clave   VARCHAR(30)  NOT NULL,
+    ultimo  INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (clave)
+) ENGINE=InnoDB;
+
+/* DEC-002: categoria 1:M tipo_articulo 1:M articulo. El tipo clasifica el
+   artículo dentro de su categoría (cámara dentro de audiovisuales, silla
+   dentro de mobiliario...). Extensible desde el sistema; arranca vacío. El
+   nombre puede repetirse entre categorías, no dentro de una. */
+CREATE TABLE tipo_articulo (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(100) NOT NULL,
+    descripcion  VARCHAR(150) NULL,
+    categoria    VARCHAR(10)  NOT NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_tipo_articulo_categoria_nombre (categoria, nombre),
+    CONSTRAINT fk_tipo_articulo_categoria
+        FOREIGN KEY (categoria) REFERENCES categoria (codigo)
+) ENGINE=InnoDB;
+
+-- Catálogo fijo de 3 valores; por eso no lleva "activo" (igual que el DD).
+CREATE TABLE origen (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(50)  NOT NULL,
+    descripcion  VARCHAR(150) NULL,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_origen_nombre (nombre)
+) ENGINE=InnoDB;
+
+CREATE TABLE estado_operativo (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(50)  NOT NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_estado_operativo_nombre (nombre)
+) ENGINE=InnoDB;
+
+CREATE TABLE estado_registro (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(50)  NOT NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_estado_registro_nombre (nombre)
+) ENGINE=InnoDB;
+
+CREATE TABLE tipo_movimiento (
+    codigo            VARCHAR(10) NOT NULL,
+    nombre            VARCHAR(50) NOT NULL,
+    activo            BOOLEAN     NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_tipo_movimiento_nombre (nombre)
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 4 — USUARIO (depende de PERSONAL y ROL)
+   BLOQUE 2 — PERSONAL (depende de departamento)
    ========================================================================== */
 
-CREATE TABLE USUARIO (
-    num INT AUTO_INCREMENT NOT NULL,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    correo VARCHAR(100) NOT NULL UNIQUE,
-    contrasena VARCHAR(255) NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    personal INT NOT NULL UNIQUE,
-    rol VARCHAR(10) NOT NULL,
+CREATE TABLE personal (
+    num               INT          NOT NULL AUTO_INCREMENT,
+    /* Decisión 1: "num" es el consecutivo interno que usan las FK;
+       "numero_empleado" es el número del plantel, complemento para búsquedas
+       y filtros (RF-15). Único; se asume que todo empleado tiene uno. */
+    numero_empleado   VARCHAR(20)  NOT NULL,
+    nombre_pila       VARCHAR(50)  NOT NULL,
+    primer_apellido   VARCHAR(50)  NOT NULL,
+    segundo_apellido  VARCHAR(50)  NULL,
+    puesto            VARCHAR(50)  NOT NULL,
+    activo            BOOLEAN      NOT NULL DEFAULT TRUE,
+    departamento      VARCHAR(10)  NOT NULL,
     PRIMARY KEY (num),
-    CONSTRAINT fk_usuario_personal FOREIGN KEY (personal) REFERENCES PERSONAL(numero),
-    CONSTRAINT fk_usuario_rol FOREIGN KEY (rol) REFERENCES ROL(clave)
-);
+    UNIQUE KEY uq_personal_numero_empleado (numero_empleado),
+    CONSTRAINT fk_personal_departamento
+        FOREIGN KEY (departamento) REFERENCES departamento (codigo)
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 5 — EQUIPO (depende de CATEGORIA, UBICACION, PERSONAL, ORIGEN,
-   ESTADO_OPERATIVO, ESTADO_REGISTRO)
+   BLOQUE 3 — UBICACION (depende de personal, por su responsable)
    ========================================================================== */
 
-CREATE TABLE EQUIPO (
-    num INT AUTO_INCREMENT NOT NULL,
-    marbete_oficial VARCHAR(25) NULL UNIQUE,
-    folio_interno VARCHAR(25) NULL UNIQUE,
-    marca VARCHAR(60),
-    modelo VARCHAR(60),
-    num_serie VARCHAR(60),
-    color VARCHAR(30),
-    descripcion VARCHAR(150),
-    fecha_adquisicion DATE,
-    costo_adquisicion DECIMAL(10,2),
-    fecha_alta DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    categoria VARCHAR(10) NOT NULL,
-    ubicacion VARCHAR(10) NOT NULL,
-    resguardante INT NULL,
-    origen VARCHAR(10) NOT NULL,
-    estado_operativo VARCHAR(10) NOT NULL,
-    estado_registro VARCHAR(10) NOT NULL,
+CREATE TABLE ubicacion (
+    codigo       VARCHAR(10)  NOT NULL,
+    nombre       VARCHAR(100) NOT NULL,
+    descripcion  VARCHAR(150) NULL,
+    responsable  INT          NULL,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (codigo),
+    UNIQUE KEY uq_ubicacion_nombre (nombre),
+    CONSTRAINT fk_ubicacion_responsable
+        FOREIGN KEY (responsable) REFERENCES personal (num)
+) ENGINE=InnoDB;
+
+
+/* ==========================================================================
+   BLOQUE 4 — USUARIO (depende de personal y rol)
+   ========================================================================== */
+
+/* Decisión 6: login solo con usuario y contraseña (RF-01); no hay correo.
+   Django exige "last_login" en su modelo base; el modelo lo desactivará
+   (last_login = None) para respetar el DD. */
+CREATE TABLE usuario (
+    num         INT           NOT NULL AUTO_INCREMENT,
+    username    VARCHAR(50)   NOT NULL,
+    contrasena  VARCHAR(255)  NOT NULL,   -- hash, nunca texto plano (RNF-01)
+    activo      BOOLEAN       NOT NULL DEFAULT TRUE,   -- baja lógica (RF-03)
+    personal    INT           NOT NULL,   -- cuenta ligada a un empleado (RF-02)
+    rol         VARCHAR(10)   NOT NULL,
     PRIMARY KEY (num),
-    CONSTRAINT fk_equipo_categoria FOREIGN KEY (categoria) REFERENCES CATEGORIA(codigo),
-    CONSTRAINT fk_equipo_ubicacion FOREIGN KEY (ubicacion) REFERENCES UBICACION(codigo),
-    CONSTRAINT fk_equipo_resguardante FOREIGN KEY (resguardante) REFERENCES PERSONAL(numero),
-    CONSTRAINT fk_equipo_origen FOREIGN KEY (origen) REFERENCES ORIGEN(codigo),
-    CONSTRAINT fk_equipo_estado_operativo FOREIGN KEY (estado_operativo) REFERENCES ESTADO_OPERATIVO(codigo),
-    CONSTRAINT fk_equipo_estado_registro FOREIGN KEY (estado_registro) REFERENCES ESTADO_REGISTRO(codigo)
-);
-
-/* Regla de integridad XOR (marbete_oficial / folio_interno):
-   exactamente uno de los dos debe tener valor, según ORIGEN.
-   NO se expresa aquí como CHECK condicional — se valida en el
-   clean() del modelo de Django, tal como ya se decidió. */
+    UNIQUE KEY uq_usuario_username (username),
+    UNIQUE KEY uq_usuario_personal (personal),
+    CONSTRAINT fk_usuario_personal
+        FOREIGN KEY (personal) REFERENCES personal (num),
+    CONSTRAINT fk_usuario_rol
+        FOREIGN KEY (rol) REFERENCES rol (clave)
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 6 — MOVIMIENTO (depende de EQUIPO, TIPO_MOVIMIENTO, UBICACION,
-   PERSONAL, USUARIO)
+   BLOQUE 5 — ARTICULO
    ========================================================================== */
 
-CREATE TABLE MOVIMIENTO (
-    folio VARCHAR(20) NOT NULL,
-    fecha_movimiento DATETIME NOT NULL,
-    motivo VARCHAR(255) NOT NULL,
-    equipo INT NOT NULL,
-    tipo_movimiento VARCHAR(10) NOT NULL,
-    ubicacion_origen VARCHAR(10) NULL,
-    ubicacion_destino VARCHAR(10) NOT NULL,
-    resguardante_anterior INT NULL,
-    resguardante_nuevo INT NOT NULL,
-    usuario INT NOT NULL,
+CREATE TABLE articulo (
+    num                INT           NOT NULL AUTO_INCREMENT,
+    marbete_oficial    VARCHAR(25)   NULL,   -- solo Activos (DEC-010)
+    folio_interno      VARCHAR(25)   NULL,   -- solo Comodato y Enser, generado
+    -- DEC-011: marca, modelo, serie, color, descripción, fecha y costo son
+    -- opcionales. Django envía NULL, nunca cadena vacía. La interfaz muestra
+    -- "Sin especificar"; no se guardan textos como S/M o S/S.
+    marca              VARCHAR(50)   NULL,
+    modelo             VARCHAR(60)   NULL,
+    num_serie          VARCHAR(50)   NULL,   -- único si existe (RF-09 y RF-23)
+    color              VARCHAR(25)   NULL,
+    descripcion        VARCHAR(150)  NULL,
+    fecha_adquisicion  DATE          NULL,
+    costo_adquisicion  DECIMAL(12,2) NULL,
+    fecha_alta         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    /* DEC-002: SOLO tipo_articulo; la categoría se obtiene por
+       tipo_articulo.categoria. */
+    tipo_articulo      VARCHAR(10)   NOT NULL,
+    ubicacion          VARCHAR(10)   NOT NULL,   -- ubicación ACTUAL (DEC-003)
+    resguardante       INT           NOT NULL,   -- resguardante ACTUAL (DEC-003)
+    origen             VARCHAR(10)   NOT NULL,
+    estado_operativo   VARCHAR(10)   NOT NULL,
+    estado_registro    VARCHAR(10)   NOT NULL,   -- lo calcula el sistema
+    PRIMARY KEY (num),
+    UNIQUE KEY uq_articulo_marbete (marbete_oficial),
+    UNIQUE KEY uq_articulo_folio (folio_interno),
+    UNIQUE KEY uq_articulo_num_serie (num_serie),
+    CONSTRAINT fk_articulo_tipo_articulo
+        FOREIGN KEY (tipo_articulo) REFERENCES tipo_articulo (codigo),
+    CONSTRAINT fk_articulo_ubicacion
+        FOREIGN KEY (ubicacion) REFERENCES ubicacion (codigo),
+    CONSTRAINT fk_articulo_resguardante
+        FOREIGN KEY (resguardante) REFERENCES personal (num),
+    CONSTRAINT fk_articulo_origen
+        FOREIGN KEY (origen) REFERENCES origen (codigo),
+    CONSTRAINT fk_articulo_estado_operativo
+        FOREIGN KEY (estado_operativo) REFERENCES estado_operativo (codigo),
+    CONSTRAINT fk_articulo_estado_registro
+        FOREIGN KEY (estado_registro) REFERENCES estado_registro (codigo),
+    /* DEC-010: Activo -> marbete y sin folio; Comodato/Enser -> folio y sin
+       marbete. Usa los códigos fijos ACT, COM y ENS del catálogo origen. */
+    CONSTRAINT chk_articulo_identificador CHECK (
+        (origen = 'ACT'
+            AND marbete_oficial IS NOT NULL AND marbete_oficial <> ''
+            AND folio_interno IS NULL)
+        OR
+        (origen IN ('COM', 'ENS')
+            AND folio_interno IS NOT NULL AND folio_interno <> ''
+            AND marbete_oficial IS NULL)
+    ),
+    CONSTRAINT chk_articulo_serie CHECK (
+        num_serie IS NULL OR num_serie <> ''
+    ),
+    CONSTRAINT chk_articulo_costo CHECK (
+        costo_adquisicion IS NULL OR costo_adquisicion >= 0
+    ),
+    /* DEC-008: Donado tiene prioridad (PEND-004: el costo de un Donado ni se
+       exige ni se prohíbe). Si no es Donado: Registrado con costo y fecha;
+       Pendiente si falta alguno de los dos. */
+    CONSTRAINT chk_articulo_estado_registro CHECK (
+        estado_registro = 'DON'
+        OR (estado_registro = 'REG'
+            AND costo_adquisicion IS NOT NULL AND fecha_adquisicion IS NOT NULL)
+        OR (estado_registro = 'PEND'
+            AND (costo_adquisicion IS NULL OR fecha_adquisicion IS NULL))
+    ),
+    /* DEC-012: UBI-NOLOC y el estado NOLOC van siempre juntos. Se permite un
+       alta histórica de un bien no localizado. */
+    CONSTRAINT chk_articulo_no_localizado CHECK (
+        (ubicacion = 'UBI-NOLOC' AND estado_operativo = 'NOLOC')
+        OR (ubicacion <> 'UBI-NOLOC' AND estado_operativo <> 'NOLOC')
+    )
+) ENGINE=InnoDB;
+
+
+/* ==========================================================================
+   BLOQUE 6 — MOVIMIENTO (historial; nunca se edita ni se elimina, RNF-06)
+   ========================================================================== */
+
+CREATE TABLE movimiento (
+    folio                  VARCHAR(20)  NOT NULL,   -- MOV-0001 (lo genera Django). PEND-005: ¿num + folio único?
+    /* Fecha en que ocurrió: por defecto la hora actual; admite fechas pasadas
+       y NO futuras (lo valida la API). PEND: ¿puede ser anterior al último
+       movimiento del artículo? Propuesta: no. */
+    fecha_movimiento       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Hora real de captura: nadie la edita (RNF-06 y RNF-07).
+    fecha_registro         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivo                 VARCHAR(255) NOT NULL,   -- obligatorio (RF-16)
+    articulo               INT          NOT NULL,
+    tipo_movimiento        VARCHAR(10)  NOT NULL,
+    ubicacion_origen       VARCHAR(10)  NULL,       -- NULL solo en el Alta
+    ubicacion_destino      VARCHAR(10)  NOT NULL,
+    resguardante_anterior  INT          NULL,       -- NULL solo en el Alta
+    resguardante_nuevo     INT          NOT NULL,
+    /* DEC-016: lo fija el sistema al crear el movimiento. ALTA: lo decide la
+       API (no se genera en el alta histórica de un bien no localizado).
+       REUB: verdadero si cambió el resguardante. REPA, RETE y BAJA: falso. */
+    requiere_resguardo     BOOLEAN      NOT NULL,
+    usuario                INT          NOT NULL,   -- sellado de auditoría (RF-16)
     PRIMARY KEY (folio),
-    CONSTRAINT fk_movimiento_equipo FOREIGN KEY (equipo) REFERENCES EQUIPO(num),
-    CONSTRAINT fk_movimiento_tipo_movimiento FOREIGN KEY (tipo_movimiento) REFERENCES TIPO_MOVIMIENTO(codigo),
-    CONSTRAINT fk_movimiento_ubicacion_origen FOREIGN KEY (ubicacion_origen) REFERENCES UBICACION(codigo),
-    CONSTRAINT fk_movimiento_ubicacion_destino FOREIGN KEY (ubicacion_destino) REFERENCES UBICACION(codigo),
-    CONSTRAINT fk_movimiento_resguardante_anterior FOREIGN KEY (resguardante_anterior) REFERENCES PERSONAL(numero),
-    CONSTRAINT fk_movimiento_resguardante_nuevo FOREIGN KEY (resguardante_nuevo) REFERENCES PERSONAL(numero),
-    CONSTRAINT fk_movimiento_usuario FOREIGN KEY (usuario) REFERENCES USUARIO(num)
-);
+    KEY ix_movimiento_articulo_fecha (articulo, fecha_movimiento),   -- RF-17
+    CONSTRAINT fk_movimiento_articulo
+        FOREIGN KEY (articulo) REFERENCES articulo (num),
+    CONSTRAINT fk_movimiento_tipo
+        FOREIGN KEY (tipo_movimiento) REFERENCES tipo_movimiento (codigo),
+    CONSTRAINT fk_movimiento_ubicacion_origen
+        FOREIGN KEY (ubicacion_origen) REFERENCES ubicacion (codigo),
+    CONSTRAINT fk_movimiento_ubicacion_destino
+        FOREIGN KEY (ubicacion_destino) REFERENCES ubicacion (codigo),
+    CONSTRAINT fk_movimiento_resguardante_anterior
+        FOREIGN KEY (resguardante_anterior) REFERENCES personal (num),
+    CONSTRAINT fk_movimiento_resguardante_nuevo
+        FOREIGN KEY (resguardante_nuevo) REFERENCES personal (num),
+    CONSTRAINT fk_movimiento_usuario
+        FOREIGN KEY (usuario) REFERENCES usuario (num),
+    /* DEC-006: ALTA no tiene origen ni anterior. REUB cambia ubicación,
+       resguardante o ambos: no hay movimientos sin cambio efectivo. REPA,
+       RETE y BAJA conservan el resguardante (la ubicación puede o no cambiar);
+       lo que no cambia se repite igual, nunca NULL. Usa los códigos fijos. */
+    CONSTRAINT chk_movimiento_cambia_algo CHECK (
+        (tipo_movimiento = 'ALTA'
+            AND ubicacion_origen IS NULL
+            AND resguardante_anterior IS NULL)
+        OR
+        (tipo_movimiento = 'REUB'
+            AND ubicacion_origen IS NOT NULL
+            AND resguardante_anterior IS NOT NULL
+            AND (ubicacion_origen <> ubicacion_destino
+                 OR resguardante_anterior <> resguardante_nuevo))
+        OR
+        (tipo_movimiento IN ('REPA', 'RETE', 'BAJA')
+            AND ubicacion_origen IS NOT NULL
+            AND resguardante_anterior IS NOT NULL
+            AND resguardante_anterior = resguardante_nuevo)
+    ),
+    -- DEC-016. SUPUESTO: la regla de RF-18 (resguardo si cambia la persona).
+    CONSTRAINT chk_movimiento_requiere_resguardo CHECK (
+        tipo_movimiento = 'ALTA'
+        OR (tipo_movimiento = 'REUB'
+            AND requiere_resguardo = (resguardante_anterior <> resguardante_nuevo))
+        OR (tipo_movimiento IN ('REPA', 'RETE', 'BAJA')
+            AND requiere_resguardo = FALSE)
+    )
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 7 — RESGUARDO (depende de MOVIMIENTO)
+   BLOQUE 7 — RESGUARDO (PROVISIONAL: ver PEND-001)
+
+   DEC-007 pide resguardos bajo demanda para uno o varios artículos de una
+   persona, con el PDF conservado. Esta tabla 1:1 con movimiento se reemplaza
+   por RESGUARDO + RESGUARDO_DETALLE (propuesta PEND-001) cuando Adad la
+   valide. No se implementa más sobre ella hasta entonces.
    ========================================================================== */
 
-CREATE TABLE RESGUARDO (
-    folio VARCHAR(20) NOT NULL,
-    fecha_generacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ruta_pdf VARCHAR(255) NOT NULL,
-    movimiento VARCHAR(20) NOT NULL UNIQUE,
+CREATE TABLE resguardo (
+    folio             VARCHAR(20)  NOT NULL,   -- RES-0001 (lo genera Django, decisión 16)
+    fecha_generacion  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ruta_pdf          VARCHAR(255) NULL,       -- NULL permitido, como en el DD
+    movimiento        VARCHAR(20)  NOT NULL,
     PRIMARY KEY (folio),
-    CONSTRAINT fk_resguardo_movimiento FOREIGN KEY (movimiento) REFERENCES MOVIMIENTO(folio)
-);
+    UNIQUE KEY uq_resguardo_movimiento (movimiento),
+    CONSTRAINT fk_resguardo_movimiento
+        FOREIGN KEY (movimiento) REFERENCES movimiento (folio)
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 8 — BITÁCORA (depende de USUARIO)
+   BLOQUE 8 — BITACORA (auditoría inalterable, RF-21, RNF-06, RNF-07)
    ========================================================================== */
 
-CREATE TABLE BITACORA (
-    num INT AUTO_INCREMENT NOT NULL,
-    fecha_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modulo VARCHAR(50) NOT NULL,
-    accion VARCHAR(20) NOT NULL,
-    valor_anterior TEXT,
-    valor_nuevo TEXT,
-    motivo VARCHAR(255),
-    tabla_afectada VARCHAR(50) NOT NULL,
-    registro_id VARCHAR(20) NOT NULL,
-    usuario INT NOT NULL,
+/* valor_anterior y valor_nuevo guardan un JSON con todos los campos que
+   cambiaron en la acción, por ejemplo {"estado_operativo": "UTIL"} -> así
+   no hace falta una columna "campo" y se registra una sola fila por acción.
+   tabla_afectada y registro_id NO son FK: la bitácora es polimórfica.
+   motivo es obligatorio en la API para las correcciones (RNF-06). */
+CREATE TABLE bitacora (
+    num             INT          NOT NULL AUTO_INCREMENT,
+    fecha_hora      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modulo          VARCHAR(50)  NOT NULL,
+    accion          VARCHAR(20)  NOT NULL,   -- INSERT, UPDATE o DELETE (lógico)
+    tabla_afectada  VARCHAR(50)  NOT NULL,
+    registro_id     VARCHAR(50)  NOT NULL,
+    valor_anterior  TEXT         NULL,
+    valor_nuevo     TEXT         NULL,
+    motivo          VARCHAR(255) NULL,
+    usuario         INT          NOT NULL,
     PRIMARY KEY (num),
-    CONSTRAINT fk_bitacora_usuario FOREIGN KEY (usuario) REFERENCES USUARIO(num)
-);
-
-/* tabla_afectada y registro_id son VARCHAR, NO claves foráneas:
-   la bitácora es polimórfica (apunta a EQUIPO unas veces, a CATEGORIA
-   otras). Si fueran FK, MySQL obligaría a elegir una sola tabla. */
+    KEY ix_bitacora_registro (tabla_afectada, registro_id),
+    KEY ix_bitacora_fecha (fecha_hora),
+    CONSTRAINT fk_bitacora_usuario
+        FOREIGN KEY (usuario) REFERENCES usuario (num)
+) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   CATÁLOGO DE DATOS — VALORES PRECARGADOS
+   DATOS PRECARGADOS (catálogos)
    ========================================================================== */
 
-INSERT INTO ROL (clave, nombre, descripcion) VALUES
-('ADMIN', 'Administrador', 'Control total: altas, bajas y movimientos. Único rol que crea cuentas y consulta la bitácora'),
-('CONT', 'Contadora', 'Rol de consulta: consulta el inventario y edita puntualmente algún dato. No da de alta equipo ni ejecuta bajas');
+/* DEC-001: dos roles. La contadora y los jefes usan ADMIN. */
+INSERT INTO rol (clave, nombre, descripcion) VALUES
+('ADMIN',    'Administrador', 'Todo, incluida la bitácora y administrar usuarios'),
+('CONSULTA', 'Consulta',      'Dashboard, consultas, historial, resguardos y reportes PDF. No modifica nada ni ve la bitácora');
 
-INSERT INTO DEPARTAMENTO (codigo, nombre, descripcion) VALUES
-('DEP-INF', 'Informática', 'Departamento al que pertenecen las 3 ubicaciones del alcance'),
-('DEP-ACA', 'Académico', 'Departamento del plantel. Necesario porque el resguardante puede ser de cualquier área'),
-('DEP-DIR', 'Dirección', 'Departamento del plantel');
--- Pendiente: agregar más departamentos reales del plantel conforme se identifiquen resguardantes.
+/* Decisión 9: solo Informática por ahora. Habrá un botón para agregar más
+   departamentos (falta el RF correspondiente). DUDA 13: los códigos como
+   DEP-INF, ¿los escribe el usuario o los genera el sistema? */
+INSERT INTO departamento (codigo, nombre, descripcion) VALUES
+('DEP-INF', 'Informática', 'Departamento al que pertenecen las ubicaciones del alcance');
 
-INSERT INTO CATEGORIA (codigo, nombre, descripcion, activo) VALUES
-('CAT-MON', 'Monitor', 'Monitor de cualquier tipo', TRUE),
-('CAT-PCE', 'Computadora de escritorio', 'Equipo de cómputo fijo', TRUE),
-('CAT-LAP', 'Laptop', 'Equipo de cómputo portátil', TRUE),
-('CAT-TIP', 'Teléfono IP', 'Teléfono de voz sobre IP', TRUE),
-('CAT-SWT', 'Switch', 'Conmutador de red', TRUE),
-('CAT-ALT', 'Altavoz de entrada', 'Bocina o altavoz de acceso', TRUE),
-('CAT-SRV', 'Servidor físico', 'Servidor de gabinete o torre', TRUE);
--- Precargado con las 7 categorías confirmadas por RF-04. Catálogo extensible.
+/* categoria y tipo_articulo arrancan VACÍAS (confirmado 27/10/2026): el
+   Administrador las agrega desde el sistema y el sistema genera los códigos
+   (DEC-015). Hasta que exista al menos una categoría con un tipo no se puede
+   dar de alta ningún artículo. */
 
-INSERT INTO ORIGEN (codigo, nombre, descripcion) VALUES
-('ACT', 'Activo', 'Bien patrimonial del gobierno del estado, identificado por MARBETE SAACG.NET'),
-('COM', 'Comodato', 'Bien recibido en comodato, identificado por folio interno del plantel'),
-('ENS', 'Enser', 'Bien menor del plantel, identificado por folio interno');
--- Fijo: 3 valores del inventario patrimonial. No administrable por el usuario.
+-- Códigos fijos: el CHECK de articulo depende de ACT, COM y ENS.
+INSERT INTO origen (codigo, nombre, descripcion) VALUES
+('ACT', 'Activo',    'Bien patrimonial del gobierno del estado, identificado por marbete SAACG.NET'),
+('COM', 'Comodato',  'Bien recibido en comodato, identificado por folio interno del plantel'),
+('ENS', 'Enser',     'Bien menor del plantel, identificado por folio interno');
 
-INSERT INTO ESTADO_OPERATIVO (codigo, nombre, activo) VALUES
-('UTIL', 'Útil', TRUE),
-('REP', 'En reparación', TRUE),
-('BAJA', 'De baja', TRUE),
-('INAC', 'Inactivo', TRUE);
--- No incluye "No localizado": ese caso se resuelve con la ubicación
--- especial UBI-NOLOC, no como estado operativo (ver nota de cabecera).
+/* Estados provisionales (DEC-012; reglas de transición en PEND-003 y
+   PEND-009). NOLOC y UBI-NOLOC están protegidos: no se desactivan ni se
+   renombran. */
+INSERT INTO estado_operativo (codigo, nombre) VALUES
+('UTIL',  'Útil'),
+('OBS',   'Obsoleto'),
+('AUTB',  'Autorizado para baja'),
+('NOLOC', 'No localizado');
 
-INSERT INTO ESTADO_REGISTRO (codigo, nombre, activo) VALUES
-('PEND', 'Pendiente', TRUE),
-('REG', 'Registrado', TRUE),
-('DON', 'Donado', TRUE);
+INSERT INTO estado_registro (codigo, nombre) VALUES
+('PEND', 'Pendiente'),
+('REG',  'Registrado'),
+('DON',  'Donado');
 
-INSERT INTO TIPO_MOVIMIENTO (codigo, nombre, genera_resguardo) VALUES
-('ALTA', 'Alta de equipo', TRUE),
-('CAMB_RESG', 'Cambio de resguardante', TRUE),
-('CAMB_UBI', 'Cambio de ubicación', FALSE);
+/* DEC-006: cinco tipos internos. ALTA se registra sola al crear un artículo
+   (no es opción manual); el formulario "Nuevo movimiento" ofrece REUB, REPA,
+   RETE y BAJA. */
+INSERT INTO tipo_movimiento (codigo, nombre) VALUES
+('ALTA', 'Alta de artículo'),
+('REUB', 'Reubicación y/o cambio de resguardante'),
+('REPA', 'Envío a reparación'),
+('RETE', 'Retorno de reparación'),
+('BAJA', 'Baja');
 
--- PERSONAL: sin datos de prueba por el momento. Se decidió no crear la
--- base de datos en el DBMS (XAMPP/phpMyAdmin) todavía, por lo que no se
--- insertan registros de PERSONAL, USUARIO ni EQUIPO en esta versión.
-
-INSERT INTO UBICACION (codigo, nombre, descripcion, responsable, activo) VALUES
-('UBI-OFI', 'Oficina de Informática', 'Oficina del Departamento de Informática', NULL, TRUE),
-('UBI-LAB1', 'Laboratorio de Informática 1', 'Laboratorio de cómputo 1', NULL, TRUE),
-('UBI-LAB2', 'Laboratorio de Informática 2', 'Laboratorio de cómputo 2', NULL, TRUE),
-('UBI-NOLOC', 'Sin ubicar / No localizado', 'Ubicación temporal cuando el equipo no se encuentra físicamente en una revisión. El equipo llega aquí mediante un movimiento de tipo Cambio de ubicación, con motivo documentado, y conserva su trazabilidad completa', NULL, TRUE);
--- Responsable NULL en las 4: pendiente confirmar nombre completo del
--- nuevo jefe de Informática antes de poblarlo (decisión 16/10/2026).
+/* RF-11: oficina y dos laboratorios. Responsable NULL hasta confirmar el
+   nombre del jefe de Informática (RF-12 solo exige que el campo exista).
+   Decisiones 10 y 15: UBI-NOLOC existe para artículo que no se puede ubicar;
+   hay que agregarla a RF-11. Va siempre junto con el estado NOLOC y se
+   permite también en un Alta. */
+INSERT INTO ubicacion (codigo, nombre, descripcion, responsable) VALUES
+('UBI-OFI',   'Oficina de Informática',       'Oficina del Departamento de Informática', NULL),
+('UBI-LAB1',  'Laboratorio de Informática 1', 'Laboratorio de cómputo 1', NULL),
+('UBI-LAB2',  'Laboratorio de Informática 2', 'Laboratorio de cómputo 2', NULL),
+('UBI-NOLOC', 'Sin ubicar / No localizado',   'Ubicación temporal para artículo no localizado en una revisión. Se llega con un Cambio de ubicación con motivo documentado', NULL);
 
 /* ==========================================================================
-   FIN DEL SCRIPT PROVISIONAL
-   Pendiente antes de considerarlo definitivo:
-     1. Confirmar con Adad la nomenclatura final (este script ya sigue
-        snake_case parejo y las correcciones de la sección 8 del DER).
-     2. Decidir si se cargan los equipos reales del Excel patrimonial
-        (228 Activos + ~31 Comodatos + ~12-19 Enseres, tras revisión
-        manual) como INSERT de prueba, o se deja la tabla EQUIPO vacía.
-     3. Ejecutar en XAMPP/phpMyAdmin y validar que las 19 FK se crean
-        sin error en el orden en que están declaradas.
-     4. Confirmar nombre del responsable de ubicaciones cuando se tenga.
+   PENDIENTE DE ARRANQUE (no se puede hacer desde SQL)
+     El primer Administrador necesita un registro en personal y otro en
+     usuario con la contraseña ya hasheada. Se hará con un comando de Django
+     (por ejemplo "crear_admin_inicial"), no con INSERT.
+     El folio de Comodato/Enser sigue la fórmula de la decisión 37.
    ========================================================================== */
