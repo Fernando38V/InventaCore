@@ -145,11 +145,11 @@
 SET NAMES utf8mb4;
 
 -- ⚠ Descomentar SOLO para recrear la base en desarrollo: borra todos los datos.
--- DROP DATABASE IF EXISTS conalep_db;
+-- DROP DATABASE IF EXISTS InventaCore_db;
 
-CREATE DATABASE IF NOT EXISTS conalep_db
+CREATE DATABASE IF NOT EXISTS InventaCore_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE conalep_db;
+USE InventaCore_db;
 
 
 /* ==========================================================================
