@@ -63,7 +63,9 @@
               contador_folio). Serie opcional.
      DEC-011  Obligatorios: tipo_articulo, origen, identificador, ubicación,
               resguardante y estado operativo. Opcionales (NULL): marca,
-              modelo, serie, color, descripción, fecha y costo.
+              modelo, serie, fecha y costo. Color y descripción también son
+              NOT NULL (actualizado por Fernando el 27/10/2026: un registro
+              no puede quedar tan vacío y son datos visuales del bien).
      DEC-012  UBI-NOLOC y el estado NOLOC van siempre juntos (CHECK).
      DEC-013  Ubicación y resguardante solo cambian por movimiento.
      DEC-014  departamento y ubicacion son entidades distintas, sin relación.
@@ -132,7 +134,8 @@
                RF dice Contadora)
      Cambios del 27/10/2026 (sincronización con DECISIONES.md):
                articulo ya no tiene categoria: solo tipo_articulo NOT NULL (DEC-002)
-               articulo.color y articulo.descripcion pasan a NULL (DEC-011)
+               articulo.color y articulo.descripcion siguen NOT NULL (DEC-011,
+               versión del 27/10/2026); marca, modelo y serie pasan a NULL
                chk_articulo_estado_registro: Donado ya no exige costo vacío
                tipo_movimiento: se agrega BAJA (DEC-006); el CHECK de movimiento
                la trata como REPA y RETE
@@ -145,11 +148,11 @@
 SET NAMES utf8mb4;
 
 -- ⚠ Descomentar SOLO para recrear la base en desarrollo: borra todos los datos.
--- DROP DATABASE IF EXISTS InventaCore_db;
+-- DROP DATABASE IF EXISTS inventacore_db;
 
-CREATE DATABASE IF NOT EXISTS InventaCore_db
+CREATE DATABASE IF NOT EXISTS inventacore_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE InventaCore_db;
+USE inventacore_db;
 
 
 /* ==========================================================================
@@ -157,39 +160,32 @@ USE InventaCore_db;
    ========================================================================== */
 
 CREATE TABLE rol (
-    clave        VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(50)  NOT NULL,
+    clave        VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(50)  NOT NULL UNIQUE,
     descripcion  VARCHAR(150) NULL,
-    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (clave),
-    UNIQUE KEY uq_rol_nombre (nombre)
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 CREATE TABLE departamento (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(100) NOT NULL,
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(100) NOT NULL UNIQUE,
     descripcion  VARCHAR(150) NOT NULL,
-    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_departamento_nombre (nombre)
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 CREATE TABLE categoria (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(100) NOT NULL,   -- DEC-002: sin número de cuenta contable
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(100) NOT NULL UNIQUE,   -- DEC-002: sin número de cuenta contable
     descripcion  VARCHAR(150) NULL,
-    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_categoria_nombre (nombre)
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 /* Decisión 37: último número usado de cada serie de folios. Claves: FI-MMAA
    (folio interno de ese mes, p. ej. FI-1026), MOV y RES. Django bloquea la
    fila al avanzarla, así dos altas simultáneas no reciben el mismo folio. */
 CREATE TABLE contador_folio (
-    clave   VARCHAR(30)  NOT NULL,
-    ultimo  INT UNSIGNED NOT NULL DEFAULT 0,
-    PRIMARY KEY (clave)
+    clave   VARCHAR(30)  NOT NULL PRIMARY KEY,
+    ultimo  INT UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
 
 /* DEC-002: categoria 1:M tipo_articulo 1:M articulo. El tipo clasifica el
@@ -197,12 +193,11 @@ CREATE TABLE contador_folio (
    dentro de mobiliario...). Extensible desde el sistema; arranca vacío. El
    nombre puede repetirse entre categorías, no dentro de una. */
 CREATE TABLE tipo_articulo (
-    codigo       VARCHAR(10)  NOT NULL,
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
     nombre       VARCHAR(100) NOT NULL,
     descripcion  VARCHAR(150) NULL,
     categoria    VARCHAR(10)  NOT NULL,
     activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
     UNIQUE KEY uq_tipo_articulo_categoria_nombre (categoria, nombre),
     CONSTRAINT fk_tipo_articulo_categoria
         FOREIGN KEY (categoria) REFERENCES categoria (codigo)
@@ -210,35 +205,27 @@ CREATE TABLE tipo_articulo (
 
 -- Catálogo fijo de 3 valores; por eso no lleva "activo" (igual que el DD).
 CREATE TABLE origen (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(50)  NOT NULL,
-    descripcion  VARCHAR(150) NULL,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_origen_nombre (nombre)
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(50)  NOT NULL UNIQUE,
+    descripcion  VARCHAR(150) NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE estado_operativo (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(50)  NOT NULL,
-    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_estado_operativo_nombre (nombre)
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(50)  NOT NULL UNIQUE,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 CREATE TABLE estado_registro (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(50)  NOT NULL,
-    activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_estado_registro_nombre (nombre)
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(50)  NOT NULL UNIQUE,
+    activo       BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 CREATE TABLE tipo_movimiento (
-    codigo            VARCHAR(10) NOT NULL,
-    nombre            VARCHAR(50) NOT NULL,
-    activo            BOOLEAN     NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_tipo_movimiento_nombre (nombre)
+    codigo            VARCHAR(10) NOT NULL PRIMARY KEY,
+    nombre            VARCHAR(50) NOT NULL UNIQUE,
+    activo            BOOLEAN     NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
 
@@ -247,19 +234,17 @@ CREATE TABLE tipo_movimiento (
    ========================================================================== */
 
 CREATE TABLE personal (
-    num               INT          NOT NULL AUTO_INCREMENT,
+    num               INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
     /* Decisión 1: "num" es el consecutivo interno que usan las FK;
        "numero_empleado" es el número del plantel, complemento para búsquedas
        y filtros (RF-15). Único; se asume que todo empleado tiene uno. */
-    numero_empleado   VARCHAR(20)  NOT NULL,
+    numero_empleado   VARCHAR(20)  NOT NULL UNIQUE,
     nombre_pila       VARCHAR(50)  NOT NULL,
     primer_apellido   VARCHAR(50)  NOT NULL,
     segundo_apellido  VARCHAR(50)  NULL,
     puesto            VARCHAR(50)  NOT NULL,
     activo            BOOLEAN      NOT NULL DEFAULT TRUE,
     departamento      VARCHAR(10)  NOT NULL,
-    PRIMARY KEY (num),
-    UNIQUE KEY uq_personal_numero_empleado (numero_empleado),
     CONSTRAINT fk_personal_departamento
         FOREIGN KEY (departamento) REFERENCES departamento (codigo)
 ) ENGINE=InnoDB;
@@ -270,13 +255,11 @@ CREATE TABLE personal (
    ========================================================================== */
 
 CREATE TABLE ubicacion (
-    codigo       VARCHAR(10)  NOT NULL,
-    nombre       VARCHAR(100) NOT NULL,
+    codigo       VARCHAR(10)  NOT NULL PRIMARY KEY,
+    nombre       VARCHAR(100) NOT NULL UNIQUE,
     descripcion  VARCHAR(150) NULL,
     responsable  INT          NULL,
     activo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (codigo),
-    UNIQUE KEY uq_ubicacion_nombre (nombre),
     CONSTRAINT fk_ubicacion_responsable
         FOREIGN KEY (responsable) REFERENCES personal (num)
 ) ENGINE=InnoDB;
@@ -290,15 +273,12 @@ CREATE TABLE ubicacion (
    Django exige "last_login" en su modelo base; el modelo lo desactivará
    (last_login = None) para respetar el DD. */
 CREATE TABLE usuario (
-    num         INT           NOT NULL AUTO_INCREMENT,
-    username    VARCHAR(50)   NOT NULL,
+    num         INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username    VARCHAR(50)   NOT NULL UNIQUE,
     contrasena  VARCHAR(255)  NOT NULL,   -- hash, nunca texto plano (RNF-01)
     activo      BOOLEAN       NOT NULL DEFAULT TRUE,   -- baja lógica (RF-03)
-    personal    INT           NOT NULL,   -- cuenta ligada a un empleado (RF-02)
+    personal    INT           NOT NULL UNIQUE,   -- cuenta ligada a un empleado (RF-02)
     rol         VARCHAR(10)   NOT NULL,
-    PRIMARY KEY (num),
-    UNIQUE KEY uq_usuario_username (username),
-    UNIQUE KEY uq_usuario_personal (personal),
     CONSTRAINT fk_usuario_personal
         FOREIGN KEY (personal) REFERENCES personal (num),
     CONSTRAINT fk_usuario_rol
@@ -311,17 +291,17 @@ CREATE TABLE usuario (
    ========================================================================== */
 
 CREATE TABLE articulo (
-    num                INT           NOT NULL AUTO_INCREMENT,
-    marbete_oficial    VARCHAR(25)   NULL,   -- solo Activos (DEC-010)
-    folio_interno      VARCHAR(25)   NULL,   -- solo Comodato y Enser, generado
-    -- DEC-011: marca, modelo, serie, color, descripción, fecha y costo son
-    -- opcionales. Django envía NULL, nunca cadena vacía. La interfaz muestra
-    -- "Sin especificar"; no se guardan textos como S/M o S/S.
+    num                INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    marbete_oficial    VARCHAR(25)   NULL UNIQUE,   -- solo Activos (DEC-010)
+    folio_interno      VARCHAR(25)   NULL UNIQUE,   -- solo Comodato y Enser, generado
+    -- DEC-011: marca, modelo, serie, fecha y costo son opcionales; color y
+    -- descripción son obligatorios. Django envía NULL, nunca cadena vacía. La
+    -- interfaz muestra "Sin especificar"; no se guardan textos como S/M o S/S.
     marca              VARCHAR(50)   NULL,
     modelo             VARCHAR(60)   NULL,
-    num_serie          VARCHAR(50)   NULL,   -- único si existe (RF-09 y RF-23)
-    color              VARCHAR(25)   NULL,
-    descripcion        VARCHAR(150)  NULL,
+    num_serie          VARCHAR(50)   NULL UNIQUE,   -- único si existe (RF-09 y RF-23)
+    color              VARCHAR(25)   NOT NULL,
+    descripcion        VARCHAR(150)  NOT NULL,
     fecha_adquisicion  DATE          NULL,
     costo_adquisicion  DECIMAL(12,2) NULL,
     fecha_alta         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -333,10 +313,6 @@ CREATE TABLE articulo (
     origen             VARCHAR(10)   NOT NULL,
     estado_operativo   VARCHAR(10)   NOT NULL,
     estado_registro    VARCHAR(10)   NOT NULL,   -- lo calcula el sistema
-    PRIMARY KEY (num),
-    UNIQUE KEY uq_articulo_marbete (marbete_oficial),
-    UNIQUE KEY uq_articulo_folio (folio_interno),
-    UNIQUE KEY uq_articulo_num_serie (num_serie),
     CONSTRAINT fk_articulo_tipo_articulo
         FOREIGN KEY (tipo_articulo) REFERENCES tipo_articulo (codigo),
     CONSTRAINT fk_articulo_ubicacion
@@ -362,6 +338,10 @@ CREATE TABLE articulo (
     ),
     CONSTRAINT chk_articulo_serie CHECK (
         num_serie IS NULL OR num_serie <> ''
+    ),
+    -- DEC-011: obligatorios también en el sentido de no estar vacíos.
+    CONSTRAINT chk_articulo_color_descripcion CHECK (
+        color <> '' AND descripcion <> ''
     ),
     CONSTRAINT chk_articulo_costo CHECK (
         costo_adquisicion IS NULL OR costo_adquisicion >= 0
@@ -390,7 +370,7 @@ CREATE TABLE articulo (
    ========================================================================== */
 
 CREATE TABLE movimiento (
-    folio                  VARCHAR(20)  NOT NULL,   -- MOV-0001 (lo genera Django). PEND-005: ¿num + folio único?
+    folio                  VARCHAR(20)  NOT NULL PRIMARY KEY,   -- MOV-0001 (lo genera Django). PEND-005: ¿num + folio único?
     /* Fecha en que ocurrió: por defecto la hora actual; admite fechas pasadas
        y NO futuras (lo valida la API). PEND: ¿puede ser anterior al último
        movimiento del artículo? Propuesta: no. */
@@ -409,7 +389,6 @@ CREATE TABLE movimiento (
        REUB: verdadero si cambió el resguardante. REPA, RETE y BAJA: falso. */
     requiere_resguardo     BOOLEAN      NOT NULL,
     usuario                INT          NOT NULL,   -- sellado de auditoría (RF-16)
-    PRIMARY KEY (folio),
     KEY ix_movimiento_articulo_fecha (articulo, fecha_movimiento),   -- RF-17
     CONSTRAINT fk_movimiento_articulo
         FOREIGN KEY (articulo) REFERENCES articulo (num),
@@ -466,12 +445,10 @@ CREATE TABLE movimiento (
    ========================================================================== */
 
 CREATE TABLE resguardo (
-    folio             VARCHAR(20)  NOT NULL,   -- RES-0001 (lo genera Django, decisión 16)
+    folio             VARCHAR(20)  NOT NULL PRIMARY KEY,   -- RES-0001 (lo genera Django, decisión 16)
     fecha_generacion  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ruta_pdf          VARCHAR(255) NULL,       -- NULL permitido, como en el DD
-    movimiento        VARCHAR(20)  NOT NULL,
-    PRIMARY KEY (folio),
-    UNIQUE KEY uq_resguardo_movimiento (movimiento),
+    movimiento        VARCHAR(20)  NOT NULL UNIQUE,
     CONSTRAINT fk_resguardo_movimiento
         FOREIGN KEY (movimiento) REFERENCES movimiento (folio)
 ) ENGINE=InnoDB;
@@ -487,7 +464,7 @@ CREATE TABLE resguardo (
    tabla_afectada y registro_id NO son FK: la bitácora es polimórfica.
    motivo es obligatorio en la API para las correcciones (RNF-06). */
 CREATE TABLE bitacora (
-    num             INT          NOT NULL AUTO_INCREMENT,
+    num             INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
     fecha_hora      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modulo          VARCHAR(50)  NOT NULL,
     accion          VARCHAR(20)  NOT NULL,   -- INSERT, UPDATE o DELETE (lógico)
@@ -497,7 +474,6 @@ CREATE TABLE bitacora (
     valor_nuevo     TEXT         NULL,
     motivo          VARCHAR(255) NULL,
     usuario         INT          NOT NULL,
-    PRIMARY KEY (num),
     KEY ix_bitacora_registro (tabla_afectada, registro_id),
     KEY ix_bitacora_fecha (fecha_hora),
     CONSTRAINT fk_bitacora_usuario
