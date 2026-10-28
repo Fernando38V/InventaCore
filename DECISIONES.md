@@ -74,7 +74,7 @@ Decisión: Activos usan marbete oficial, sin folio interno. Comodatos y Enseres 
 ## DEC-011 — Campos opcionales de EQUIPO
 
 Estado: CONFIRMADA
-Decisión: Obligatorios: tipo de artículo, origen, identificador, ubicación, resguardante y estado operativo. Pueden ser NULL: marca, modelo, número de serie, color, descripción, fecha de adquisición y costo. La interfaz muestra "Sin especificar"; no se guardan textos como S/M o S/S.
+Decisión: Obligatorios: tipo de artículo, origen, identificador, ubicación, resguardante y estado operativo. Pueden ser NULL: marca, modelo, número de serie, fecha de adquisición y costo. Color y Descripcion son campos que deberan ser not null, debido que un registro no puede quedar tan vacio con tantos campos nullos, ademas de que son campos visuales que si o si se deben destinar a un equipo. La interfaz muestra "Sin especificar"; no se guardan textos como S/M o S/S.
 
 ## DEC-012 — Estado operativo y No localizado
 
