@@ -38,10 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'usuarios',
     'personal',
     'catalogos',
-    'equipos',
+    'articulos',
     'movimientos',
     'reportes',
     'auditoria',
@@ -92,12 +93,21 @@ DATABASES = {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
+        # La base que crea Django para las pruebas debe ser utf8mb4 también.
+        'TEST': {
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_unicode_ci',
+        },
     }
 }
 
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
+
+# Cuenta de acceso propia del sistema (usuario + empleado + rol).
+# Debe estar definido ANTES de ejecutar migrate por primera vez.
+AUTH_USER_MODEL = 'usuarios.Usuario'
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -130,3 +140,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# --- API REST -------------------------------------------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['api.autenticacion.TokenConVencimiento'],
+    'DEFAULT_PERMISSION_CLASSES': ['api.permisos.AdminEscribeObservadorLee'],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'EXCEPTION_HANDLER': 'api.errores.manejador_de_errores',
+}
+
+# El token de acceso vence al día siguiente de iniciar sesión.
+TOKEN_VIGENCIA_HORAS = 24
