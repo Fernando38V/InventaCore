@@ -5,7 +5,7 @@ app_name = 'usuarios'
 
 urlpatterns = [
     path('login/', views.login_view, name='login'),
-    path('logout/', views.login_view, name='logout'),     # placeholder temporal
+    path('logout/', views.logout_view, name='logout'),     
     path('perfil/', views.login_view, name='perfil'),      # placeholder temporal
     path('', views.login_view, name='listado'),             # placeholder temporal
 ]

@@ -147,9 +147,10 @@
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
           Cancelar
         </button>
-        <a class="btn btn-danger btn-sm" href="{% url 'usuarios:logout' %}">
-          Sí, cerrar sesión
-        </a>
+        <form method="post" action="{% url 'usuarios:logout' %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger btn-sm">Sí, cerrar sesión</button>
+        </form>
       </div>
     </div>
   </div>
