@@ -75,17 +75,12 @@ class ListadoTests(BaseCliente):
         self.client.get('/catalogos/categorias/?activo=zzz')
         self.assertEqual(self.api.llamadas[0][1], 'categorias/?page=1')
 
-    def test_admin_ve_botones_y_consulta_no(self):
-        self.api.respuestas[('GET', 'categorias/')] = pagina([CAT])
-        self.entrar('ADMIN')
-        html = self.client.get('/catalogos/categorias/').content.decode()
-        self.assertIn('Nueva categoría', html)
-        self.assertIn('data-bs-target="#modalEstado"', html)
-        self.entrar('CONSULTA')
-        html = self.client.get('/catalogos/categorias/').content.decode()
-        self.assertIn('Cómputo', html)
-        self.assertNotIn('Nueva categoría', html)
-        self.assertNotIn('modalEstado', html)
+        def test_admin_ve_botones(self):
+            self.api.respuestas[('GET', 'categorias/')] = pagina([CAT])
+            self.entrar('ADMIN')
+            html = self.client.get('/catalogos/categorias/').content.decode()
+            self.assertIn('Nueva categoría', html)
+            self.assertIn('data-bs-target="#modalEstado"', html)
 
     def test_ubicacion_no_localizado_no_tiene_acciones(self):
         self.entrar()
@@ -268,6 +263,19 @@ class ConsultaTests(BaseCliente):
         self.client.post('/catalogos/categorias/CAT-001/estado/', {'activar': '0', 'motivo': 'x'})
         self.assertEqual(self.api.escrituras(), [])
         self.assertEqual([ll for ll in self.api.llamadas if 'CAT-001/' in ll[1]], [])
+
+    def test_consulta_no_abre_las_secciones_de_administracion(self):
+        self.entrar('CONSULTA')
+        for url in ('/catalogos/', '/catalogos/categorias/', '/catalogos/tipos-articulo/',
+                    '/personal/', '/auditoria/', '/cuentas/'):
+            r = self.client.get(url)
+            self.assertRedirects(r, '/reportes/dashboard/', fetch_redirect_response=False)
+        self.assertEqual(self.api.llamadas, [])
+
+    def test_consulta_sigue_entrando_a_sus_pantallas(self):
+        self.entrar('CONSULTA')
+        for url in ('/reportes/dashboard/', '/reportes/'):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
 
     def test_sin_sesion_pide_login(self):
         r = self.client.get('/catalogos/categorias/')

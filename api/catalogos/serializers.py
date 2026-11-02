@@ -34,6 +34,20 @@ class TipoArticuloSerializer(CodigoAutomatico, serializers.ModelSerializer):
             raise serializers.ValidationError('La categoría está desactivada.')
         return categoria
 
+    def validate(self, datos):
+        # El modelo ya prohíbe repetir (categoría, nombre); se valida aquí para
+        # responder 400 con mensaje en vez de un 500 por IntegrityError.
+        categoria = datos.get('categoria', getattr(self.instance, 'categoria', None))
+        nombre = datos.get('nombre', getattr(self.instance, 'nombre', None))
+        if categoria is not None and nombre is not None:
+            repetidos = TipoArticulo.objects.filter(categoria=categoria, nombre=nombre)
+            if self.instance is not None:
+                repetidos = repetidos.exclude(pk=self.instance.pk)
+            if repetidos.exists():
+                raise serializers.ValidationError(
+                    {'nombre': 'Ya existe un tipo de artículo con ese nombre en esta categoría.'})
+        return datos
+
 
 class UbicacionSerializer(CodigoAutomatico, serializers.ModelSerializer):
     prefijo_codigo = 'UBI'
