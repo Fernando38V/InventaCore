@@ -2,7 +2,7 @@
 
 Última actualización: 01/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
-Fuente de las decisiones DEC-017 a DEC-020 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
+Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
 ## DEC-001 — Roles del sistema
 
@@ -11,7 +11,7 @@ Decisión: Dos roles, ADMINISTRADOR y CONSULTA. La Contadora y los jefes usan ro
 ADMINISTRADOR: todo, incluida la bitácora. CONSULTA: dashboard, consultas, historial, resguardos y reportes PDF; no modifica nada ni ve la bitácora.
 Los permisos se validan en el backend; ?rol= del frontend es solo simulación.
 Impacto: RF-01, 02, 03, 08, 21; RNF-02; ROL; USUARIO; API; frontend; pruebas de permisos.
-Implementación: backend iniciado por Adad (usuarios, login con token, permisos). Frontend PENDIENTE.
+Implementación: backend de Adad (usuarios, login con token, permisos). Frontend: login real, rol real en sesión, menú y bloqueo por rol implementados (01/11/2026, ver DEC-019).
 
 ## DEC-002 — Clasificación del inventario y nombre de la entidad
 
@@ -134,3 +134,14 @@ Decisión:
 
 Estado: CONFIRMADA (01/11/2026)
 Decisión: El sistema exporta el inventario a Excel para que la Contadora lo envíe a la dirección estatal. Columnas: identificador (marbete o folio), categoría, tipo, marca, modelo, serie, color, descripción, origen, ubicación, resguardante, estado operativo, fecha y costo de adquisición, y estado de registro (calculado, solo de salida). Sin cuenta contable.
+
+## DEC-019 — Módulos visibles por rol
+
+Estado: CONFIRMADA (01/11/2026)
+Decisión: El rol CONSULTA solo accede a Dashboard, Equipos (artículos), Movimientos y Reportes, y a su perfil. Personal, Catálogos, Bitácora y Usuarios y Roles son solo del ADMINISTRADOR: Consulta no los ve en el menú ni los abre escribiendo la URL.
+
+- Precisa DEC-001: la consulta de ubicaciones y empleados (RF-13 y RF-15) es solo para el Administrador.
+- Cliente: el menú se arma según el rol y `usuarios/middleware.py` redirige a Consulta al dashboard si intenta entrar a una sección de administración.
+- API: la lectura (GET) de catálogos y personal sigue permitida a CONSULTA porque los filtros y el detalle de equipos y movimientos la necesitan. La escritura sigue siendo solo del Administrador y la API responde 403 aunque el cliente falle.
+  Impacto: RF-13, RF-15, RNF-02; frontend; pruebas de permisos.
+  Implementación: cliente listo y probado (01/11/2026).

@@ -10,6 +10,8 @@ Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No 
 - PEND-006 Resguardos: dos firmas, documento consolidado, sin Monto revalúo, formato propio (DEC-007).
 - PEND-008 Campos: color y descripción obligatorios; marca, modelo, serie y fecha opcionales (DEC-011).
 - PEND-009 Cambios de estado desde la ficha: Obsoleto desde la ficha con motivo y bitácora (DEC-013).
+- Roles en el cliente: Consulta no accede a catálogos, personal, bitácora ni usuarios (DEC-019).
+- Error 500 al registrar un tipo de artículo duplicado: corregido en TipoArticuloSerializer (400 con mensaje). Era el único UniqueConstraint del modelo.
 
 ## Para validar con Adad
 
@@ -86,7 +88,7 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: datos de prueba, rol simulado con ?rol=CONT, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo. Se adapta cuando el backend publique los endpoints de artículos y movimientos.
+- Frontend: - Frontend: login real, rol real y pantallas de catálogos y personal ya conectadas a la API (01/11/2026). Siguen con datos de prueba y por adaptar: equipos, movimientos, dashboard y reportes (datos de prueba, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo). Se adaptan cuando el backend publique los endpoints de artículos y movimientos.
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
 - requirements.txt: falta qrcode (lo usa client) y openpyxl (carga y exportación).
@@ -99,6 +101,23 @@ PEND-018 — Cotejo de la transcripción de la reunión con la Contadora
 
 - Fernando la compartirá para verificar que el resumen coincide.
 
+- 01/11/2026: publicados categorias, tipos-articulo, ubicaciones, departamentos y personal (CRUD sin DELETE, baja lógica con `activo`, motivo obligatorio, código automático) y, de solo lectura, origenes, estados-operativos, estados-registro y tipos-movimiento. También existen usuarios, auth/yo y auth/cambiar-password. Sin publicar: artículos, movimientos, resguardos, lectura de bitácora y reportes.
+
+PEND-019 — Pantallas del cliente con API ya publicada
+Prioridad: MEDIA
+
+- Usuarios y Roles (/cuentas/): placeholder. La API ya tiene `usuarios` (registro de usuarios, RF-02).
+- Perfil (/cuentas/perfil/): hoy reutiliza el login. La API tiene auth/yo y auth/cambiar-password. Confirmar qué incluye (propuesta: datos del usuario y cambio de contraseña); no hay un RF explícito de perfil.
+
+PEND-020 — Deuda técnica menor del cliente
+Prioridad: BAJA
+
+- client/utils.py: TAM_PAGINA=10 está atado al PAGE_SIZE de la API.
+- catalogos.css repite estilos de equipos; unificar después.
+- personal/views.py (listado_personal) ya no se usa.
+- La ventana de confirmación (JavaScript) solo se probó a mano, sin prueba automática de interfaz.
+- Para Adad (opcional): departamentos no filtra por `?activo=`. Si se quiere cerrar también en la API la lectura de catálogos y personal para Consulta, hay que separar permisos de lectura, porque los filtros de equipos hoy los necesitan.
+
 ## Tesina y documentos
 
 - Actualizar RF/RNF, DER y diccionario solo en lo que cambió (DEC-001 a DEC-018), derivando DER y diccionario del esquema final.
@@ -106,3 +125,5 @@ PEND-018 — Cotejo de la transcripción de la reunión con la Contadora
 - Renombrar EQUIPO a ARTICULO en DER y diccionario.
 - Tesina: decidir si dice MySQL o MariaDB, corregir 5.14 y Kanban.
 - INVENTARIO_ESTADO_ACTUAL.md: dos columnas, alcance de la tesina y alcance del software.
+- Evidencia de pruebas de catálogos y personal: pruebas automáticas del cliente (`python manage.py test catalogos`) y pruebas manuales del 01/11/2026 con capturas y registros de bitácora. Guardar las capturas.
+
