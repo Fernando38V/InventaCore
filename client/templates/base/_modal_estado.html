@@ -1,0 +1,60 @@
+{% comment %}
+Confirmación para activar o desactivar un registro. La baja es lógica y la API
+exige motivo. Los botones que lo abren llevan data-url, data-nombre,
+data-activar (1 = activar, 0 = desactivar) y data-aviso. Requiere catalogos.css.
+{% endcomment %}
+<div class="modal fade" id="modalEstado" tabindex="-1" aria-labelledby="modalEstadoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="formEstado" action="">
+        {% csrf_token %}
+        <input type="hidden" name="activar" id="estadoActivar" value="">
+        <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+        <div class="modal-body">
+          <div class="confirmar-modal__icon">
+            <svg width="22" height="22"><use href="#icon-clipboard"/></svg>
+          </div>
+          <h2 class="confirmar-modal__title" id="modalEstadoLabel"></h2>
+          <p class="confirmar-modal__aviso" id="estadoAviso"></p>
+          <div class="campo campo--modal">
+            <label class="campo__label" for="estadoMotivo">Motivo del cambio <span class="campo__req">*</span></label>
+            <textarea class="campo__control" name="motivo" id="estadoMotivo" rows="3" maxlength="255" required
+                      placeholder="Describe brevemente por qué se hace este cambio"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary" id="estadoConfirmar">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('modalEstado');
+  if (!modal) { return; }
+  var form = document.getElementById('formEstado');
+  var motivo = document.getElementById('estadoMotivo');
+
+  modal.addEventListener('show.bs.modal', function (ev) {
+    var boton = ev.relatedTarget;
+    if (!boton) { return; }
+    var activar = boton.dataset.activar === '1';
+
+    form.action = boton.dataset.url;
+    document.getElementById('estadoActivar').value = boton.dataset.activar;
+    document.getElementById('modalEstadoLabel').textContent =
+      (activar ? '¿Activar ' : '¿Desactivar ') + boton.dataset.nombre + '?';
+    document.getElementById('estadoAviso').textContent = boton.dataset.aviso || '';
+
+    var confirmar = document.getElementById('estadoConfirmar');
+    confirmar.textContent = activar ? 'Sí, activar' : 'Sí, desactivar';
+    confirmar.className = 'btn btn-sm ' + (activar ? 'btn-primary' : 'btn-danger');
+    motivo.value = '';
+  });
+
+  modal.addEventListener('shown.bs.modal', function () { motivo.focus(); });
+})();
+</script>

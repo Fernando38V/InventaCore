@@ -1,0 +1,210 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}{{ cfg.titulo }} · InventaCore{% endblock %}
+{% block nav_catalogos %}{% if cfg.ns == 'catalogos' %}active{% endif %}{% endblock %}
+{% block nav_personal %}{% if cfg.ns == 'personal' %}active{% endif %}{% endblock %}
+{% block page_title %}{% if cfg.ns == 'catalogos' %}Catálogos{% else %}{{ cfg.titulo }}{% endif %}{% endblock %}
+{% block page_subtitle %}{{ cfg.subtitulo }}{% endblock %}
+
+{% block app_content %}
+
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
+</div>
+{% endif %}
+
+{% if pestanas %}
+<nav class="cat-tabs" aria-label="Catálogos">
+  {% for t in pestanas %}
+  <a class="cat-tabs__tab {% if t.activa %}is-active{% endif %}" href="{{ t.url }}"
+     {% if t.activa %}aria-current="page"{% endif %}>{{ t.titulo }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+<div class="lista-header">
+  <p class="lista-header__conteo">
+    <strong>{{ total }}</strong>
+    {% if total == 1 %}{{ cfg.singular }}{% else %}{{ cfg.plural }}{% endif %}
+    {% if hay_filtros %}encontrad{{ cfg.a }}{% else %}registrad{{ cfg.a }}{% endif %}{% if total != 1 %}s{% endif %}
+  </p>
+
+  {% if usuario.rol == 'ADMIN' %}
+  <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="{{ url_nuevo }}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    {{ cfg.nuevo }}
+  </a>
+  {% endif %}
+</div>
+
+{% if cfg.busqueda or filtros %}
+<form class="filtros" method="get" action="{{ url_lista }}" id="formFiltros">
+
+  {% if cfg.busqueda %}
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q" value="{{ f.q }}"
+             placeholder="{{ cfg.busqueda }}" aria-label="Buscar {{ cfg.singular }}">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+  </div>
+  {% endif %}
+
+  {% if filtros %}
+  <div class="filtros__selects">
+    {% for fl in filtros %}
+    <select class="filtros__select" name="{{ fl.nombre }}" data-autosubmit aria-label="{{ fl.todos }}">
+      <option value="">{{ fl.todos }}</option>
+      {% for o in fl.opciones %}
+      <option value="{{ o.valor }}" {% if fl.actual == o.valor %}selected{% endif %}>{{ o.texto }}</option>
+      {% endfor %}
+    </select>
+    {% endfor %}
+
+    {% if hay_filtros %}
+    <a class="filtros__limpiar" href="{{ url_lista }}">Limpiar</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</form>
+{% endif %}
+
+{% if filas %}
+
+<div class="tabla-wrap">
+  <table class="tabla-catalogo">
+    <thead>
+      <tr>
+        {% for etiqueta, campo in cfg.columnas %}
+        <th>{{ etiqueta }}</th>
+        {% endfor %}
+        <th>Estado</th>
+        {% if usuario.rol == 'ADMIN' %}
+        <th><span class="visually-hidden">Acciones</span></th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in filas %}
+      <tr {% if not fila.activo %}class="fila-inactiva"{% endif %}>
+        {% for etiqueta, valor in fila.celdas %}
+        <td data-label="{{ etiqueta }}" {% if forloop.first %}class="celda-id"{% elif forloop.counter == 2 %}class="celda-fuerte"{% endif %}>{{ valor }}</td>
+        {% endfor %}
+        <td data-label="Estado">
+          {% if fila.activo %}
+          <span class="badge-estado badge-estado--verde">Activo</span>
+          {% else %}
+          <span class="badge-estado badge-estado--gris">Inactivo</span>
+          {% endif %}
+        </td>
+        {% if usuario.rol == 'ADMIN' %}
+        <td class="celda-acciones">
+          {% if fila.protegido %}
+          <span class="celda-secundaria">Del sistema</span>
+          {% else %}
+          <a class="accion-icono" href="{{ fila.url_editar }}" title="Editar" aria-label="Editar {{ fila.nombre }}">
+            <svg width="16" height="16"><use href="#icon-edit"/></svg>
+            <span class="accion-icono__texto">Editar</span>
+          </a>
+          <button type="button" class="accion-estado {% if fila.activo %}accion-estado--baja{% else %}accion-estado--alta{% endif %}"
+                  data-bs-toggle="modal" data-bs-target="#modalEstado"
+                  data-url="{{ fila.url_estado }}" data-nombre="{{ fila.nombre }}"
+                  data-activar="{% if fila.activo %}0{% else %}1{% endif %}"
+                  data-aviso="{{ fila.aviso }}">
+            {% if fila.activo %}Desactivar{% else %}Activar{% endif %}
+          </button>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="paginacion" aria-label="Paginación del listado">
+
+  <p class="paginacion__rango">
+    Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ total }}
+  </p>
+
+  <div class="paginacion__controles">
+    {% if page_obj.has_previous %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.previous_page_number }}">Anterior</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Anterior</span>
+    {% endif %}
+
+    {% for p in rango_paginas %}
+      {% if p == pagina_elipsis %}
+        <span class="paginacion__puntos">…</span>
+      {% elif p == page_obj.number %}
+        <span class="paginacion__num is-active">{{ p }}</span>
+      {% else %}
+        <a class="paginacion__num" href="{{ qs_prefijo }}page={{ p }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.next_page_number }}">Siguiente</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Siguiente</span>
+    {% endif %}
+  </div>
+
+</nav>
+{% endif %}
+
+{% else %}
+
+<div class="vacio">
+  <div class="vacio__icono">
+    <svg width="26" height="26"><use href="#icon-list"/></svg>
+  </div>
+  {% if hay_filtros %}
+    <h2 class="vacio__titulo">Ningún registro coincide</h2>
+    <p class="vacio__texto">Prueba con otra búsqueda o quita alguno de los filtros aplicados.</p>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_lista }}">Limpiar filtros</a>
+  {% elif error_api %}
+    <h2 class="vacio__titulo">No se pudo cargar el listado</h2>
+    <p class="vacio__texto">Revisa el aviso de arriba e intenta de nuevo.</p>
+  {% else %}
+    <h2 class="vacio__titulo">Todavía no hay {{ cfg.plural }} registrad{{ cfg.a }}s</h2>
+    <p class="vacio__texto">
+      {% if usuario.rol == 'ADMIN' %}Usa el botón «{{ cfg.nuevo }}» para dar de alta el primero.{% else %}Cuando se registre el primero aparecerá en esta lista.{% endif %}
+    </p>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% if usuario.rol == 'ADMIN' %}
+{% include "base/_modal_estado.html" %}
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+  document.querySelectorAll('[data-autosubmit]').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      document.getElementById('formFiltros').submit();
+    });
+  });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+{% endblock %}

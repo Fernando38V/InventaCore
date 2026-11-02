@@ -1,0 +1,87 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}{% if editando %}{{ cfg.editar }}{% else %}{{ cfg.nuevo }}{% endif %} · InventaCore{% endblock %}
+{% block nav_catalogos %}{% if cfg.ns == 'catalogos' %}active{% endif %}{% endblock %}
+{% block nav_personal %}{% if cfg.ns == 'personal' %}active{% endif %}{% endblock %}
+{% block page_title %}{% if editando %}{{ cfg.editar }}{% else %}{{ cfg.nuevo }}{% endif %}{% endblock %}
+{% block page_subtitle %}{{ cfg.subtitulo }}{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{{ url_lista }}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver al listado
+</a>
+
+<form method="post" novalidate class="form-catalogo">
+  {% csrf_token %}
+
+  {% if general %}
+  <div class="aviso aviso--rojo" role="alert">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>{{ general }}</span>
+  </div>
+  {% endif %}
+
+  <section class="form-card">
+    <h2 class="form-card__title">Datos {{ cfg.de }}</h2>
+
+    {% if cfg.genera_codigo %}
+    <p class="codigo-fijo">
+      {% if editando %}Código <strong>{{ pk }}</strong>{% else %}El sistema asigna el código al guardar.{% endif %}
+    </p>
+    {% endif %}
+
+    <div class="campo-grid">
+      {% for c in campos %}
+      <div class="campo {% if c.completo %}campo--completo{% endif %}">
+        <label class="campo__label" for="id_{{ c.nombre }}">{{ c.etiqueta }}{% if c.requerido %} <span class="campo__req">*</span>{% endif %}</label>
+
+        {% if c.tipo == 'select' %}
+        <select class="campo__control" name="{{ c.nombre }}" id="id_{{ c.nombre }}">
+          <option value="">{% if c.requerido %}Selecciona…{% else %}Sin asignar{% endif %}</option>
+          {% for o in c.opciones %}
+          <option value="{{ o.valor }}" {% if o.valor == c.valor %}selected{% endif %}>{{ o.texto }}</option>
+          {% endfor %}
+        </select>
+        {% elif c.tipo == 'textarea' %}
+        <textarea class="campo__control" name="{{ c.nombre }}" id="id_{{ c.nombre }}" rows="2"
+                  maxlength="{{ c.max }}">{{ c.valor }}</textarea>
+        {% else %}
+        <input class="campo__control" type="text" name="{{ c.nombre }}" id="id_{{ c.nombre }}"
+               value="{{ c.valor }}" maxlength="{{ c.max }}" autocomplete="off">
+        {% endif %}
+
+        {% if c.ayuda %}<p class="campo__ayuda">{{ c.ayuda }}</p>{% endif %}
+        {% if c.error %}<p class="campo__error">{{ c.error }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if editando %}
+  <section class="form-card">
+    <h2 class="form-card__title">Motivo del cambio</h2>
+    <div class="campo">
+      <label class="campo__label" for="id_motivo">Motivo <span class="campo__req">*</span></label>
+      <textarea class="campo__control" name="motivo" id="id_motivo" rows="2" maxlength="255"
+                placeholder="Describe brevemente por qué se hace esta corrección">{{ motivo }}</textarea>
+      <p class="campo__ayuda">Queda en la bitácora junto con el valor anterior y el nuevo.</p>
+      {% if error_motivo %}<p class="campo__error">{{ error_motivo }}</p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="form-acciones">
+    <a class="btn btn-outline-secondary" href="{{ url_lista }}">Cancelar</a>
+    <button class="btn btn-primary" type="submit">{% if editando %}Guardar cambios{% else %}Registrar{% endif %}</button>
+  </div>
+
+</form>
+
+{% endblock app_content %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+{% endblock %}
