@@ -1,13 +1,14 @@
-"""Alta de movimientos (REUB, REPA, RETE y BAJA). Todo en una transacción:
-se bloquea el artículo, se valida contra su estado actual, se actualiza, se
-crea el movimiento y se escribe la bitácora.
+"""Alta de movimientos (REUB, REPA y RETE). Todo en una transacción: se bloquea
+el artículo, se valida contra su estado actual, se actualiza, se crea el
+movimiento y se escribe la bitácora.
 
-Reglas de estado todavía PROPUESTAS (PEND-003 / PEND-009), aisladas aquí:
-  - BAJA deja el artículo en "Autorizado para baja" y no se permite si está
-    No localizado.
-  - REPA/RETE no cambian el estado operativo (no existe "En reparación") y
-    van en pareja: no hay RETE sin REPA abierta ni dos REPA seguidas.
-  - Un artículo dado de baja ya no admite movimientos.
+ALTA se crea sola al registrar el artículo. No existe el movimiento BAJA ni el
+estado "Autorizado para baja" (DEC-006, DEC-012): Obsoleto se marca desde la
+ficha, sin movimiento (DEC-013).
+
+Regla propia, no escrita en DECISIONES.md: REPA y RETE van en pareja (no hay
+RETE sin una REPA abierta ni dos REPA seguidas). El estado operativo no cambia
+con la reparación (no existe "En reparación").
 """
 from datetime import datetime, time
 
@@ -23,7 +24,8 @@ from movimientos.models import Movimiento
 from personal.models import Personal
 
 UBICACION_NO_LOCALIZADO = 'UBI-NOLOC'
-TIPOS_MANUALES = ('REUB', 'REPA', 'RETE', 'BAJA')
+TIPOS_MANUALES = ('REUB', 'REPA', 'RETE')
+ESTADOS_AL_RECUPERAR = ('UTIL', 'OBS')
 
 
 def _fecha_hora(fecha):
@@ -62,10 +64,7 @@ def registrar_movimiento(datos, usuario):
     tipo = datos['tipo']
     if tipo.pk not in TIPOS_MANUALES:
         raise ValidationError({'tipo': 'Selecciona el tipo de movimiento.'})
-    articulo = Articulo.objects.select_for_update().get(pk=datos['equipo'].pk)
-
-    if Movimiento.objects.filter(articulo=articulo, tipo_movimiento='BAJA').exists():
-        raise ValidationError({'equipo': 'El equipo ya fue dado de baja.'})
+    articulo = Articulo.objects.select_for_update().get(pk=datos['articulo'].pk)
 
     ubicacion_pedida = _ubicacion(datos.get('ubicacion'))
     resguardante_pedido = _resguardante(datos.get('resguardante'))
@@ -87,39 +86,35 @@ def registrar_movimiento(datos, usuario):
         elif sin_localizar:
             # Recuperación: se elige la ubicación real y se reconfirma el estado.
             estado_nuevo = estado_pedido or 'UTIL'
-            if estado_nuevo == 'NOLOC':
+            if estado_nuevo not in ESTADOS_AL_RECUPERAR:
                 raise ValidationError({'estado_operativo': (
-                    'Al recuperar el equipo elige su estado: Útil, Obsoleto o Autorizado para baja.')})
+                    'Al recuperar el artículo elige su estado: Útil u Obsoleto.')})
         if estado_pedido and not (sin_localizar and destino.pk != UBICACION_NO_LOCALIZADO):
             raise ValidationError({'estado_operativo': (
-                'El estado solo se indica al recuperar un equipo No localizado.')})
+                'El estado solo se indica al recuperar un artículo No localizado.')})
     else:
         if resguardante_pedido and resguardante_pedido.pk != articulo.resguardante_id:
             raise ValidationError({'resguardante': 'Este movimiento no cambia el resguardante.'})
         if estado_pedido:
             raise ValidationError({'estado_operativo': 'Este movimiento no cambia el estado.'})
         if sin_localizar:
-            raise ValidationError({'equipo': (
-                'El equipo está No localizado: primero se recupera con una reubicación.')})
+            raise ValidationError({'articulo': (
+                'El artículo está No localizado: primero se recupera con una reubicación.')})
         ultimo = (Movimiento.objects.filter(
             articulo=articulo, tipo_movimiento__in=['REPA', 'RETE'])
             .order_by('-fecha_movimiento', '-folio').first())
         en_reparacion = ultimo is not None and ultimo.tipo_movimiento_id == 'REPA'
         if tipo.pk == 'REPA':
             if en_reparacion:
-                raise ValidationError({'equipo': 'El equipo ya está en reparación.'})
+                raise ValidationError({'articulo': 'El artículo ya está en reparación.'})
         elif tipo.pk == 'RETE':
             if not en_reparacion:
-                raise ValidationError({'equipo': 'El equipo no está en reparación.'})
+                raise ValidationError({'articulo': 'El artículo no está en reparación.'})
             if ubicacion_pedida is None:
-                raise ValidationError({'ubicacion': 'Indica dónde se reintegra el equipo.'})
-        elif tipo.pk == 'BAJA':
-            if ubicacion_pedida and ubicacion_pedida.pk != articulo.ubicacion_id:
-                raise ValidationError({'ubicacion': 'La baja no cambia la ubicación.'})
-            estado_nuevo = 'AUTB'
+                raise ValidationError({'ubicacion': 'Indica dónde se reintegra el artículo.'})
         if tipo.pk in ('REPA', 'RETE') and destino.pk == UBICACION_NO_LOCALIZADO:
             raise ValidationError({'ubicacion': (
-                'Para marcar un equipo como No localizado usa una reubicación.')})
+                'Para marcar un artículo como No localizado usa una reubicación.')})
 
     movimiento = Movimiento(
         folio=siguiente_folio_movimiento(), fecha_movimiento=_fecha_hora(datos.get('fecha')),

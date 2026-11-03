@@ -71,3 +71,80 @@ def alta_articulo(datos, usuario):
         usuario=usuario)
     registrar(usuario, 'movimientos', 'INSERT', movimiento, nuevo=datos_de(movimiento))
     return articulo
+
+
+CAMPOS_CORREGIBLES = ('marbete_oficial', 'marca', 'modelo', 'num_serie', 'color',
+                      'descripcion', 'fecha_adquisicion', 'estado_operativo')
+
+
+@transaction.atomic
+def corregir_articulo(articulo, datos, usuario):
+    """Corrige datos de la ficha con motivo y bitácora (DEC-013).
+
+    - Marbete (solo Activos), marca, modelo, serie, color, descripción y fecha
+      de adquisición. Si cambia la fecha, el estado de registro se recalcula
+      (DEC-008).
+    - Estado operativo: solo Útil <-> Obsoleto, con motivo. Un artículo No
+      localizado no pasa a Obsoleto (DEC-012): se recupera con una reubicación.
+    - Ubicación y resguardante no se tocan aquí: solo cambian por movimiento.
+    """
+    articulo = Articulo.objects.select_for_update().get(pk=articulo.pk)
+    anterior = datos_de(articulo)
+    errores = {}
+
+    if 'marbete_oficial' in datos:
+        marbete = datos['marbete_oficial'].strip()
+        if articulo.origen_id != 'ACT':
+            errores['marbete_oficial'] = 'Solo los activos llevan marbete oficial.'
+        elif not marbete:
+            errores['marbete_oficial'] = 'Los activos llevan marbete oficial.'
+        elif Articulo.objects.filter(marbete_oficial=marbete).exclude(pk=articulo.pk).exists():
+            errores['marbete_oficial'] = 'Ese marbete ya está registrado.'
+        else:
+            articulo.marbete_oficial = marbete
+    if datos.get('num_serie') and Articulo.objects.filter(
+            num_serie=datos['num_serie']).exclude(pk=articulo.pk).exists():
+        errores['num_serie'] = 'Ese número de serie ya está registrado.'
+
+    for campo in ('marca', 'modelo', 'num_serie'):
+        if campo in datos:
+            setattr(articulo, campo, datos[campo])
+    for campo in ('color', 'descripcion'):
+        if campo in datos:
+            valor = datos[campo].strip()
+            if not valor:
+                errores[campo] = 'Este campo no puede quedar vacío.'
+            else:
+                setattr(articulo, campo, valor)
+    if 'fecha_adquisicion' in datos:
+        articulo.fecha_adquisicion = datos['fecha_adquisicion']
+
+    if 'estado_operativo' in datos:
+        nuevo = datos['estado_operativo']
+        if nuevo not in ('UTIL', 'OBS', 'NOLOC'):
+            errores['estado_operativo'] = 'Elige Útil u Obsoleto.'
+        elif articulo.estado_operativo_id == 'NOLOC':
+            errores['estado_operativo'] = (
+                'El artículo está No localizado: se recupera con una reubicación.')
+        elif nuevo == 'NOLOC':
+            errores['estado_operativo'] = (
+                'No localizado se asigna con una reubicación a "Sin ubicar".')
+        elif nuevo != articulo.estado_operativo_id:
+            articulo.estado_operativo = EstadoOperativo.objects.get(pk=nuevo)
+    if errores:
+        raise ValidationError(errores)
+
+    if articulo.estado_registro_id != 'DON':
+        articulo.estado_registro_id = estado_de_registro(
+            False, articulo.costo_adquisicion, articulo.fecha_adquisicion)
+
+    nuevo = datos_de(articulo)
+    if nuevo == anterior:
+        raise ValidationError({'detalle': 'No hay cambios que guardar.'})
+    try:
+        articulo.save()
+    except IntegrityError:
+        raise ValidationError({'detalle': 'No se pudo guardar: revise marbete y número de serie.'})
+    registrar(usuario, 'articulos', 'UPDATE', articulo, anterior=anterior, nuevo=nuevo,
+              motivo=datos['motivo'].strip()[:255])
+    return articulo

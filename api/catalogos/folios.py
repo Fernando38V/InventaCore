@@ -7,6 +7,8 @@ folio: se identifican por marbete.
 
 Movimiento: MOV-0001, MOV-0002... Resguardo: RES-0001...
 
+Un folio que ya exista en un artículo se salta (DEC-010).
+
 Llamar SIEMPRE dentro del mismo `transaction.atomic()` que guarda el registro:
 si el guardado falla, el número no se consume y no quedan huecos.
 """
@@ -41,12 +43,19 @@ def siguiente_folio_interno(ahora=None):
     ahora = timezone.localtime(ahora or timezone.now())
     periodo = ahora.strftime('%m%y')
     prefijo = getattr(settings, 'FOLIO_PREFIJO', PREFIJO_FOLIO_INTERNO)
+    from django.apps import apps
+    Articulo = apps.get_model('articulos', 'Articulo')
     with transaction.atomic():
-        numero = _siguiente('FI-%s' % periodo)
-        if numero > MAXIMO_POR_MES:
-            raise FolioAgotado(
-                'Se alcanzó el máximo de %d folios internos para este mes.' % MAXIMO_POR_MES)
-    return '%s%s-%03d' % (prefijo, periodo, numero)
+        while True:
+            numero = _siguiente('FI-%s' % periodo)
+            if numero > MAXIMO_POR_MES:
+                raise FolioAgotado(
+                    'Se alcanzó el máximo de %d folios internos para este mes.' % MAXIMO_POR_MES)
+            folio = '%s%s-%03d' % (prefijo, periodo, numero)
+            # DEC-010: nunca repetir un identificador existente (por ejemplo, uno
+            # histórico que ya tiene un artículo): se salta ese número.
+            if not Articulo.objects.filter(folio_interno=folio).exists():
+                return folio
 
 
 def siguiente_folio_movimiento():

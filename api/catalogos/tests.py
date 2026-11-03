@@ -22,13 +22,17 @@ class CatalogosInicialesTests(TestCase):
         self.assertEqual(codigos(Origen), {'ACT', 'COM', 'ENS'})
 
     def test_estados_operativos_del_frontend(self):
-        self.assertEqual(codigos(EstadoOperativo), {'UTIL', 'OBS', 'AUTB', 'NOLOC'})
+        self.assertEqual(codigos(EstadoOperativo), {'UTIL', 'OBS', 'NOLOC'})
 
     def test_estados_de_registro(self):
         self.assertEqual(codigos(EstadoRegistro), {'PEND', 'REG', 'DON'})
 
     def test_tipos_de_movimiento(self):
-        self.assertEqual(codigos(TipoMovimiento), {'ALTA', 'REUB', 'REPA', 'RETE', 'BAJA'})
+        self.assertEqual(codigos(TipoMovimiento), {'ALTA', 'REUB', 'REPA', 'RETE'})
+
+    def test_ya_no_existen_baja_ni_autb(self):
+        self.assertFalse(TipoMovimiento.objects.filter(pk='BAJA').exists())
+        self.assertFalse(EstadoOperativo.objects.filter(pk='AUTB').exists())
 
     def test_ubicaciones_de_rf11_mas_no_localizado(self):
         self.assertEqual(codigos(Ubicacion), {'UBI-OFI', 'UBI-LAB1', 'UBI-LAB2', 'UBI-NOLOC'})
@@ -164,6 +168,15 @@ class FoliosTests(TestCase):
         except RuntimeError:
             pass
         self.assertEqual(siguiente_folio_interno(f), '021431026-001')
+
+    def test_no_repite_un_identificador_que_ya_existe(self):
+        from articulos.tests import crear
+        from catalogos.folios import siguiente_folio_interno
+        f = self.fecha(2026, 10, 23, 18)
+        # Un artículo histórico ya tiene el 001 y el 002 de ese mes.
+        crear(marbete_oficial=None, folio_interno='021431026-001', origen_id='COM')
+        crear(marbete_oficial=None, folio_interno='021431026-002', origen_id='ENS', num_serie='S2')
+        self.assertEqual(siguiente_folio_interno(f), '021431026-003')
 
     def test_folios_de_movimiento_y_resguardo_son_series_separadas(self):
         from catalogos.folios import siguiente_folio_movimiento, siguiente_folio_resguardo

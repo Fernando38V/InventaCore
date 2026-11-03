@@ -9,7 +9,7 @@ from movimientos.servicios import registrar_movimiento
 
 class MovimientoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
                         mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    """GET /movimientos/ (filtros: q, tipo, ubicacion, equipo) ·
+    """GET /movimientos/ (filtros: q, tipo, ubicacion, articulo) ·
     GET /movimientos/<folio>/ · POST /movimientos/."""
 
     lookup_field = 'folio'
@@ -24,8 +24,9 @@ class MovimientoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         if p.get('ubicacion'):
             consulta = consulta.filter(
                 Q(ubicacion_origen_id=p['ubicacion']) | Q(ubicacion_destino_id=p['ubicacion']))
-        if p.get('equipo', '').isdigit():
-            consulta = consulta.filter(articulo_id=int(p['equipo']))
+        filtro_articulo = p.get('articulo') or p.get('equipo') or ''
+        if filtro_articulo.isdigit():
+            consulta = consulta.filter(articulo_id=int(filtro_articulo))
         for palabra in (p.get('q') or '').split():
             consulta = consulta.filter(
                 Q(folio__icontains=palabra) | Q(motivo__icontains=palabra)

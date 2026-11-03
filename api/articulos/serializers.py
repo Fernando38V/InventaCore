@@ -13,7 +13,7 @@ from rest_framework import serializers
 from catalogos.models import EstadoOperativo, Origen, TipoArticulo, Ubicacion
 from personal.models import Personal
 
-TONO_OPERATIVO = {'UTIL': 'azul', 'OBS': 'gris', 'AUTB': 'rojo', 'NOLOC': 'ambar'}
+TONO_OPERATIVO = {'UTIL': 'azul', 'OBS': 'gris', 'NOLOC': 'ambar'}
 TONO_REGISTRO = {'REG': 'verde', 'PEND': 'ambar', 'DON': 'azul'}
 
 
@@ -86,6 +86,28 @@ class _TextoOpcional(serializers.CharField):
         # Con allow_blank, DRF devuelve '' sin pasar por to_internal_value.
         valor = super().run_validation(dato)
         return valor.strip() or None if isinstance(valor, str) else valor
+
+
+class ArticuloCorregirSerializer(serializers.Serializer):
+    """Corrección desde la ficha (DEC-013, DEC-010). Solo lo que se manda
+    cambia. `motivo` es obligatorio. Ubicación y resguardante no están aquí:
+    solo cambian por movimiento."""
+
+    marbete_oficial = serializers.CharField(max_length=25, required=False)
+    marca = _TextoOpcional(max_length=50)
+    modelo = _TextoOpcional(max_length=60)
+    num_serie = _TextoOpcional(max_length=50)
+    color = serializers.CharField(max_length=25, required=False)
+    descripcion = serializers.CharField(max_length=150, required=False)
+    fecha_adquisicion = serializers.DateField(required=False, allow_null=True)
+    estado_operativo = serializers.CharField(required=False)
+    motivo = serializers.CharField(max_length=255, error_messages={
+        'blank': 'Indique el motivo del cambio.', 'required': 'Indique el motivo del cambio.'})
+
+    def validate_fecha_adquisicion(self, fecha):
+        if fecha and fecha > timezone.localdate():
+            raise serializers.ValidationError('La fecha no puede ser futura.')
+        return fecha
 
 
 class ArticuloCrearSerializer(serializers.Serializer):

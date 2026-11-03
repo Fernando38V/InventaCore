@@ -111,10 +111,9 @@ class MovimientoRegla016Tests(BaseMovimientos):
         self.rechaza(tipo='REPA', requiere_resguardo=True)
         self.rechaza(tipo='RETE', requiere_resguardo=True)
 
-    def test_baja_es_un_movimiento_sin_resguardo(self):
-        self.mov(tipo='BAJA', ubicacion_destino_id='UBI-OFI')
-        self.rechaza(folio='MOV-0002', tipo='BAJA', ubicacion_destino_id='UBI-OFI',
-                     requiere_resguardo=True)
+    def test_baja_ya_no_es_un_tipo_de_movimiento(self):
+        from catalogos.models import TipoMovimiento
+        self.assertFalse(TipoMovimiento.objects.filter(pk='BAJA').exists())
 
 
 class MovimientoInmutableTests(BaseMovimientos):

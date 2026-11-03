@@ -57,7 +57,7 @@ class YoView(APIView):
 
 
 class CambiarContrasenaView(APIView):
-    """Cualquier rol cambia su PROPIA contraseña (incluido el Observador)."""
+    """Cualquier rol cambia su PROPIA contraseña (incluido el rol Consulta)."""
 
     permission_classes = [IsAuthenticated]
 

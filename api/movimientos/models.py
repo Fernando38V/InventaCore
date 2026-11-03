@@ -13,8 +13,9 @@ class Movimiento(InmutableModel):
 
     ALTA lo crea el sistema al registrar el artículo. REUB cambia la
     ubicación, el resguardante o ambos. REPA y RETE envían y regresan de
-    reparación. BAJA da de baja el artículo. Lo que no cambia se repite igual para que cada fila muestre
-    el estado completo.
+    reparación (DEC-006). Ya no existe el tipo BAJA: "Obsoleto" es un estado
+    del artículo, no un movimiento (DEC-012). Lo que no cambia se repite igual
+    para que cada fila muestre el estado completo.
     """
 
     folio = models.CharField(max_length=20, primary_key=True)  # MOV-0001
@@ -41,7 +42,7 @@ class Movimiento(InmutableModel):
         'personal.Personal', on_delete=models.PROTECT,
         db_column='resguardante_nuevo', related_name='movimientos_como_nuevo')
     # DEC-016: lo fija el sistema al crear el movimiento. REUB: verdadero si
-    # cambió el resguardante. REPA, RETE y BAJA: falso. ALTA: lo decide la API
+    # cambió el resguardante. REPA y RETE: falso. ALTA: lo decide la API
     # (las altas históricas de bienes no localizados no generan resguardo).
     requiere_resguardo = models.BooleanField()
     usuario = models.ForeignKey(
@@ -65,7 +66,7 @@ class Movimiento(InmutableModel):
                    & Q(resguardante_anterior__isnull=False)
                    & (~Q(ubicacion_origen=F('ubicacion_destino'))
                       | ~Q(resguardante_anterior=F('resguardante_nuevo'))))
-                | (Q(tipo_movimiento__in=['REPA', 'RETE', 'BAJA'])
+                | (Q(tipo_movimiento__in=['REPA', 'RETE'])
                    & Q(ubicacion_origen__isnull=False)
                    & Q(resguardante_anterior__isnull=False)
                    & Q(resguardante_anterior=F('resguardante_nuevo'))),
@@ -77,7 +78,7 @@ class Movimiento(InmutableModel):
                    & ~Q(resguardante_anterior=F('resguardante_nuevo')))
                 | (Q(tipo_movimiento='REUB') & Q(requiere_resguardo=False)
                    & Q(resguardante_anterior=F('resguardante_nuevo')))
-                | (Q(tipo_movimiento__in=['REPA', 'RETE', 'BAJA'])
+                | (Q(tipo_movimiento__in=['REPA', 'RETE'])
                    & Q(requiere_resguardo=False)),
                 'chk_movimiento_requiere_resguardo'),
         ]

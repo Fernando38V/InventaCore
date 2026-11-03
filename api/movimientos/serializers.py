@@ -1,10 +1,10 @@
 """Forma del JSON de movimientos.
 
-Las claves siguen las del frontend (client/movimientos/views.py, `_mov`):
-`equipo`, `ubicacion_llegada`, `personal_asigna` (quien queda como
-resguardante), `personal_entrega` (de quién lo recibe; solo si cambió la
-persona), `nota` (el motivo) y `genera_resguardo` (= requiere_resguardo,
-DEC-016).
+Las claves siguen las decisiones del proyecto: `articulo` (DEC-002) y
+`requiere_resguardo` (DEC-016). `personal_asigna` es quien queda como
+resguardante, `personal_entrega` de quién lo recibe (solo si cambió la
+persona) y `nota` es el motivo. Al crear se acepta `equipo` como sinónimo de
+`articulo` (nombre anterior del frontend).
 """
 from django.utils import timezone
 from rest_framework import serializers
@@ -39,8 +39,8 @@ class MovimientoSerializer(serializers.BaseSerializer):
             'fecha_dia': local.strftime('%Y-%m-%d'),
             'fecha_hora': local.strftime('%H:%M'),
             'tipo': par(m.tipo_movimiento),
-            'genera_resguardo': m.requiere_resguardo,
-            'equipo': {
+            'requiere_resguardo': m.requiere_resguardo,
+            'articulo': {
                 'num': m.articulo_id,
                 'identificador': m.articulo.identificador,
                 'descripcion': _descripcion(m.articulo),
@@ -57,10 +57,14 @@ class MovimientoSerializer(serializers.BaseSerializer):
 class MovimientoCrearSerializer(serializers.Serializer):
     """Entrada de "Nuevo movimiento". ALTA no se pide: se crea sola."""
 
-    tipo = serializers.PrimaryKeyRelatedField(queryset=TipoMovimiento.objects.all())
-    equipo = serializers.PrimaryKeyRelatedField(
+    tipo = serializers.PrimaryKeyRelatedField(
+        queryset=TipoMovimiento.objects.all(),
+        error_messages={'does_not_exist': 'Selecciona el tipo de movimiento.',
+                        'required': 'Selecciona el tipo de movimiento.'})
+    articulo = serializers.PrimaryKeyRelatedField(
         queryset=Articulo.objects.all(), error_messages={
-            'does_not_exist': 'Selecciona el equipo.', 'required': 'Selecciona el equipo.'})
+            'does_not_exist': 'Selecciona el artículo.', 'required': 'Selecciona el artículo.',
+            'incorrect_type': 'Selecciona el artículo.'})
     ubicacion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     resguardante = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     motivo = serializers.CharField(max_length=255, error_messages={
@@ -70,9 +74,9 @@ class MovimientoCrearSerializer(serializers.Serializer):
     estado_operativo = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def to_internal_value(self, data):
-        # `articulo` es sinónimo de `equipo`.
-        if 'equipo' not in data and 'articulo' in data:
-            data = {**dict(data.items()), 'equipo': data['articulo']}
+        # `equipo` es sinónimo de `articulo` (nombre anterior del frontend).
+        if 'articulo' not in data and 'equipo' in data:
+            data = {**dict(data.items()), 'articulo': data['equipo']}
         return super().to_internal_value(data)
 
     def validate_fecha(self, fecha):

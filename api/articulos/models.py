@@ -9,8 +9,8 @@ class Articulo(models.Model):
     """Bien del plantel (antes `equipo`). Tabla `articulo` del diseño SQL.
 
     Lleva marbete (Activo) o folio interno (Comodato y Enser), nunca ambos
-    (RF-06). Nunca se borra: se da de baja con el estado operativo AUTB
-    (RF-10, RNF-06). La ubicación y el resguardante guardados aquí son los
+    (RF-06). Nunca se borra: cuando ya no sirve pasa al estado
+    operativo Obsoleto (DEC-012, RNF-06). La ubicación y el resguardante guardados aquí son los
     ACTUALES; el historial vive en `Movimiento`. Las reglas de negocio
     (estado de registro, NOLOC, folios, bitácora) las aplica la capa de
     servicios; los CHECK de abajo son la última defensa si algo se salta.

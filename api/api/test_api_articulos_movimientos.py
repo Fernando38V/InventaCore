@@ -195,10 +195,10 @@ class ConsultaArticulosTests(Base):
         self.assertEqual(APIClient().get('/api/articulos/').status_code, 401)
         self.assertEqual(APIClient().get('/api/movimientos/').status_code, 401)
 
-    def test_no_hay_borrado_ni_edicion(self):
+    def test_no_hay_borrado(self):
         n = self.a1['num']
         self.assertEqual(self.c.delete('/api/articulos/%d/' % n).status_code, 405)
-        self.assertEqual(self.c.patch('/api/articulos/%d/' % n, {}, format='json').status_code, 405)
+        self.assertEqual(self.c.delete('/api/movimientos/MOV-0001/').status_code, 405)
 
 
 class MovimientosTests(Base):
@@ -210,108 +210,110 @@ class MovimientosTests(Base):
         return self.c.get('/api/articulos/%d/' % self.n).data
 
     def test_reubicacion(self):
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='Remodelación')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='Remodelación')
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(r.data['folio'], 'MOV-0002')
         self.assertEqual(r.data['tipo']['codigo'], 'REUB')
-        self.assertFalse(r.data['genera_resguardo'])
+        self.assertFalse(r.data['requiere_resguardo'])
         self.assertEqual(r.data['ubicacion_origen']['codigo'], 'UBI-OFI')
         self.assertEqual(r.data['ubicacion_llegada']['codigo'], 'UBI-LAB1')
         self.assertIsNone(r.data['personal_entrega'])
-        self.assertEqual(r.data['equipo']['descripcion'], 'Dell Latitude')
+        self.assertEqual(r.data['articulo']['descripcion'], 'Dell Latitude')
         self.assertEqual(r.data['nota'], 'Remodelación')
         self.assertEqual(self.articulo()['ubicacion']['codigo'], 'UBI-LAB1')
 
     def test_cambio_de_resguardante_genera_resguardo(self):
-        r = self.mov(tipo='REUB', equipo=self.n, resguardante=self.beto.num, motivo='Reasignación')
-        self.assertTrue(r.data['genera_resguardo'])
+        r = self.mov(tipo='REUB', articulo=self.n, resguardante=self.beto.num, motivo='Reasignación')
+        self.assertTrue(r.data['requiere_resguardo'])
         self.assertEqual(r.data['personal_asigna']['nombre'], 'Beto Ruiz Soto')
         self.assertEqual(r.data['personal_entrega']['nombre'], self.ana.nombre_completo)
         self.assertEqual(r.data['ubicacion_llegada']['codigo'], 'UBI-OFI')
         self.assertEqual(self.articulo()['resguardante']['num'], self.beto.num)
 
     def test_sin_cambio_efectivo_se_rechaza(self):
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-OFI', motivo='x')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-OFI', motivo='x')
         self.assertEqual(r.status_code, 400)
         self.assertIn('ubicacion', r.data)
-        self.assertEqual(self.mov(tipo='REUB', equipo=self.n, motivo='x').status_code, 400)
+        self.assertEqual(self.mov(tipo='REUB', articulo=self.n, motivo='x').status_code, 400)
 
     def test_motivo_y_fecha(self):
-        self.assertEqual(self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1').data,
+        self.assertEqual(self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1').data,
                          {'motivo': 'El motivo es obligatorio.'})
         manana = (timezone.localdate() + timedelta(days=1)).isoformat()
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='x', fecha=manana)
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='x', fecha=manana)
         self.assertEqual(r.data, {'fecha': 'La fecha no puede ser futura.'})
 
     def test_fecha_pasada_se_acepta(self):
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='x', fecha='2026-09-01')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='x', fecha='2026-09-01')
         self.assertEqual(r.status_code, 201)
         self.assertEqual(r.data['fecha_dia'], '2026-09-01')
 
     def test_alta_no_se_pide_a_mano(self):
-        r = self.mov(tipo='ALTA', equipo=self.n, ubicacion='UBI-LAB1', motivo='x')
+        r = self.mov(tipo='ALTA', articulo=self.n, ubicacion='UBI-LAB1', motivo='x')
         self.assertEqual(r.data, {'tipo': 'Selecciona el tipo de movimiento.'})
 
-    def test_equipo_inexistente(self):
-        r = self.mov(tipo='REUB', equipo=999, ubicacion='UBI-LAB1', motivo='x')
-        self.assertEqual(r.data, {'equipo': 'Selecciona el equipo.'})
+    def test_articulo_inexistente(self):
+        r = self.mov(tipo='REUB', articulo=999, ubicacion='UBI-LAB1', motivo='x')
+        self.assertEqual(r.data, {'articulo': 'Selecciona el artículo.'})
 
     def test_perdida_y_recuperacion_con_reub(self):
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-NOLOC', motivo='No aparece')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-NOLOC', motivo='No aparece')
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(self.articulo()['estado_operativo']['codigo'], 'NOLOC')
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB2', motivo='Apareció',
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB2', motivo='Apareció',
                      estado_operativo='OBS')
         self.assertEqual(r.status_code, 201, r.data)
         a = self.articulo()
         self.assertEqual((a['ubicacion']['codigo'], a['estado_operativo']['codigo']), ('UBI-LAB2', 'OBS'))
 
     def test_recuperar_sin_indicar_estado_queda_util(self):
-        self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-NOLOC', motivo='x')
-        self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB2', motivo='y')
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-NOLOC', motivo='x')
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB2', motivo='y')
         self.assertEqual(self.articulo()['estado_operativo']['codigo'], 'UTIL')
 
     def test_estado_solo_se_indica_al_recuperar(self):
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='x', estado_operativo='OBS')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='x', estado_operativo='OBS')
         self.assertIn('estado_operativo', r.data)
 
     def test_reparacion_y_retorno(self):
-        self.assertEqual(self.mov(tipo='REPA', equipo=self.n, motivo='No enciende').status_code, 201)
+        self.assertEqual(self.mov(tipo='REPA', articulo=self.n, motivo='No enciende').status_code, 201)
         self.assertEqual(self.articulo()['estado_operativo']['codigo'], 'UTIL')
-        r = self.mov(tipo='REPA', equipo=self.n, motivo='otra vez')
-        self.assertEqual(r.data, {'equipo': 'El equipo ya está en reparación.'})
-        r = self.mov(tipo='RETE', equipo=self.n, motivo='Reparado')
-        self.assertEqual(r.data, {'ubicacion': 'Indica dónde se reintegra el equipo.'})
-        r = self.mov(tipo='RETE', equipo=self.n, ubicacion='UBI-LAB1', motivo='Reparado')
+        r = self.mov(tipo='REPA', articulo=self.n, motivo='otra vez')
+        self.assertEqual(r.data, {'articulo': 'El artículo ya está en reparación.'})
+        r = self.mov(tipo='RETE', articulo=self.n, motivo='Reparado')
+        self.assertEqual(r.data, {'ubicacion': 'Indica dónde se reintegra el artículo.'})
+        r = self.mov(tipo='RETE', articulo=self.n, ubicacion='UBI-LAB1', motivo='Reparado')
         self.assertEqual(r.status_code, 201, r.data)
-        self.assertFalse(r.data['genera_resguardo'])
+        self.assertFalse(r.data['requiere_resguardo'])
         self.assertEqual(self.articulo()['ubicacion']['codigo'], 'UBI-LAB1')
 
     def test_retorno_sin_reparacion(self):
-        r = self.mov(tipo='RETE', equipo=self.n, ubicacion='UBI-LAB1', motivo='x')
-        self.assertEqual(r.data, {'equipo': 'El equipo no está en reparación.'})
+        r = self.mov(tipo='RETE', articulo=self.n, ubicacion='UBI-LAB1', motivo='x')
+        self.assertEqual(r.data, {'articulo': 'El artículo no está en reparación.'})
 
     def test_reparacion_no_cambia_resguardante_ni_manda_a_no_localizado(self):
-        r = self.mov(tipo='REPA', equipo=self.n, resguardante=self.beto.num, motivo='x')
+        r = self.mov(tipo='REPA', articulo=self.n, resguardante=self.beto.num, motivo='x')
         self.assertIn('resguardante', r.data)
-        r = self.mov(tipo='REPA', equipo=self.n, ubicacion='UBI-NOLOC', motivo='x')
+        r = self.mov(tipo='REPA', articulo=self.n, ubicacion='UBI-NOLOC', motivo='x')
         self.assertIn('ubicacion', r.data)
 
-    def test_baja(self):
-        r = self.mov(tipo='BAJA', equipo=self.n, motivo='Dañado sin reparación')
-        self.assertEqual(r.status_code, 201, r.data)
-        self.assertFalse(r.data['genera_resguardo'])
-        self.assertEqual(self.articulo()['estado_operativo']['codigo'], 'AUTB')
-        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='x')
-        self.assertEqual(r.data, {'equipo': 'El equipo ya fue dado de baja.'})
+    def test_baja_ya_no_existe(self):
+        r = self.mov(tipo='BAJA', articulo=self.n, motivo='Dañado')
+        self.assertEqual(r.data, {'tipo': 'Selecciona el tipo de movimiento.'})
 
-    def test_baja_de_no_localizado_se_bloquea(self):
-        self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-NOLOC', motivo='x')
-        r = self.mov(tipo='BAJA', equipo=self.n, motivo='x')
-        self.assertIn('equipo', r.data)
+    def test_no_localizado_no_admite_reparacion(self):
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-NOLOC', motivo='x')
+        r = self.mov(tipo='REPA', articulo=self.n, motivo='x')
+        self.assertIn('articulo', r.data)
+
+    def test_al_recuperar_solo_util_u_obsoleto(self):
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-NOLOC', motivo='x')
+        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB2', motivo='y',
+                     estado_operativo='AUTB')
+        self.assertIn('estado_operativo', r.data)
 
     def test_bitacora_del_movimiento(self):
-        self.mov(tipo='REUB', equipo=self.n, resguardante=self.beto.num, motivo='Reasignación')
+        self.mov(tipo='REUB', articulo=self.n, resguardante=self.beto.num, motivo='Reasignación')
         b = Bitacora.objects.get(tabla_afectada='articulo', accion='UPDATE')
         self.assertEqual(b.motivo, 'Reasignación')
         self.assertEqual(json.loads(b.valor_nuevo), {'resguardante': self.beto.num})
@@ -319,13 +321,13 @@ class MovimientosTests(Base):
             tabla_afectada='movimiento', registro_id='MOV-0002', accion='INSERT').exists())
 
     def test_fallo_no_deja_nada_a_medias(self):
-        self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-OFI', motivo='x')
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-OFI', motivo='x')
         self.assertEqual(Movimiento.objects.count(), 1)
-        self.assertEqual(self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1',
+        self.assertEqual(self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1',
                                   motivo='ok').data['folio'], 'MOV-0002')
 
     def test_lista_filtros_y_detalle(self):
-        self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='Remodelación')
+        self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='Remodelación')
         r = self.c.get('/api/movimientos/')
         self.assertEqual(r.data['count'], 2)
         self.assertEqual(r.data['results'][0]['folio'], 'MOV-0002')
@@ -333,16 +335,123 @@ class MovimientosTests(Base):
         self.assertEqual(self.c.get('/api/movimientos/?ubicacion=UBI-LAB1').data['count'], 1)
         self.assertEqual(self.c.get('/api/movimientos/?ubicacion=UBI-OFI').data['count'], 2)
         self.assertEqual(self.c.get('/api/movimientos/?q=remodelación').data['count'], 1)
-        self.assertEqual(self.c.get('/api/movimientos/?equipo=%d' % self.n).data['count'], 2)
+        self.assertEqual(self.c.get('/api/movimientos/?articulo=%d' % self.n).data['count'], 2)
         self.assertEqual(self.c.get('/api/movimientos/MOV-0001/').data['tipo']['codigo'], 'ALTA')
         self.assertEqual(self.c.get('/api/movimientos/MOV-0099/').status_code, 404)
 
-    def test_articulo_como_sinonimo_de_equipo(self):
-        r = self.mov(tipo='REUB', articulo=self.n, ubicacion='UBI-LAB1', motivo='x')
+    def test_equipo_como_sinonimo_de_articulo(self):
+        r = self.mov(tipo='REUB', equipo=self.n, ubicacion='UBI-LAB1', motivo='x')
         self.assertEqual(r.status_code, 201)
 
     def test_se_acepta_formulario_html(self):
         r = self.c.post('/api/movimientos/', {
-            'tipo': 'REUB', 'equipo': str(self.n), 'ubicacion': 'UBI-LAB1',
+            'tipo': 'REUB', 'articulo': str(self.n), 'ubicacion': 'UBI-LAB1',
             'resguardante': '', 'motivo': 'x', 'fecha': timezone.localdate().isoformat()})
         self.assertEqual(r.status_code, 201, r.data)
+
+
+class CorreccionFichaTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.a = self.alta()
+        self.url = '/api/articulos/%d/' % self.a['num']
+
+    def corregir(self, **datos):
+        return self.c.patch(self.url, datos, format='json')
+
+    def test_corrige_datos_con_motivo_y_bitacora(self):
+        r = self.corregir(marca='HP', modelo='ProBook', color='Gris', motivo='Datos del bien repuesto')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data['marca'], r.data['modelo'], r.data['color']), ('HP', 'ProBook', 'Gris'))
+        b = Bitacora.objects.filter(tabla_afectada='articulo', accion='UPDATE').get()
+        self.assertEqual(b.motivo, 'Datos del bien repuesto')
+        self.assertEqual(json.loads(b.valor_anterior), {'marca': 'Dell', 'modelo': 'Latitude', 'color': 'Negro'})
+        self.assertEqual(json.loads(b.valor_nuevo), {'marca': 'HP', 'modelo': 'ProBook', 'color': 'Gris'})
+
+    def test_exige_motivo(self):
+        r = self.corregir(marca='HP')
+        self.assertEqual(r.data, {'motivo': 'Indique el motivo del cambio.'})
+
+    def test_sin_cambios(self):
+        self.assertEqual(self.corregir(motivo='x').data, {'detalle': 'No hay cambios que guardar.'})
+        self.assertEqual(self.corregir(marca='Dell', motivo='x').data,
+                         {'detalle': 'No hay cambios que guardar.'})
+
+    def test_color_y_descripcion_no_quedan_vacios(self):
+        r = self.corregir(color='', descripcion='  ', motivo='x')
+        self.assertEqual(set(r.data), {'color', 'descripcion'})
+
+    def test_marca_modelo_y_serie_se_pueden_borrar(self):
+        r = self.corregir(marca='', modelo='', num_serie='', motivo='No aplica')
+        self.assertEqual((r.data['marca'], r.data['modelo'], r.data['num_serie']), (None, None, None))
+
+    def test_serie_y_marbete_repetidos(self):
+        b = self.alta(marbete_oficial='M2', num_serie='S2')
+        r = self.c.patch('/api/articulos/%d/' % b['num'],
+                         {'num_serie': 'SN1', 'marbete_oficial': '02-520-00003', 'motivo': 'x'}, format='json')
+        self.assertEqual(set(r.data), {'num_serie', 'marbete_oficial'})
+
+    def test_corregir_el_marbete_de_un_activo(self):
+        r = self.corregir(marbete_oficial='02-520-99999', motivo='Marbete mal capturado')
+        self.assertEqual((r.status_code, r.data['identificador']), (200, '02-520-99999'))
+
+    def test_comodato_no_lleva_marbete(self):
+        b = self.alta(origen='COM', marbete_oficial=None, num_serie='S9')
+        r = self.c.patch('/api/articulos/%d/' % b['num'], {'marbete_oficial': 'X', 'motivo': 'x'}, format='json')
+        self.assertIn('marbete_oficial', r.data)
+
+    def test_la_fecha_recalcula_el_estado_de_registro(self):
+        p = self.alta(marbete_oficial='M2', num_serie='S2', fecha_adquisicion=None)
+        self.assertEqual(p['estado_registro']['codigo'], 'PEND')
+        r = self.c.patch('/api/articulos/%d/' % p['num'],
+                         {'fecha_adquisicion': '2024-05-01', 'motivo': 'Se encontró la factura'}, format='json')
+        self.assertEqual(r.data['estado_registro']['codigo'], 'REG')
+        self.assertEqual(r.data['faltantes'], [])
+        r = self.c.patch('/api/articulos/%d/' % p['num'],
+                         {'fecha_adquisicion': None, 'motivo': 'Fecha equivocada'}, format='json')
+        self.assertEqual(r.data['estado_registro']['codigo'], 'PEND')
+
+    def test_donado_sigue_donado(self):
+        d = self.alta(marbete_oficial='M2', num_serie='S2', donado=True, costo_adquisicion=None,
+                      fecha_adquisicion=None)
+        r = self.c.patch('/api/articulos/%d/' % d['num'],
+                         {'fecha_adquisicion': '2024-05-01', 'motivo': 'x'}, format='json')
+        self.assertEqual(r.data['estado_registro']['codigo'], 'DON')
+
+    def test_fecha_futura(self):
+        manana = (timezone.localdate() + timedelta(days=1)).isoformat()
+        self.assertIn('fecha_adquisicion', self.corregir(fecha_adquisicion=manana, motivo='x').data)
+
+    def test_obsoleto_desde_la_ficha_conserva_ubicacion_y_resguardante(self):
+        r = self.corregir(estado_operativo='OBS', motivo='Ya no sirve')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['estado_operativo']['codigo'], 'OBS')
+        self.assertEqual(r.data['ubicacion']['codigo'], 'UBI-OFI')
+        self.assertEqual(r.data['resguardante']['num'], self.ana.num)
+        self.assertEqual(Movimiento.objects.count(), 1)  # sin movimiento: solo el ALTA
+        r = self.corregir(estado_operativo='UTIL', motivo='Corrección auditada')
+        self.assertEqual(r.data['estado_operativo']['codigo'], 'UTIL')
+
+    def test_no_localizado_no_pasa_a_obsoleto(self):
+        self.c.post('/api/movimientos/', {'tipo': 'REUB', 'articulo': self.a['num'],
+                                          'ubicacion': 'UBI-NOLOC', 'motivo': 'x'}, format='json')
+        r = self.corregir(estado_operativo='OBS', motivo='x')
+        self.assertIn('estado_operativo', r.data)
+
+    def test_no_se_puede_poner_no_localizado_a_mano(self):
+        self.assertIn('estado_operativo', self.corregir(estado_operativo='NOLOC', motivo='x').data)
+        self.assertIn('estado_operativo', self.corregir(estado_operativo='AUTB', motivo='x').data)
+
+    def test_ubicacion_y_resguardante_no_se_cambian_por_la_ficha(self):
+        r = self.corregir(ubicacion='UBI-LAB1', resguardante=self.beto.num, marca='HP', motivo='x')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.data['ubicacion']['codigo'], r.data['resguardante']['num']),
+                         ('UBI-OFI', self.ana.num))
+
+    def test_consulta_no_corrige(self):
+        c = self.cliente(self.obs)
+        self.assertEqual(c.patch(self.url, {'marca': 'HP', 'motivo': 'x'}, format='json').status_code, 403)
+
+    def test_put_y_delete_no_existen(self):
+        self.assertEqual(self.c.put(self.url, {}, format='json').status_code, 405)
+        self.assertEqual(self.c.delete(self.url).status_code, 405)

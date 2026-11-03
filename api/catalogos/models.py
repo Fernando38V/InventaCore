@@ -96,7 +96,7 @@ class EstadoRegistro(CatalogoBase):
 
 
 class TipoMovimiento(CatalogoBase):
-    """ALTA, REUB, REPA, RETE y BAJA (DEC-006, RF-16). La regla de si un movimiento genera
+    """ALTA, REUB, REPA y RETE (DEC-006, RF-16). La regla de si un movimiento genera
     resguardo (RF-18) se calcula al crearlo y no se guarda aquí."""
 
     activo = models.BooleanField(default=True)

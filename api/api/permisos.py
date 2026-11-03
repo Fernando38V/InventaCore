@@ -1,7 +1,7 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
-class AdminEscribeObservadorLee(BasePermission):
+class AdminEscribeConsultaLee(BasePermission):
     """Administrador: todo. Consulta: solo consultar (GET, HEAD, OPTIONS)."""
 
     message = 'Su rol solo permite consultar.'
@@ -13,6 +13,11 @@ class AdminEscribeObservadorLee(BasePermission):
         if usuario.es_administrador:
             return True
         return usuario.es_consulta and request.method in SAFE_METHODS
+
+
+# Nombre anterior (DEC-001 renombró el rol Observador a Consulta). Se conserva
+# para que un settings.py que aún lo cite siga funcionando.
+AdminEscribeObservadorLee = AdminEscribeConsultaLee
 
 
 class SoloAdministrador(BasePermission):
