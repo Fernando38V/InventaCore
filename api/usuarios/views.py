@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate
 from django.db import transaction
-from rest_framework import serializers, status, viewsets
+from django.db.models import Q
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,9 +11,11 @@ from rest_framework.views import APIView
 from api.permisos import SoloAdministrador
 from auditoria.mixins import BitacoraMixin
 from auditoria.servicios import registrar
-from usuarios.models import Usuario
+from personal.models import Personal
+from usuarios.models import Rol, Usuario
 from usuarios.serializers import (
-    CambiarContrasenaSerializer, ContrasenaSerializer, UsuarioSerializer)
+    CambiarContrasenaSerializer, ContrasenaSerializer, EmpleadoDisponibleSerializer,
+    RolSerializer, UsuarioSerializer)
 
 
 def _perfil(usuario):
@@ -63,7 +66,7 @@ class CambiarContrasenaView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        datos = CambiarContrasenaSerializer(data=request.data)
+        datos = CambiarContrasenaSerializer(data=request.data, context={'usuario': request.user})
         datos.is_valid(raise_exception=True)
         if not request.user.check_password(datos.validated_data['password_actual']):
             raise serializers.ValidationError(
@@ -85,11 +88,51 @@ class UsuarioViewSet(BitacoraMixin, viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     queryset = Usuario.objects.select_related('personal', 'rol')
 
+    def get_queryset(self):
+        """Filtros: q (usuario, nombre o número de empleado, palabra por palabra),
+        rol y activo."""
+        consulta = super().get_queryset()
+        p = self.request.query_params
+        for palabra in (p.get('q') or '').split():
+            consulta = consulta.filter(
+                Q(username__icontains=palabra)
+                | Q(personal__numero_empleado__icontains=palabra)
+                | Q(personal__nombre_pila__icontains=palabra)
+                | Q(personal__primer_apellido__icontains=palabra)
+                | Q(personal__segundo_apellido__icontains=palabra))
+        if p.get('rol'):
+            consulta = consulta.filter(rol_id=p['rol'])
+        if p.get('activo') in ('true', 'false'):
+            consulta = consulta.filter(activo=p['activo'] == 'true')
+        return consulta
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        antes = (serializer.instance.activo, serializer.instance.rol_id)
+        super().perform_update(serializer)
+        usuario = serializer.instance
+        # Una baja o un cambio de rol cierran sus sesiones abiertas.
+        if (usuario.activo, usuario.rol_id) != antes:
+            Token.objects.filter(user=usuario).delete()
+
+    @action(detail=False, methods=['get'], url_path='empleados-disponibles')
+    def empleados_disponibles(self, request):
+        """Empleados activos sin cuenta, para el formulario de alta. ?q= filtra."""
+        consulta = Personal.objects.filter(activo=True, usuario__isnull=True)
+        for palabra in (request.query_params.get('q') or '').split():
+            consulta = consulta.filter(
+                Q(numero_empleado__icontains=palabra) | Q(nombre_pila__icontains=palabra)
+                | Q(primer_apellido__icontains=palabra) | Q(segundo_apellido__icontains=palabra))
+        datos = [{'num': e.num, 'numero_empleado': e.numero_empleado,
+                  'nombre_completo': e.nombre_completo, 'puesto': e.puesto}
+                 for e in consulta.order_by('primer_apellido', 'nombre_pila')[:50]]
+        return Response(EmpleadoDisponibleSerializer(datos, many=True).data)
+
     @action(detail=True, methods=['post'], url_path='restablecer-password')
     @transaction.atomic
     def restablecer_password(self, request, pk=None):
         usuario = self.get_object()
-        datos = ContrasenaSerializer(data=request.data)
+        datos = ContrasenaSerializer(data=request.data, context={'usuario': usuario})
         datos.is_valid(raise_exception=True)
         usuario.set_password(datos.validated_data['password'])
         usuario.save(update_fields=['password'])
@@ -99,3 +142,12 @@ class UsuarioViewSet(BitacoraMixin, viewsets.ModelViewSet):
                   nuevo={'password': 'restablecida por el Administrador'},
                   motivo=str(request.data.get('motivo') or '')[:255] or None)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RolViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """Roles disponibles para el formulario de usuarios (solo lectura)."""
+
+    permission_classes = [SoloAdministrador]
+    serializer_class = RolSerializer
+    queryset = Rol.objects.filter(activo=True)
+    pagination_class = None

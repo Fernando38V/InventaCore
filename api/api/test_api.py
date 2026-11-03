@@ -327,3 +327,75 @@ class UsuariosAPITests(BaseAPI):
         self.c.patch('/api/usuarios/%d/' % self.obs.pk, {'username': 'hack', 'motivo': 'm'})
         self.obs.refresh_from_db()
         self.assertEqual(self.obs.username, 'obs')
+
+
+class UsuariosAdministracionTests(BaseAPI):
+    """Filtros, roles, empleados disponibles, nombre de usuario y cierre de sesiones."""
+
+    def setUp(self):
+        super().setUp()
+        self.c = self.cliente(self.admin)
+        self.libre = Personal.objects.create(
+            numero_empleado='E070', nombre_pila='Marta', primer_apellido='Ruiz',
+            puesto='Docente', departamento_id='DEP-INF')
+
+    def test_roles_solo_para_el_administrador(self):
+        r = self.c.get('/api/roles/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual({x['clave'] for x in r.data}, {'ADMIN', 'CONSULTA'})
+        self.assertEqual(self.cliente(self.obs).get('/api/roles/').status_code, 403)
+
+    def test_empleados_disponibles_excluye_a_los_que_ya_tienen_cuenta(self):
+        r = self.c.get('/api/usuarios/empleados-disponibles/')
+        self.assertEqual(r.status_code, 200)
+        nums = {x['num'] for x in r.data}
+        self.assertIn(self.libre.num, nums)
+        self.assertNotIn(self.admin.personal.num, nums)
+        r = self.c.get('/api/usuarios/empleados-disponibles/?q=marta')
+        self.assertEqual([x['numero_empleado'] for x in r.data], ['E070'])
+
+    def test_filtros_de_la_lista(self):
+        r = self.c.get('/api/usuarios/?rol=CONSULTA')
+        self.assertEqual([u['username'] for u in r.data['results']], ['obs'])
+        r = self.c.get('/api/usuarios/?q=admin')
+        self.assertEqual([u['username'] for u in r.data['results']], ['admin'])
+        r = self.c.get('/api/usuarios/?activo=false')
+        self.assertEqual(r.data['count'], 0)
+
+    def test_la_lista_trae_numero_de_empleado_y_puesto(self):
+        r = self.c.get('/api/usuarios/?q=obs')
+        u = r.data['results'][0]
+        self.assertEqual(u['numero_empleado'], 'E002')
+        self.assertEqual(u['puesto'], 'Prueba')
+
+    def test_nombre_de_usuario_invalido(self):
+        for malo in ('ab', 'con espacio', 'a/b'):
+            r = self.c.post('/api/usuarios/', {
+                'username': malo, 'password': CLAVE, 'personal': self.libre.pk,
+                'rol': 'CONSULTA'})
+            self.assertEqual(r.status_code, 400, malo)
+            self.assertIn('username', r.data)
+
+    def test_contrasena_parecida_al_usuario_se_rechaza(self):
+        r = self.c.post('/api/usuarios/', {
+            'username': 'marta.ruiz', 'password': 'marta.ruiz1', 'personal': self.libre.pk,
+            'rol': 'CONSULTA'})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('password', r.data)
+
+    def test_dar_de_baja_o_cambiar_rol_cierra_sus_sesiones(self):
+        co = self.cliente(self.obs)
+        self.assertEqual(co.get('/api/auth/yo/').status_code, 200)
+        r = self.c.patch('/api/usuarios/%d/' % self.obs.pk, {'activo': False, 'motivo': 'Baja'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(co.get('/api/auth/yo/').status_code, 401)
+
+    def test_editar_sin_cambiar_activo_ni_rol_no_cierra_sesion(self):
+        co = self.cliente(self.obs)
+        self.c.patch('/api/usuarios/%d/' % self.obs.pk, {'rol': 'CONSULTA', 'motivo': 'Igual'})
+        self.assertEqual(co.get('/api/auth/yo/').status_code, 200)
+
+    def test_consulta_no_administra_usuarios(self):
+        co = self.cliente(self.obs)
+        self.assertEqual(co.get('/api/usuarios/').status_code, 403)
+        self.assertEqual(co.get('/api/usuarios/empleados-disponibles/').status_code, 403)

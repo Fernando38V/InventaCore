@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from usuarios import views
 
 router = DefaultRouter()
+router.register('roles', views.RolViewSet, basename='rol')
 router.register('usuarios', views.UsuarioViewSet, basename='usuario')
 
 urlpatterns = [
