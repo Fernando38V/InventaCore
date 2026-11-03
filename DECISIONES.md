@@ -1,6 +1,6 @@
 # DECISIONES — InventaCore
 
-Última actualización: 01/11/2026
+Última actualización: 03/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
 Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
@@ -50,7 +50,7 @@ Contexto: la institución hoy no registra salidas, retornos ni reubicaciones; el
 
 Estado: CONFIRMADA EN LO FUNCIONAL (actualizada 01/11/2026)
 Decisión: Los resguardos se generan bajo demanda para uno o varios artículos del mismo resguardante; el resguardante firma un solo documento con todos los artículos listados. El PDF emitido se conserva sin cambios y se reimprime sin folio ni movimiento nuevos. Generar el PDF no equivale a que esté firmado. Sin firma digital.
-Firmas: dos, la de la Contadora (responsable de seguimiento) y la del resguardante o nuevo resguardante, para los tres orígenes (Activo, Comodato y Enser). Se elimina "Monto revalúo". No hay segundo formato: el sistema propone un diseño propio, más limpio que el actual, con el listado de artículos resguardados.
+Firmas: dos, la de la Contadora (responsable de seguimiento) y la del resguardante o nuevo resguardante, para los tres orígenes (Activo, Comodato y Enser). Se elimina "Monto revalúo". No hay segundo formato: el sistema propone un diseño propio, más limpio que el actual, con el listado de artículos resguardados. El contenido sigue la estructura del formato institucional (encabezado, nombre del resguardante, tabla de artículos con número de inventario, descripción, marca, modelo, serie y costo, número de bienes, leyenda de responsabilidad y las dos firmas), sin la columna "Monto revalúo". El nombre completo de la Contadora que firma como responsable de seguimiento es un dato del sistema (configuración), no una tabla. Diseño relacional en DEC-016.
 El cambio de resguardante (incluido cuando alguien deja la institución) se hace con REUB y se documenta con este mismo resguardo.
 No se genera comprobante en altas históricas de bienes no localizados ni en la carga masiva.
 Pendiente técnico: PEND-001.
@@ -98,7 +98,7 @@ Decisión: Tres estados: Útil, Obsoleto y No localizado. Se eliminan "Autorizad
 ## DEC-013 — Edición de la ficha
 
 Estado: CONFIRMADA (actualizada 01/11/2026)
-Decisión: Ubicación y resguardante solo cambian por MOVIMIENTO. Marca, modelo, serie, color, descripción y fecha de adquisición se corrigen desde la ficha con motivo y registro en BITACORA. El cambio a Obsoleto se hace desde la ficha con motivo obligatorio y BITACORA, sin movimiento (Obsoleto es un estado, no un lugar); la ubicación y el resguardante se conservan. Un artículo puede darse de alta ya como Obsoleto. No localizado y reparación siguen sus propias reglas.
+Decisión: Ubicación y resguardante solo cambian por MOVIMIENTO. Marca, modelo, serie, color, descripción, fecha de adquisición y costo de adquisición se corrigen desde la ficha con motivo y registro en BITACORA, solo por el Administrador. Al cambiar la fecha o el costo, el estado de registro se recalcula (DEC-008); en un bien Donado el costo no se modifica mientras PEND-004 siga abierto. Así un artículo Pendiente por falta de costo puede pasar a Registrado (confirmado 03/11/2026). El cambio a Obsoleto se hace desde la ficha con motivo obligatorio y BITACORA, sin movimiento (Obsoleto es un estado, no un lugar); la ubicación y el resguardante se conservan. Un artículo puede darse de alta ya como Obsoleto. No localizado y reparación siguen sus propias reglas.
 
 ## DEC-014 — DEPARTAMENTO y UBICACION
 
@@ -112,8 +112,9 @@ Decisión: Los usuarios autorizados amplían categorías, tipos de artículo y u
 
 ## DEC-016 — Resguardo: PK y atributo requiere_resguardo
 
-Estado: CONFIRMADA (implementada por Adad en movimiento)
+Estado: CONFIRMADA (requiere_resguardo implementado por Adad; diseño de RESGUARDO aceptado por Fernando el 03/11/2026, pendiente de validar con Adad)
 Decisión: RESGUARDO usa folio como PK. MOVIMIENTO.requiere_resguardo (booleano, lo fija el sistema al crear el movimiento) indica qué asignaciones deben documentarse. No existe TIPO_MOVIMIENTO.genera_resguardo.
+Diseño mínimo: RESGUARDO (folio PK, fecha de emisión, resguardante, usuario emisor, ruta del PDF única, hash del PDF) y RESGUARDO_DETALLE (num PK, resguardo, movimiento único, para que una asignación no se documente dos veces). Se elimina la relación 1:1 entre MOVIMIENTO y RESGUARDO. El PDF se genera con reportlab, se guarda en una carpeta del servidor sin sobrescribir y la reimpresión entrega el archivo original.
 
 ## DEC-017 — Carga masiva desde plantilla de Excel
 
@@ -143,5 +144,14 @@ Decisión: El rol CONSULTA solo accede a Dashboard, Equipos (artículos), Movimi
 - Precisa DEC-001: la consulta de ubicaciones y empleados (RF-13 y RF-15) es solo para el Administrador.
 - Cliente: el menú se arma según el rol y `usuarios/middleware.py` redirige a Consulta al dashboard si intenta entrar a una sección de administración.
 - API: la lectura (GET) de catálogos y personal sigue permitida a CONSULTA porque los filtros y el detalle de equipos y movimientos la necesitan. La escritura sigue siendo solo del Administrador y la API responde 403 aunque el cliente falle.
-Impacto: RF-13, RF-15, RNF-02; frontend; pruebas de permisos.
-Implementación: cliente listo y probado (01/11/2026).
+  Impacto: RF-13, RF-15, RNF-02; frontend; pruebas de permisos.
+  Implementación: cliente listo y probado (01/11/2026).
+
+## DEC-020 — Dashboard y reportes mínimos
+
+Estado: CONFIRMADA (03/11/2026)
+Decisión: Alcance mínimo para construir.
+
+- Dashboard: totales por estado operativo, estado de registro y ubicación; artículos Pendientes de datos; últimos movimientos.
+- Reportes: inventario filtrable (por ubicación, resguardante y estado), artículos de un resguardante, historial de un artículo y la exportación a Excel (DEC-018).
+- Implementación: API de Adad (endpoint de conteos) y cliente; PENDIENTE.

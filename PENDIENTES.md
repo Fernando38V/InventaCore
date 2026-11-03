@@ -1,6 +1,6 @@
 # PENDIENTES — InventaCore
 
-Última actualización: 01/11/2026
+Última actualización: 03/11/2026
 Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No implementar como definitivo nada de aquí.
 
 ## Cerrados el 29/10 y 01/11/2026 (pasaron a DECISIONES.md)
@@ -12,6 +12,9 @@ Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No 
 - PEND-009 Cambios de estado desde la ficha: Obsoleto desde la ficha con motivo y bitácora (DEC-013).
 - Roles en el cliente: Consulta no accede a catálogos, personal, bitácora ni usuarios (DEC-019).
 - Error 500 al registrar un tipo de artículo duplicado: corregido en TipoArticuloSerializer (400 con mensaje). Era el único UniqueConstraint del modelo.
+- Costo de adquisición después del alta: se corrige desde la ficha con motivo y bitácora (DEC-013, 03/11/2026). Pendiente de que Adad lo implemente.
+- Dashboard y reportes: alcance mínimo en DEC-020.
+- Nombre de la Contadora en la firma: dato del sistema (DEC-007).
 
 ## Para validar con Adad
 
@@ -24,6 +27,7 @@ Prioridad: ALTA
 
 PEND-016 — Cambios al SQL y a los modelos por las decisiones del 01/11/2026
 Prioridad: ALTA
+Estado (03/11/2026): Adad ya los aplicó en modelos y migraciones (commit 9c94d01: sin AUTB ni BAJA, folio sin repetir, permisos renombrados). Falta revisar InventaCore_db.sql y los textos del encabezado.
 
 - estado_operativo: quitar AUTB. Quedan UTIL, OBS y NOLOC.
 - tipo_movimiento: quitar BAJA y sacarla de los CHECK de movimiento (cambia_algo y requiere_resguardo).
@@ -32,13 +36,13 @@ Prioridad: ALTA
 - Textos: docstring de Articulo ("baja con AUTB"), descripción de UBI-NOLOC en el SQL ("Cambio de ubicación" debe decir REUB), encabezado del SQL (título, "Contadora", "OBS (Observador)"), nombre de la clase de permisos y textos que dicen "Observador".
 
 PEND-001 — Diseño relacional de resguardos
-Estado: PROPUESTA
+Estado: ACEPTADA por Fernando el 03/11/2026 (pasó a DEC-016); falta validar con Adad e implementarla
 Prioridad: ALTA
 
 - RESGUARDO: folio (PK), fecha_emision, resguardante (FK PERSONAL), usuario_emisor (FK USUARIO), ruta_pdf (única), hash_pdf, y opcionalmente fecha_firma.
 - RESGUARDO_DETALLE: num (PK), resguardo (FK), movimiento (FK, UNIQUE). Sin FK a ARTICULO: se obtiene por el movimiento.
 - Se elimina la relación 1:1 entre MOVIMIENTO y RESGUARDO (hoy en `movimientos.models.Resguardo`).
-- Nuevo: de dónde sale el nombre de la Contadora que firma como responsable de seguimiento. Opciones: el usuario que emite, o un dato configurable del sistema.
+- Nombre de la Contadora que firma: dato configurable del sistema (settings.py), nombre completo. Decidido el 03/11/2026.
 - PDF en carpeta del servidor, sin sobrescribir; la reimpresión entrega el archivo original.
 
 PEND-005 — Identificadores técnicos
@@ -72,6 +76,7 @@ PEND-004 — Bienes donados
 Prioridad: MEDIA
 
 - ¿El costo se bloquea o se captura en un bien donado?
+- Propuesta de cierre (pendiente de Fernando): el costo es opcional en un bien Donado, ni se exige ni se bloquea. Lo que ya hace el backend y el SQL. El frontend hoy lo bloquea y habría que quitarlo. Si Fernando la confirma, pasa a DECISIONES.md; la Contadora puede corregirla.
 
 PEND-007 — Personal que deja la institución
 Prioridad: MEDIA
@@ -94,6 +99,8 @@ PEND-011 — Revisión del repositorio (01/11/2026)
 - requirements.txt: falta qrcode (lo usa client) y openpyxl (carga y exportación).
 
 PEND-012 — Avances de Adad
+
+- 03/11/2026: publicados artículos (listar, ficha, alta, corrección con motivo, historial por artículo) y movimientos (listar, ficha, crear REUB, REPA y RETE); módulo de usuarios; sin BAJA ni AUTB. Reglas propias de Adad por confirmar: REPA y RETE van en pareja (no hay RETE sin REPA abierta). Sin publicar: dashboard, reportes, resguardos en PDF, escáner de QR, exportación y carga masiva.
 
 - 29/10/2026: usuarios, login con token de 24 h, permisos, personal, catálogos, modelos de artículo, movimiento y bitácora, folios, pruebas. Aún no hay endpoints de artículos ni de movimientos.
 
