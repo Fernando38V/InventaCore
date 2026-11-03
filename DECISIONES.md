@@ -143,5 +143,5 @@ Decisión: El rol CONSULTA solo accede a Dashboard, Equipos (artículos), Movimi
 - Precisa DEC-001: la consulta de ubicaciones y empleados (RF-13 y RF-15) es solo para el Administrador.
 - Cliente: el menú se arma según el rol y `usuarios/middleware.py` redirige a Consulta al dashboard si intenta entrar a una sección de administración.
 - API: la lectura (GET) de catálogos y personal sigue permitida a CONSULTA porque los filtros y el detalle de equipos y movimientos la necesitan. La escritura sigue siendo solo del Administrador y la API responde 403 aunque el cliente falle.
-  Impacto: RF-13, RF-15, RNF-02; frontend; pruebas de permisos.
-  Implementación: cliente listo y probado (01/11/2026).
+Impacto: RF-13, RF-15, RNF-02; frontend; pruebas de permisos.
+Implementación: cliente listo y probado (01/11/2026).

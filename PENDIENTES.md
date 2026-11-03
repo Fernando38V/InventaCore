@@ -88,7 +88,7 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: - Frontend: login real, rol real y pantallas de catálogos y personal ya conectadas a la API (01/11/2026). Siguen con datos de prueba y por adaptar: equipos, movimientos, dashboard y reportes (datos de prueba, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo). Se adaptan cuando el backend publique los endpoints de artículos y movimientos.
+- Frontend: login real, rol real y pantallas de catálogos y personal ya conectadas a la API (01/11/2026). Siguen con datos de prueba y por adaptar: equipos, movimientos, dashboard y reportes (datos de prueba, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo). Se adaptan cuando el backend publique los endpoints de artículos y movimientos.
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
 - requirements.txt: falta qrcode (lo usa client) y openpyxl (carga y exportación).
@@ -126,4 +126,3 @@ Prioridad: BAJA
 - Tesina: decidir si dice MySQL o MariaDB, corregir 5.14 y Kanban.
 - INVENTARIO_ESTADO_ACTUAL.md: dos columnas, alcance de la tesina y alcance del software.
 - Evidencia de pruebas de catálogos y personal: pruebas automáticas del cliente (`python manage.py test catalogos`) y pruebas manuales del 01/11/2026 con capturas y registros de bitácora. Guardar las capturas.
-
