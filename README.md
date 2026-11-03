@@ -75,7 +75,7 @@ pip install -r requirements.txt
 3. Aplicar migraciones de Django:
    \`\`\`bash
    cd api
-   python manage.py migrate
+   python manage.py migrate  
    cd ../client
    python manage.py migrate
    \`\`\`

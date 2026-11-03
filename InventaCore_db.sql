@@ -549,3 +549,13 @@ INSERT INTO ubicacion (codigo, nombre, descripcion, responsable) VALUES
      (por ejemplo "crear_admin_inicial"), no con INSERT.
      El folio de Comodato/Enser sigue la fórmula de la decisión 37.
    ========================================================================== */
+
+INSERT INTO personal (numero_empleado, nombre_pila, primer_apellido, puesto, activo, departamento)
+VALUES ('DEMO-001', 'Usuario', 'Demo', 'Administrador del sistema', 1, 'DEP-INF');
+
+INSERT INTO usuario (username, contrasena, activo, personal, rol)
+VALUES ('admin',
+        'pbkdf2_sha256$600000$4JxeXPbLTp4PQWZUreCJLF$tBckIY6KXy5ctkajRZOsenwtvz5LsvJNIZvbUIhL5Ow=',
+        1,
+        (SELECT num FROM personal WHERE numero_empleado = 'DEMO-001'),
+        'ADMIN');
