@@ -53,10 +53,17 @@ def opciones_tipos(request, actual=''):
             sorted(tipos, key=lambda t: t['nombre'].lower()))
 
 
+def marca_modelo(articulo):
+    """'Marca Modelo' o '' si no hay ninguno (ambos son opcionales)."""
+    return ' '.join(p for p in (articulo.get('marca'), articulo.get('modelo')) if p)
+
+
 def nombre_articulo(articulo):
-    """Marca y modelo si existen; si no, la descripción (siempre obligatoria)."""
-    texto = ' '.join(p for p in (articulo.get('marca'), articulo.get('modelo')) if p)
-    return texto or articulo.get('descripcion') or SIN_ESPECIFICAR
+    """Título de un artículo: marca y modelo; si no hay, su tipo (p. ej. «Laptop»).
+    Nunca la descripción: es texto libre y puede ser largo."""
+    return (marca_modelo(articulo)
+            or (articulo.get('tipo_articulo') or {}).get('nombre')
+            or SIN_ESPECIFICAR)
 
 
 def resumen_movimiento(m):

@@ -86,12 +86,13 @@ class ListadoTests(BaseEquipos):
         self.assertContains(r, 'M-100')
         self.assertContains(r, 'Dell Latitude')
 
-    def test_sin_marca_ni_modelo_muestra_la_descripcion(self):
+    def test_sin_marca_ni_modelo_no_usa_la_descripcion_como_nombre(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina(
-            [articulo(marca=None, modelo=None, descripcion='Silla de oficina')])
+            [articulo(marca=None, modelo=None, descripcion='Silla de oficina en buen estado')])
         r = self.client.get('/equipos/')
-        self.assertContains(r, 'Silla de oficina')
+        self.assertContains(r, 'Sin especificar')
+        self.assertNotContains(r, 'Silla de oficina en buen estado')
 
     def test_muestra_el_error_de_la_api(self):
         self.entrar()
@@ -131,6 +132,14 @@ class FichaTests(BaseEquipos):
         r = self.client.get('/equipos/detalle/7/')
         self.assertContains(r, 'Sin especificar')
         self.assertNotContains(r, 'IC-')
+
+    def test_el_titulo_sin_marca_ni_modelo_es_el_tipo_no_la_descripcion(self):
+        self.entrar()
+        self.preparar(marca=None, modelo=None, descripcion='Texto libre largo de la descripción')
+        r = self.client.get('/equipos/detalle/7/')
+        self.assertContains(r, '<h2 class="equipo-header__title">Laptop</h2>')
+        # la descripción sigue apareciendo, pero en su propia tarjeta
+        self.assertContains(r, 'Texto libre largo de la descripción')
 
     def test_admin_ve_acciones_y_consulta_no(self):
         self.preparar()

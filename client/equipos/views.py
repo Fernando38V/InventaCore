@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 
 from client.api import ApiError, SesionVencida, llamar
 from client.inventario import (
-    ESTADO_NOLOC, UBICACION_NOLOC, nombre_articulo, opciones_catalogo,
+    ESTADO_NOLOC, UBICACION_NOLOC, marca_modelo, nombre_articulo, opciones_catalogo,
     opciones_personal, opciones_tipos, resumen_movimiento)
 from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
@@ -158,7 +158,7 @@ def listado_equipos(request):
 
     equipos = []
     for a in datos['results']:
-        equipos.append(dict(a, nombre=nombre_articulo(a)))
+        equipos.append(dict(a, nombre=marca_modelo(a)))     # vacío: la plantilla dice «Sin especificar»
 
     contexto = {
         'equipos': equipos,

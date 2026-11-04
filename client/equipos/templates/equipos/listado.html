@@ -114,7 +114,7 @@
           <span class="celda-secundaria">{{ eq.origen.nombre }}</span>
         </td>
         <td data-label="Artículo">
-          <span class="celda-fuerte">{{ eq.nombre }}</span>
+          {% if eq.nombre %}<span class="celda-fuerte">{{ eq.nombre }}</span>{% else %}<span class="celda-vacia">Sin especificar</span>{% endif %}
           {% if eq.num_serie %}<span class="celda-secundaria">{{ eq.num_serie }}</span>{% endif %}
         </td>
         <td data-label="Tipo">
@@ -391,6 +391,8 @@
     font-size: 11.5px;
     color: var(--ic-subtle);
   }
+
+  .celda-vacia { font-size: 13.5px; color: var(--ic-muted); }
 
   .celda-fuerte {
     display: block;
