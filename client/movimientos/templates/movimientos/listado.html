@@ -130,6 +130,10 @@
           {% if m.nota %}<span class="celda-secundaria celda-nota">{{ m.nota }}</span>{% endif %}
         </td>
         <td class="celda-accion">
+          {% if usuario.rol == 'ADMIN' %}
+          <a class="celda-accion__mover" href="{% url 'movimientos:nuevo' %}?articulo={{ m.articulo.num }}"
+             aria-label="Mover el artículo {{ m.articulo.identificador }}">Mover</a>
+          {% endif %}
           <a class="celda-accion__link" href="{% url 'equipos:detalle' m.articulo.num %}"
              aria-label="Ver el artículo de este movimiento">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -461,6 +465,26 @@
     width: 44px;
     text-align: right;
     padding-right: 12px;
+    white-space: nowrap;
+  }
+
+  .celda-accion__mover {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ic-primary-hover);
+    background: #FFFFFF;
+    border: 1px solid var(--ic-border);
+    border-radius: 8px;
+    text-decoration: none;
+    vertical-align: middle;
+  }
+
+  .celda-accion__mover:hover {
+    background: var(--ic-primary-soft);
+    border-color: var(--ic-primary);
   }
 
   .celda-accion__link {
@@ -639,6 +663,7 @@
       border-radius: 8px;
     }
 
+    .celda-accion__mover { display: block; margin: 0 0 6px; padding: 8px 0; text-align: center; }
     .celda-accion__link::after { content: "Ver equipo"; }
     .celda-accion__link svg { display: none; }
 

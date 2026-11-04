@@ -203,6 +203,7 @@ def detalle_equipo(request, num):
         'esta_util': equipo['estado_operativo']['codigo'] == 'UTIL',
         'esta_obsoleto': equipo['estado_operativo']['codigo'] == 'OBS',
         'esta_noloc': equipo['estado_operativo']['codigo'] == ESTADO_NOLOC,
+        'ubicacion_noloc': UBICACION_NOLOC,
     })
 
 

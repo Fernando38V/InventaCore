@@ -15,7 +15,7 @@ from django.utils import timezone
 from client.api import ApiError, SesionVencida, llamar
 from client.inventario import (
     ESTADO_NOLOC, UBICACION_NOLOC, nombre_articulo, opciones_catalogo, opciones_personal)
-from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
+from client.utils import TAM_PAGINA, contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
 TIPOS_MANUALES = ('REUB', 'REPA', 'RETE')
 ESTADOS_AL_RECUPERAR = ('UTIL', 'OBS')
@@ -130,6 +130,21 @@ def _cuerpo(v, articulo):
     return cuerpo
 
 
+def _ultimos_articulos(request):
+    """Sin búsqueda se sugieren los últimos artículos registrados (la API los
+    entrega del más antiguo al más reciente: se pide la última página)."""
+    try:
+        datos = llamar(request, 'GET', 'articulos/')
+        if datos['count'] > TAM_PAGINA:
+            ultima = -(-datos['count'] // TAM_PAGINA)
+            datos = llamar(request, 'GET', 'articulos/?' + urlencode({'page': ultima}))
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        return [], errores_api(e)[1]
+    return [dict(a, nombre=nombre_articulo(a)) for a in reversed(datos['results'])], ''
+
+
 def _buscar_articulos(request, q):
     """Primer paso: buscar el artículo por marbete, folio, serie, marca, etc."""
     if not q:
@@ -155,10 +170,13 @@ def nuevo_movimiento(request):
     # Paso 1: sin artículo elegido, se busca uno.
     if not num.isdigit():
         q = request.GET.get('q', '').strip()
-        encontrados, error = _buscar_articulos(request, q)
+        if q:
+            encontrados, error = _buscar_articulos(request, q)
+        else:
+            encontrados, error = _ultimos_articulos(request)
         return render(request, 'movimientos/nuevo.html', {
             'paso_busqueda': True, 'q': q, 'encontrados': encontrados, 'error_busqueda': error,
-            'buscado': bool(q),
+            'buscado': bool(q), 'sugeridos': not q,
         })
 
     try:
@@ -176,6 +194,13 @@ def nuevo_movimiento(request):
     v['articulo'] = num
     v['fecha'] = timezone.localdate().isoformat()
     errores, general = {}, ''
+
+    if request.method == 'GET':
+        # Atajos desde la ficha (Marcar como No localizado / Recuperar).
+        if request.GET.get('tipo') in TIPOS_MANUALES:
+            v['tipo'] = request.GET['tipo']
+        if request.GET.get('ubicacion'):
+            v['ubicacion'] = request.GET['ubicacion'].strip()
 
     if request.method == 'POST':
         for campo in CAMPOS_MOVIMIENTO:

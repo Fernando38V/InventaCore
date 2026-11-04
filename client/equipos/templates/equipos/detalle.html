@@ -126,6 +126,14 @@
       {% elif esta_noloc %}
       <p class="estado-accion__nota">Un artículo No localizado no pasa a Obsoleto: se recupera con una reubicación.</p>
       {% endif %}
+
+      {% if esta_noloc %}
+      <a class="accion-estado accion-estado--alta accion-estado--enlace"
+         href="{% url 'movimientos:nuevo' %}?articulo={{ equipo.num }}&amp;tipo=REUB">Recuperar artículo</a>
+      {% else %}
+      <a class="accion-estado accion-estado--neutra accion-estado--enlace"
+         href="{% url 'movimientos:nuevo' %}?articulo={{ equipo.num }}&amp;tipo=REUB&amp;ubicacion={{ ubicacion_noloc }}">Marcar como No localizado</a>
+      {% endif %}
     </div>
     {% endif %}
   </section>
@@ -394,7 +402,11 @@
     padding-top: 14px;
     border-top: 1px solid var(--ic-border);
   }
-  .estado-accion__nota { margin: 0; font-size: 12.5px; color: var(--ic-muted); }
+  .estado-accion__nota { margin: 0 0 10px; font-size: 12.5px; color: var(--ic-muted); }
+  .estado-accion .accion-estado { margin-right: 8px; }
+  .accion-estado--enlace { display: inline-block; text-decoration: none; }
+  .accion-estado--neutra { color: var(--ic-text); }
+  .accion-estado--neutra:hover { background: #F2F4F7; }
 
   .timeline__tag {
     margin-left: 6px;

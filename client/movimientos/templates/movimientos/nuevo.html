@@ -28,6 +28,7 @@
   {% if error_busqueda %}
   <div class="aviso aviso--rojo" role="alert"><span>{{ error_busqueda }}</span></div>
   {% elif encontrados %}
+  {% if sugeridos %}<p class="campo__ayuda" style="margin-top:12px">Últimos artículos registrados. Usa el buscador para encontrar otro.</p>{% endif %}
   <ul class="resultados">
     {% for a in encontrados %}
     <li>

@@ -82,6 +82,13 @@ class ListadoTests(BaseMov):
         self.assertContains(r, 'Requiere resguardo')
         self.assertNotContains(r, 'Baja del inventario')
 
+    def test_boton_mover_por_fila_solo_para_admin(self):
+        self.api.respuestas[('GET', 'movimientos/')] = pagina([movimiento()])
+        self.entrar('ADMIN')
+        self.assertContains(self.client.get('/movimientos/'), '/movimientos/nuevo/?articulo=7')
+        self.entrar('CONSULTA')
+        self.assertNotContains(self.client.get('/movimientos/'), '/movimientos/nuevo/?articulo=7')
+
     def test_solo_admin_ve_nuevo_movimiento(self):
         self.api.respuestas[('GET', 'movimientos/')] = pagina([])
         self.entrar('ADMIN')
@@ -96,11 +103,31 @@ class ListadoTests(BaseMov):
 
 
 class BusquedaTests(BaseMov):
-    def test_sin_articulo_muestra_la_busqueda(self):
+    def test_sin_articulo_muestra_la_busqueda_y_sugiere_los_ultimos(self):
         self.entrar()
+        self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
         r = self.client.get('/movimientos/nuevo/')
         self.assertContains(r, 'Qué artículo vas a mover')
-        self.assertEqual(self.api.llamadas, [])
+        self.assertContains(r, 'Últimos artículos registrados')
+        self.assertContains(r, '/movimientos/nuevo/?articulo=7')
+
+    def test_los_sugeridos_vienen_de_la_ultima_pagina_del_mas_nuevo_al_mas_viejo(self):
+        self.entrar()
+        primera = pagina([articulo(num=1, identificador='M-001')], total=25)
+        ultima = pagina([articulo(num=24, identificador='M-024'),
+                         articulo(num=25, identificador='M-025')], total=25)
+        pedidas = []
+
+        def llamar(request, metodo, ruta, datos=None):
+            pedidas.append(ruta)
+            return ultima if 'page=3' in ruta else primera
+
+        with patch('movimientos.views.llamar', llamar):
+            r = self.client.get('/movimientos/nuevo/')
+        self.assertTrue(any('page=3' in ruta for ruta in pedidas))
+        html = r.content.decode()
+        self.assertLess(html.index('M-025'), html.index('M-024'))
+        self.assertNotIn('M-001', html)
 
     def test_busca_en_la_api_y_enlaza_al_formulario(self):
         self.entrar()
@@ -204,6 +231,48 @@ class NuevoTests(BaseMov):
         r = self.enviar()
         self.assertEqual(self.api.escrituras(), [])
         self.assertEqual(r.status_code, 302)
+
+
+class AtajosTests(BaseMov):
+    def setUp(self):
+        super().setUp()
+        parche = patch('equipos.views.llamar', self.api)     # las pruebas de ficha
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def test_tipo_y_ubicacion_por_url_llegan_preseleccionados(self):
+        self.entrar()
+        r = self.client.get('/movimientos/nuevo/?articulo=7&tipo=REUB&ubicacion=UBI-NOLOC')
+        self.assertContains(r, '<option value="REUB" selected>')
+        self.assertContains(r, '<option value="UBI-NOLOC" selected>')
+
+    def test_tipo_invalido_por_url_se_ignora(self):
+        self.entrar()
+        r = self.client.get('/movimientos/nuevo/?articulo=7&tipo=BAJA')
+        self.assertNotContains(r, 'selected>Baja')
+        self.assertNotContains(r, 'value="BAJA"')
+
+    def test_ficha_ofrece_marcar_como_no_localizado(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
+        r = self.client.get('/equipos/detalle/7/')
+        self.assertContains(r, 'Marcar como No localizado')
+        self.assertContains(r, '/movimientos/nuevo/?articulo=7&amp;tipo=REUB&amp;ubicacion=UBI-NOLOC')
+
+    def test_ficha_de_un_no_localizado_ofrece_recuperar(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/7/')] = articulo(
+            estado_operativo=NOLOC, ubicacion=SIN_UBICAR)
+        self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
+        r = self.client.get('/equipos/detalle/7/')
+        self.assertContains(r, 'Recuperar artículo')
+        self.assertNotContains(r, 'Marcar como No localizado')
+
+    def test_consulta_no_ve_los_atajos(self):
+        self.entrar('CONSULTA')
+        self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
+        r = self.client.get('/equipos/detalle/7/')
+        self.assertNotContains(r, 'Marcar como No localizado')
 
 
 class RecuperarNoLocalizadoTests(BaseMov):
