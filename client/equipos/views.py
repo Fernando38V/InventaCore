@@ -1,195 +1,56 @@
-from django.shortcuts import render
-from django.core.paginator import Paginator
-from django.shortcuts import redirect, reverse
-from django.conf import settings
-from django.http import HttpResponse
-from datetime import date, datetime
-from urllib.parse import quote
+"""Equipos (artículos) conectados a la API: listado, ficha, alta, corrección
+desde la ficha y cambio de estado Útil/Obsoleto.
+
+La API decide los permisos y las reglas; aquí solo se oculta lo que el rol no
+puede usar, se valida lo evidente para responder rápido y se muestran los
+errores de la API junto a cada campo.
+"""
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from urllib.parse import urlencode
 
 import qrcode
+from django.conf import settings
+from django.contrib import messages
+from django.http import Http404, HttpResponse
+from django.shortcuts import redirect, render, reverse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
+from client.api import ApiError, SesionVencida, llamar
+from client.inventario import (
+    ESTADO_NOLOC, UBICACION_NOLOC, nombre_articulo, opciones_catalogo,
+    opciones_personal, opciones_tipos, resumen_movimiento)
+from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
-CATEGORIAS = [
-    {'codigo': 'CAT-MON', 'nombre': 'Monitor'},
-    {'codigo': 'CAT-PCE', 'nombre': 'Computadora de escritorio'},
-    {'codigo': 'CAT-LAP', 'nombre': 'Laptop'},
-    {'codigo': 'CAT-TIP', 'nombre': 'Teléfono IP'},
-    {'codigo': 'CAT-SWT', 'nombre': 'Switch'},
-    {'codigo': 'CAT-ALT', 'nombre': 'Altavoz de entrada'},
-    {'codigo': 'CAT-SRV', 'nombre': 'Servidor físico'},
+FILTROS = ('categoria', 'ubicacion', 'estado_operativo', 'estado_registro', 'origen')
+
+# Campos del alta y su nombre en la API (ArticuloCrearSerializer).
+CAMPOS_ALTA = ('origen', 'tipo_articulo', 'ubicacion', 'resguardante', 'estado_operativo',
+               'marbete_oficial', 'marca', 'modelo', 'num_serie', 'color', 'descripcion',
+               'fecha_adquisicion', 'costo_adquisicion')
+
+# Campos de la corrección desde la ficha (DEC-013, ArticuloCorregirSerializer).
+# Para permitir corregir el costo, cuando la API lo acepte en PATCH, basta
+# agregar aquí {'nombre': 'costo_adquisicion', 'etiqueta': 'Costo de adquisición (MXN)',
+# 'tipo': 'number', 'nulo': True}.
+CAMPOS_CORRECCION = [
+    {'nombre': 'marca', 'etiqueta': 'Marca', 'nulo': True, 'max': 50},
+    {'nombre': 'modelo', 'etiqueta': 'Modelo', 'nulo': True, 'max': 60},
+    {'nombre': 'num_serie', 'etiqueta': 'Número de serie', 'nulo': True, 'max': 50},
+    {'nombre': 'color', 'etiqueta': 'Color', 'requerido': True, 'max': 25},
+    {'nombre': 'fecha_adquisicion', 'etiqueta': 'Fecha de adquisición', 'tipo': 'date',
+     'nulo': True},
+    {'nombre': 'descripcion', 'etiqueta': 'Descripción', 'tipo': 'textarea',
+     'requerido': True, 'max': 150, 'completo': True},
 ]
-
-UBICACIONES = [
-    {'codigo': 'UBI-OFI', 'nombre': 'Oficina de Informática'},
-    {'codigo': 'UBI-LAB1', 'nombre': 'Laboratorio 1'},
-    {'codigo': 'UBI-LAB2', 'nombre': 'Laboratorio 2'},
-    {'codigo': 'UBI-NOLOC', 'nombre': 'Sin ubicar / No localizado'},
-]
-
-ORIGENES = [
-    {'codigo': 'ACT', 'nombre': 'Activo'},
-    {'codigo': 'COM', 'nombre': 'Comodato'},
-    {'codigo': 'ENS', 'nombre': 'Enser'},
-]
-
-ESTADOS_OPERATIVOS = [
-    {'codigo': 'UTIL', 'nombre': 'Útil'},
-    {'codigo': 'OBS', 'nombre': 'Obsoleto'},
-    {'codigo': 'AUTB', 'nombre': 'Autorizado para baja'},
-    {'codigo': 'NOLOC', 'nombre': 'No localizado'},
-]
-
-ESTADOS_REGISTRO = [
-    {'codigo': 'REG', 'nombre': 'Registrado'},
-    {'codigo': 'PEND', 'nombre': 'Pendiente'},
-    {'codigo': 'DON', 'nombre': 'Donado'},
-]
-
-_CAT = {c['codigo']: c['nombre'] for c in CATEGORIAS}
-_UBI = {u['codigo']: u['nombre'] for u in UBICACIONES}
-_ORI = {o['codigo']: o['nombre'] for o in ORIGENES}
-
-_PERSONAL = {
-    'Juan Pérez Vázquez': 1012,
-    'María Elena Ruiz Soto': 1043,
-    'Carlos Alberto Méndez Ríos': 1057,
-    'Ana Karen Villalobos Pérez': 1068,
-    'Diana Laura Espinoza Núñez': 1074,
-}
-
-_NOMBRE_OPERATIVO = {'UTIL': 'Útil', 'OBS': 'Obsoleto',
-                     'AUTB': 'Autorizado para baja', 'NOLOC': 'No localizado'}
-_TONO_OPERATIVO = {'UTIL': 'azul', 'OBS': 'gris', 'AUTB': 'rojo', 'NOLOC': 'ambar'}
-_NOMBRE_REGISTRO = {'REG': 'Registrado', 'PEND': 'Pendiente', 'DON': 'Donado'}
-_TONO_REGISTRO = {'REG': 'verde', 'PEND': 'ambar', 'DON': 'azul'}
+CAMPO_MARBETE = {'nombre': 'marbete_oficial', 'etiqueta': 'Marbete oficial',
+                 'requerido': True, 'max': 25,
+                 'ayuda': 'Solo los activos llevan marbete. Corregirlo no cambia el QR.'}
 
 
-def _operativo(codigo):
-    return {'codigo': codigo, 'nombre': _NOMBRE_OPERATIVO[codigo],
-            'tono': _TONO_OPERATIVO[codigo]}
-
-
-def _registro(codigo):
-    return {'codigo': codigo, 'nombre': _NOMBRE_REGISTRO[codigo],
-            'tono': _TONO_REGISTRO[codigo]}
-
-
-def _equipo(num, marca, modelo, serie, categoria, origen, ubicacion,
-            resguardante, operativo, registro,
-            marbete=None, folio=None, color='Negro', costo=None,
-            fecha_adquisicion='', fecha_alta=''):
-    """Arma un equipo con la MISMA forma que tendrá el JSON de la API."""
-    return {
-        'num': num,
-        'marbete_oficial': marbete,
-        'folio_interno': folio,
-        'identificador': marbete or folio,
-        'marca': marca,
-        'modelo': modelo,
-        'num_serie': serie,
-        'color': color,
-        'costo_adquisicion': costo,
-        'fecha_adquisicion': fecha_adquisicion,
-        'fecha_alta': fecha_alta,
-        'categoria': {'codigo': categoria, 'nombre': _CAT[categoria]},
-        'origen': {'codigo': origen, 'nombre': _ORI[origen]},
-        'ubicacion': {'codigo': ubicacion, 'nombre': _UBI[ubicacion]},
-        'resguardante': {'num': _PERSONAL[resguardante], 'nombre': resguardante},
-        'estado_operativo': _operativo(operativo),
-        'estado_registro': _registro(registro),
-    }
-
-
-def _equipos_prueba():
-    """Datos de prueba. Se reemplaza por la llamada a la API cuando exista."""
-    return [
-        _equipo(1, 'Dell', 'OptiPlex 3080', '5CD1234ABC', 'CAT-PCE', 'ACT',
-                'UBI-LAB2', 'Juan Pérez Vázquez', 'UTIL', 'REG',
-                marbete='02-520-00003', costo='12500.00',
-                fecha_adquisicion='2021-03-15', fecha_alta='2026-09-22'),
-        _equipo(2, 'HP', 'ProDesk 400 G7', '8CC2345DEF', 'CAT-PCE', 'ACT',
-                'UBI-LAB1', 'Juan Pérez Vázquez', 'UTIL', 'REG',
-                marbete='02-520-00004', costo='13200.00',
-                fecha_adquisicion='2022-01-20', fecha_alta='2026-09-22'),
-        _equipo(3, 'Lenovo', 'ThinkCentre M70q', 'PF3A7B21', 'CAT-PCE', 'ACT',
-                'UBI-OFI', 'María Elena Ruiz Soto', 'UTIL', 'REG',
-                marbete='02-520-00005', costo='14800.00',
-                fecha_adquisicion='2022-08-11', fecha_alta='2026-09-23'),
-        _equipo(4, 'Dell', 'Latitude 5420', '7XK9P2LM', 'CAT-LAP', 'ACT',
-                'UBI-OFI', 'Carlos Alberto Méndez Ríos', 'UTIL', 'PEND',
-                marbete='02-520-00011',
-                fecha_adquisicion='2023-02-06', fecha_alta='2026-09-25'),
-        _equipo(5, 'HP', 'EliteBook 840 G8', '5CG3456GHI', 'CAT-LAP', 'COM',
-                'UBI-OFI', 'Ana Karen Villalobos Pérez', 'UTIL', 'REG',
-                folio='E-02-520-0181', costo='18900.00',
-                fecha_adquisicion='2023-05-18', fecha_alta='2026-09-26'),
-        _equipo(6, 'LG', '24MK430', 'LG24A9X31', 'CAT-MON', 'ACT',
-                'UBI-LAB1', 'Juan Pérez Vázquez', 'UTIL', 'REG',
-                marbete='02-520-00021', costo='3150.00',
-                fecha_adquisicion='2021-09-02', fecha_alta='2026-09-24'),
-        _equipo(7, 'Samsung', 'S24R350', 'SM24K77B2', 'CAT-MON', 'COM',
-                'UBI-LAB2', 'Diana Laura Espinoza Núñez', 'UTIL', 'PEND',
-                folio='E-02-520-0182', fecha_adquisicion='2024-01-30',
-                fecha_alta='2026-09-29'),
-        _equipo(8, 'Cisco', 'SG350-28', 'CSCO8812AB', 'CAT-SWT', 'ACT',
-                'UBI-OFI', 'Carlos Alberto Méndez Ríos', 'UTIL', 'REG',
-                marbete='02-520-00031', costo='9740.00',
-                fecha_adquisicion='2020-11-04', fecha_alta='2026-09-23'),
-        _equipo(9, 'TP-Link', 'TL-SG1024', 'TPL4419KK', 'CAT-SWT', 'ENS',
-                'UBI-NOLOC', 'Diana Laura Espinoza Núñez', 'UTIL', 'REG',
-                folio='0214300046-001',
-                fecha_adquisicion='2019-06-12', fecha_alta='2026-09-30'),
-        _equipo(10, 'Grandstream', 'GXP1625', 'GS16P2201', 'CAT-TIP', 'ACT',
-                'UBI-OFI', 'María Elena Ruiz Soto', 'UTIL', 'REG',
-                marbete='02-520-00041', costo='1290.00',
-                fecha_adquisicion='2022-04-15', fecha_alta='2026-09-27'),
-        _equipo(11, 'Grandstream', 'GXP1625', 'GS16P2202', 'CAT-TIP', 'ACT',
-                'UBI-OFI', 'María Elena Ruiz Soto', 'AUTB', 'REG',
-                marbete='02-520-00042', costo='1290.00',
-                fecha_adquisicion='2022-04-15', fecha_alta='2026-09-27'),
-        _equipo(12, 'JBL', 'Amplificada 60W', 'JBLA2023X7', 'CAT-ALT', 'ENS',
-                'UBI-NOLOC', 'Ana Karen Villalobos Pérez', 'UTIL', 'PEND',
-                folio='E-02-520-0190',
-                fecha_adquisicion='2018-10-08', fecha_alta='2026-10-01'),
-        _equipo(13, 'Dell', 'PowerEdge R740', 'SVR740X92', 'CAT-SRV', 'ACT',
-                'UBI-OFI', 'Carlos Alberto Méndez Ríos', 'UTIL', 'REG',
-                marbete='02-520-00051', costo='86400.00',
-                fecha_adquisicion='2022-07-19', fecha_alta='2026-09-24'),
-        _equipo(14, 'Lenovo', 'ThinkCentre M720', 'PF2B8C44', 'CAT-PCE', 'COM',
-                'UBI-NOLOC', 'Diana Laura Espinoza Núñez', 'AUTB', 'REG',
-                folio='E-02-520-0183',
-                fecha_adquisicion='2020-02-27', fecha_alta='2026-10-02'),
-    ]
-
-def detalle_equipo(request, num):
-    """M2 — Detalle de Equipo (mockup).
-
-    Busca el equipo dentro de los datos de prueba por su num. Cuando
-    exista el backend real, esto se reemplaza por:
-    GET /api/equipos/<num>/
-    """
-    equipo = next(
-        (e for e in _equipos_prueba() if e['num'] == num), None)
-
-    if equipo is None:
-        equipo = _equipos_prueba()[0]
-
-    equipo = dict(equipo)
-    equipo.setdefault(
-        'descripcion',
-        'Sin incidencias reportadas desde su alta.')
-
-    movimientos = [
-        {'tipo': 'Alta', 'fecha': equipo['fecha_alta'],
-         'detalle': 'Registro inicial en el sistema.', 'usuario': 'Admin'},
-    ]
-
-    return render(request, 'equipos/detalle.html', {
-        'equipo': equipo,
-        'movimientos': movimientos,
-    })
-
+# --- QR (sin cambios) ---------------------------------------------------
 
 def _url_equipo(request, num):
     """Arma la URL completa del equipo para codificarla en el QR.
@@ -226,233 +87,330 @@ def qr_equipo(request, num):
     return respuesta
 
 
+# --- auxiliares ---------------------------------------------------------
+
+def _sin_permiso(request, destino='equipos:listado', *args):
+    messages.error(request, 'Solo el Administrador puede hacer esto.')
+    return redirect(destino, *args)
+
+
+def _obtener_articulo(request, num):
+    try:
+        return llamar(request, 'GET', 'articulos/%d/' % num)
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        if e.status == 404:
+            raise Http404
+        raise
+
+
+def _norm(valor):
+    return '' if valor is None else str(valor)
+
+
+def _fecha_valida(texto):
+    """'' si es válida y no futura; si no, el mensaje de error."""
+    try:
+        fecha = datetime.strptime(texto, '%Y-%m-%d').date()
+    except ValueError:
+        return 'La fecha no es válida.'
+    if fecha > timezone.localdate():
+        return 'La fecha no puede ser futura.'
+    return ''
+
+
+# --- listado ------------------------------------------------------------
+
 def listado_equipos(request):
-    """Listado de equipos con búsqueda, filtros y paginación.
+    pagina = numero_de_pagina(request)
+    f = {'q': request.GET.get('q', '').strip()}
+    for nombre in FILTROS:
+        f[nombre] = request.GET.get(nombre, '').strip()
+    params = {k: v for k, v in f.items() if v}
 
-    Los datos se filtran aquí en memoria porque el backend aún no expone
-    el endpoint. Cuando exista, se cambia solo el origen de `equipos`:
-    los filtros se mandan igual como query params y el template no cambia.
-    """
-    equipos = _equipos_prueba()
+    error = ''
+    datos = {'count': 0, 'results': []}
+    try:
+        datos = llamar(request, 'GET', 'articulos/?' + urlencode(dict(params, page=pagina)))
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        if e.status == 404 and pagina > 1:          # página que ya no existe
+            return redirect(reverse('equipos:listado')
+                            + ('?' + urlencode(params) if params else ''))
+        error = errores_api(e)[1]
 
-    q = request.GET.get('q', '').strip()
-    f_categoria = request.GET.get('categoria', '').strip()
-    f_ubicacion = request.GET.get('ubicacion', '').strip()
-    f_operativo = request.GET.get('estado_operativo', '').strip()
-    f_registro = request.GET.get('estado_registro', '').strip()
-    f_origen = request.GET.get('origen', '').strip()
+    opciones = {'categorias': [], 'ubicaciones': [], 'origenes': [],
+                'estados_operativos': [], 'estados_registro': []}
+    try:
+        opciones = {
+            'categorias': opciones_catalogo(request, 'categorias'),
+            'ubicaciones': opciones_catalogo(request, 'ubicaciones'),
+            'origenes': opciones_catalogo(request, 'origenes'),
+            'estados_operativos': opciones_catalogo(request, 'estados-operativos'),
+            'estados_registro': opciones_catalogo(request, 'estados-registro'),
+        }
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        error = error or errores_api(e)[1]
 
-    if q:
-        aguja = q.lower()
-
-        def coincide(e):
-            campos = (
-                e['identificador'] or '', e['marca'], e['modelo'],
-                e['num_serie'], e['resguardante']['nombre'],
-                e['categoria']['nombre'], e['ubicacion']['nombre'],
-            )
-            return aguja in ' '.join(campos).lower()
-
-        equipos = [e for e in equipos if coincide(e)]
-
-    if f_categoria:
-        equipos = [e for e in equipos
-                   if e['categoria']['codigo'] == f_categoria]
-    if f_ubicacion:
-        equipos = [e for e in equipos
-                   if e['ubicacion']['codigo'] == f_ubicacion]
-    if f_operativo:
-        equipos = [e for e in equipos
-                   if e['estado_operativo']['codigo'] == f_operativo]
-    if f_registro:
-        equipos = [e for e in equipos
-                   if e['estado_registro']['codigo'] == f_registro]
-    if f_origen:
-        equipos = [e for e in equipos
-                   if e['origen']['codigo'] == f_origen]
-
-    total = len(equipos)
-
-    paginator = Paginator(equipos, 10)
-    page_obj = paginator.get_page(request.GET.get('page'))
-
-    # Query string de los filtros, sin la página, para no perderlos al paginar
-    params = request.GET.copy()
-    params.pop('page', None)
-    filtros_qs = params.urlencode()
-    qs_prefijo = '?{}&'.format(filtros_qs) if filtros_qs else '?'
-
-    hay_filtros = any([q, f_categoria, f_ubicacion,
-                       f_operativo, f_registro, f_origen])
+    equipos = []
+    for a in datos['results']:
+        equipos.append(dict(a, nombre=nombre_articulo(a)))
 
     contexto = {
-        'page_obj': page_obj,
-        'equipos': page_obj.object_list,
-        'total': total,
-        'hay_filtros': hay_filtros,
-        'qs_prefijo': qs_prefijo,
-        'rango_paginas': list(paginator.get_elided_page_range(
-            page_obj.number, on_each_side=1, on_ends=1)),
-        'pagina_elipsis': paginator.ELLIPSIS,
-        'categorias': CATEGORIAS,
-        'ubicaciones': UBICACIONES,
-        'origenes': ORIGENES,
-        'estados_operativos': ESTADOS_OPERATIVOS,
-        'estados_registro': ESTADOS_REGISTRO,
-        'f': {
-            'q': q,
-            'categoria': f_categoria,
-            'ubicacion': f_ubicacion,
-            'estado_operativo': f_operativo,
-            'estado_registro': f_registro,
-            'origen': f_origen,
-        },
+        'equipos': equipos,
+        'hay_filtros': any(params.values()),
+        'f': f,
+        'error_api': error,
     }
+    contexto.update(opciones)
+    contexto.update(contexto_paginacion(request, datos['count'], pagina))
     return render(request, 'equipos/listado.html', contexto)
 
 
-def _siguiente_consecutivo():
-    """Siguiente número del consecutivo de folios internos.
+# --- ficha --------------------------------------------------------------
 
-    PROVISIONAL: hoy se calcula sobre los datos de prueba. Cuando exista
-    la base real, se reemplaza por una consulta a EQUIPO.
-    """
-    numeros = []
-    for e in _equipos_prueba():
-        folio = e.get('folio_interno')
-        if not folio:
-            continue
-        cola = folio.rsplit('-', 1)[-1]
-        if cola.isdigit():
-            numeros.append(int(cola))
-    return max(numeros, default=0) + 1
+def detalle_equipo(request, num):
+    equipo = _obtener_articulo(request, num)
+
+    historial, total_movimientos, error = [], 0, ''
+    try:
+        movs = llamar(request, 'GET', 'articulos/%d/movimientos/' % num)
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        error = 'No se pudo cargar el historial: ' + errores_api(e)[1]
+    else:
+        total_movimientos = movs['count']
+        for m in movs['results']:
+            historial.append({
+                'tipo': m['tipo']['nombre'], 'folio': m['folio'], 'fecha': m['fecha'],
+                'detalle': resumen_movimiento(m), 'nota': m['nota'],
+                'usuario': m['usuario']['username'],
+                'requiere_resguardo': m['requiere_resguardo'],
+            })
+
+    equipo = dict(equipo, nombre=nombre_articulo(equipo))
+    return render(request, 'equipos/detalle.html', {
+        'equipo': equipo,
+        'historial': historial,
+        'total_movimientos': total_movimientos,
+        'hay_mas_movimientos': total_movimientos > len(historial),
+        'error_historial': error,
+        'esta_util': equipo['estado_operativo']['codigo'] == 'UTIL',
+        'esta_obsoleto': equipo['estado_operativo']['codigo'] == 'OBS',
+        'esta_noloc': equipo['estado_operativo']['codigo'] == ESTADO_NOLOC,
+    })
 
 
-def generar_folio_interno(origen):
-    prefijo = {'ACT': 'A', 'COM': 'C', 'ENS': 'E'}.get(origen, 'X')
-    return 'IC-{}-{:04d}'.format(prefijo, _siguiente_consecutivo())
+@require_POST
+def cambiar_estado_equipo(request, num):
+    """Útil <-> Obsoleto desde la ficha, con motivo y bitácora (DEC-013).
+    Volver de Obsoleto a Útil es excepcional (DEC-012) pero la API lo permite."""
+    if not es_admin(request):
+        return _sin_permiso(request, 'equipos:detalle', num)
+
+    nuevo = 'UTIL' if request.POST.get('activar') == '1' else 'OBS'
+    motivo = request.POST.get('motivo', '').strip()
+    if not motivo:
+        messages.error(request, 'Indica el motivo del cambio.')
+        return redirect('equipos:detalle', num=num)
+    try:
+        r = llamar(request, 'PATCH', 'articulos/%d/' % num,
+                   {'estado_operativo': nuevo, 'motivo': motivo})
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        messages.error(request, errores_api(e)[1])
+    else:
+        ident = (r or {}).get('identificador', '')
+        messages.success(request, 'Artículo %s %s.' % (
+            ident, 'marcado como Obsoleto' if nuevo == 'OBS' else 'regresado a Útil'))
+    return redirect('equipos:detalle', num=num)
 
 
-def _validar_equipo(datos):
+# --- alta ---------------------------------------------------------------
+
+def _validar_alta(v):
+    """Validación previa a la API (que vuelve a validar todo)."""
     errores = {}
-    limpio = {}
-
-    def txt(k):
-        return (datos.get(k) or '').strip()
-
-    origen = txt('origen')
-    if origen not in ('ACT', 'COM', 'ENS'):
-        errores['origen'] = 'Selecciona el origen del equipo.'
-    limpio['origen'] = origen
-
-    for campo, etiqueta in (
-        ('categoria', 'la categoría'),
-        ('ubicacion', 'la ubicación'),
-        ('resguardante', 'el resguardante'),
-    ):
-        valor = txt(campo)
-        if not valor:
-            errores[campo] = 'Falta {}.'.format(etiqueta)
-        limpio[campo] = valor
-
-    for campo, etiqueta in (
-        ('marca', 'la marca'),
-        ('modelo', 'el modelo'),
-    ):
-        valor = txt(campo)
-        if not valor:
-            errores[campo] = 'Falta {}.'.format(etiqueta)
-        limpio[campo] = valor
-
-    limpio['num_serie'] = txt('num_serie') or None
-
-    marbete = txt('marbete_oficial')
-    folio = txt('folio_interno')
-
-    if origen == 'ACT':
-        if not marbete:
-            errores['marbete_oficial'] = 'Los equipos activos llevan marbete oficial.'
-        limpio['marbete_oficial'] = marbete
-        limpio['folio_interno'] = generar_folio_interno(origen)
-    else:
-        if not folio:
-            errores['folio_interno'] = 'Falta el folio interno.'
-        limpio['marbete_oficial'] = None
-        limpio['folio_interno'] = folio
-
-    fecha = txt('fecha_adquisicion')
-    limpio['fecha_adquisicion'] = ''
-    if fecha:
+    if v['origen'] not in ('ACT', 'COM', 'ENS'):
+        errores['origen'] = 'Selecciona el origen del artículo.'
+    for campo, mensaje in (('tipo_articulo', 'Selecciona el tipo de artículo.'),
+                           ('ubicacion', 'Selecciona la ubicación.'),
+                           ('resguardante', 'Selecciona el resguardante.'),
+                           ('color', 'Escribe el color.'),
+                           ('descripcion', 'Escribe la descripción.')):
+        if not v[campo]:
+            errores[campo] = mensaje
+    if v['origen'] == 'ACT' and not v['marbete_oficial']:
+        errores['marbete_oficial'] = 'Los activos llevan marbete oficial.'
+    if v['fecha_adquisicion']:
+        mensaje = _fecha_valida(v['fecha_adquisicion'])
+        if mensaje:
+            errores['fecha_adquisicion'] = mensaje
+    if v['costo_adquisicion']:
         try:
-            f = datetime.strptime(fecha, '%Y-%m-%d').date()
-            if f > date.today():
-                errores['fecha_adquisicion'] = 'La fecha no puede ser futura.'
-            else:
-                limpio['fecha_adquisicion'] = fecha
-        except ValueError:
-            errores['fecha_adquisicion'] = 'La fecha no es válida.'
+            if Decimal(v['costo_adquisicion'].replace(',', '')) < 0:
+                raise InvalidOperation
+        except InvalidOperation:
+            errores['costo_adquisicion'] = 'El costo debe ser un número igual o mayor a cero.'
+    # DEC-012: No localizado y UBI-NOLOC van juntos (la API también lo valida).
+    if v['ubicacion'] == UBICACION_NOLOC and v['estado_operativo'] != ESTADO_NOLOC:
+        errores['estado_operativo'] = (
+            'Un artículo en "Sin ubicar" tiene el estado No localizado.')
+    elif v['ubicacion'] and v['ubicacion'] != UBICACION_NOLOC \
+            and v['estado_operativo'] == ESTADO_NOLOC:
+        errores['estado_operativo'] = (
+            'El estado No localizado va con la ubicación "Sin ubicar".')
+    return errores
 
-    donado = datos.get('donado') == 'on'
-    faltantes = []
 
-    if donado:
-        limpio['costo_adquisicion'] = None
-    else:
-        costo = txt('costo_adquisicion').replace(',', '')
-        monto = None
-        if costo:
-            try:
-                monto = '{:.2f}'.format(float(costo))
-            except ValueError:
-                errores['costo_adquisicion'] = 'El costo debe ser un número.'
-        limpio['costo_adquisicion'] = monto
-        if not monto:
-            faltantes.append('el costo de adquisición')
-        if not limpio['fecha_adquisicion']:
-            faltantes.append('la fecha de adquisición')
-
-    if donado:
-        limpio['estado_registro'] = 'DON'
-    elif faltantes:
-        limpio['estado_registro'] = 'PEND'
-    else:
-        limpio['estado_registro'] = 'REG'
-
-    limpio['faltantes'] = faltantes
-
-    limpio['estado_operativo'] = txt('estado_operativo') or 'UTIL'
-    limpio['color'] = txt('color')
-    limpio['descripcion'] = txt('descripcion')
-
-    return errores, limpio
-
+def _cuerpo_alta(v):
+    cuerpo = {
+        'origen': v['origen'],
+        'tipo_articulo': v['tipo_articulo'],
+        'ubicacion': v['ubicacion'],
+        'resguardante': int(v['resguardante']) if v['resguardante'].isdigit() else v['resguardante'],
+        'estado_operativo': v['estado_operativo'] or 'UTIL',
+        'marca': v['marca'] or None,
+        'modelo': v['modelo'] or None,
+        'num_serie': v['num_serie'] or None,
+        'color': v['color'],
+        'descripcion': v['descripcion'],
+        'fecha_adquisicion': v['fecha_adquisicion'] or None,
+        # Donado: el costo ni se exige ni se bloquea (PEND-004); lo que se capture se guarda.
+        'costo_adquisicion': v['costo_adquisicion'].replace(',', '') or None,
+        'donado': v['donado'],
+    }
+    if v['origen'] == 'ACT':
+        cuerpo['marbete_oficial'] = v['marbete_oficial']
+    return cuerpo
 
 
 def registrar_equipo(request):
+    if not es_admin(request):
+        return _sin_permiso(request)
+
+    v = {campo: '' for campo in CAMPOS_ALTA}
+    v.update(origen='ACT', estado_operativo='UTIL', donado=False)
+    errores, general = {}, ''
+
     if request.method == 'POST':
-        errores, limpio = _validar_equipo(request.POST)
+        for campo in CAMPOS_ALTA:
+            v[campo] = request.POST.get(campo, '').strip()
+        v['donado'] = request.POST.get('donado') == 'on'
+        if v['ubicacion'] == UBICACION_NOLOC and not v['estado_operativo']:
+            v['estado_operativo'] = ESTADO_NOLOC      # el select viene bloqueado
+        v['estado_operativo'] = v['estado_operativo'] or 'UTIL'
+
+        errores = _validar_alta(v)
         if not errores:
-            qs = 'creado={}&estado={}'.format(
-                limpio['folio_interno'], limpio['estado_registro'])
-            if limpio['faltantes']:
-                mensaje = ' y '.join(limpio['faltantes'])
-                qs += '&falta={}'.format(quote(mensaje))
-            return redirect('{}?{}'.format(reverse('equipos:listado'), qs))
-    else:
-        limpio = {'origen': 'ACT', 'estado_operativo': 'UTIL'}
-        errores = {}
+            try:
+                creado = llamar(request, 'POST', 'articulos/', _cuerpo_alta(v))
+            except SesionVencida:
+                raise
+            except ApiError as e:
+                por_campo, general = errores_api(e, CAMPOS_ALTA)
+                errores.update(por_campo)
+            else:
+                ident = creado['identificador']
+                registro = creado['estado_registro']['codigo']
+                if registro == 'PEND':
+                    messages.warning(request, 'Artículo %s registrado; queda en estado '
+                                     'Pendiente. Falta %s.' % (ident, ' y '.join(creado['faltantes'])))
+                elif registro == 'DON':
+                    messages.success(request, 'Artículo %s registrado como Donado.' % ident)
+                else:
+                    messages.success(request, 'Artículo %s registrado.' % ident)
+                return redirect('equipos:detalle', num=creado['num'])
 
-    origen_actual = limpio.get('origen') or 'ACT'
+    categorias, tipos, ubicaciones, personal, origenes, estados = [], [], [], [], [], []
+    try:
+        categorias, tipos = opciones_tipos(request, actual=v['tipo_articulo'])
+        ubicaciones = opciones_catalogo(request, 'ubicaciones', v['ubicacion'], solo_activos=True)
+        personal = opciones_personal(request, actual=v['resguardante'])
+        origenes = opciones_catalogo(request, 'origenes')
+        estados = opciones_catalogo(request, 'estados-operativos')
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        general = general or errores_api(e)[1]
 
-    contexto = {
-        'errores': errores,
-        'v': limpio,
-        'folio_sugerido': generar_folio_interno(origen_actual),
-        'hoy': date.today().isoformat(),
-        'categorias': CATEGORIAS,
-        'ubicaciones': UBICACIONES,
-        'origenes': ORIGENES,
-        'estados_operativos': ESTADOS_OPERATIVOS,
-        'personal': sorted(_PERSONAL.keys()),
-    }
-    return render(request, 'equipos/registrar.html', contexto)
+    for t in tipos:                                  # categoría del tipo elegido
+        if t['codigo'] == v['tipo_articulo']:
+            v['categoria'] = t['categoria']
+
+    return render(request, 'equipos/registrar.html', {
+        'errores': errores, 'v': v, 'general': general,
+        'hoy': timezone.localdate().isoformat(),
+        'categorias': categorias, 'tipos': tipos, 'ubicaciones': ubicaciones,
+        'personal': personal, 'origenes': origenes, 'estados_operativos': estados,
+        'ubicacion_noloc': UBICACION_NOLOC, 'estado_noloc': ESTADO_NOLOC,
+    })
+
+
+# --- corrección desde la ficha -------------------------------------------
+
+def corregir_equipo(request, num):
+    """DEC-013: marca, modelo, serie, color, descripción, fecha de adquisición
+    (y el marbete de un Activo) se corrigen con motivo y bitácora. Ubicación y
+    resguardante solo cambian con un movimiento."""
+    if not es_admin(request):
+        return _sin_permiso(request, 'equipos:detalle', num)
+
+    equipo = _obtener_articulo(request, num)
+    campos = list(CAMPOS_CORRECCION)
+    if equipo['origen']['codigo'] == 'ACT':
+        campos.insert(0, CAMPO_MARBETE)
+
+    valores = {c['nombre']: _norm(equipo.get(c['nombre'])) for c in campos}
+    errores, general, motivo = {}, '', ''
+
+    if request.method == 'POST':
+        valores = {c['nombre']: request.POST.get(c['nombre'], '').strip() for c in campos}
+        motivo = request.POST.get('motivo', '').strip()
+
+        for c in campos:
+            if c.get('requerido') and not valores[c['nombre']]:
+                errores[c['nombre']] = 'Este campo es obligatorio.'
+        if valores.get('fecha_adquisicion'):
+            mensaje = _fecha_valida(valores['fecha_adquisicion'])
+            if mensaje:
+                errores['fecha_adquisicion'] = mensaje
+
+        # Solo se mandan los campos que cambiaron (la bitácora guarda esos).
+        cambios = {}
+        for c in campos:
+            nuevo = valores[c['nombre']]
+            if nuevo != _norm(equipo.get(c['nombre'])):
+                cambios[c['nombre']] = None if (nuevo == '' and c.get('nulo')) else nuevo
+        if not errores and not cambios:
+            general = 'No hiciste ningún cambio.'
+        elif cambios and not motivo:
+            errores['motivo'] = 'Indica el motivo del cambio.'
+
+        if not errores and not general:
+            try:
+                llamar(request, 'PATCH', 'articulos/%d/' % num, dict(cambios, motivo=motivo))
+            except SesionVencida:
+                raise
+            except ApiError as e:
+                por_campo, general = errores_api(
+                    e, [c['nombre'] for c in campos] + ['motivo'])
+                errores.update(por_campo)
+            else:
+                messages.success(request, 'Artículo %s actualizado.' % equipo['identificador'])
+                return redirect('equipos:detalle', num=num)
+
+    campos_ctx = [dict(c, tipo=c.get('tipo', 'text'), valor=valores[c['nombre']],
+                       error=errores.get(c['nombre'])) for c in campos]
+    return render(request, 'equipos/corregir.html', {
+        'equipo': dict(equipo, nombre=nombre_articulo(equipo)),
+        'campos': campos_ctx, 'general': general, 'motivo': motivo,
+        'error_motivo': errores.get('motivo'),
+        'hoy': timezone.localdate().isoformat(),
+    })

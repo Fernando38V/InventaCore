@@ -1,248 +1,228 @@
-from datetime import date, datetime
+"""Movimientos conectados a la API: listado y nuevo movimiento (REUB, REPA y RETE).
 
-from django.core.paginator import Paginator
-from django.shortcuts import render, redirect, reverse
+El ALTA se crea sola al registrar el artículo y no hay BAJA (DEC-006, DEC-012).
+Las reglas las decide la API (api/movimientos/servicios.py); aquí se valida lo
+evidente para responder rápido y se muestran sus errores junto a cada campo.
+"""
+from datetime import datetime
+from urllib.parse import urlencode
 
-from equipos.views import _equipos_prueba, UBICACIONES, _UBI, _PERSONAL
+from django.contrib import messages
+from django.http import Http404
+from django.shortcuts import redirect, render, reverse
+from django.utils import timezone
 
+from client.api import ApiError, SesionVencida, llamar
+from client.inventario import (
+    ESTADO_NOLOC, UBICACION_NOLOC, nombre_articulo, opciones_catalogo, opciones_personal)
+from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
-TIPOS_MOVIMIENTO = [
-    {'codigo': 'ALTA', 'nombre': 'Alta de equipo'},
-    {'codigo': 'REUB', 'nombre': 'Reubicación y/o cambio de resguardante'},
-    {'codigo': 'REPA', 'nombre': 'Envío a reparación'},
-    {'codigo': 'RETE', 'nombre': 'Retorno de reparación'},
-    {'codigo': 'BAJA', 'nombre': 'Baja de equipo'},
-]
-
-_TIPO = {t['codigo']: t for t in TIPOS_MOVIMIENTO}
-
-
-def _equipo_por_num(num):
-    for e in _equipos_prueba():
-        if e['num'] == num:
-            return e
-    return None
-
-
-def _mov(num, tipo, equipo, fecha, llegada=None, origen=None,
-         asigna=None, entrega=None, nota='', genera_resguardo=False):
-    t = _TIPO[tipo]
-    eq = _equipo_por_num(equipo)
-    return {
-        'num': num,
-        'folio': 'MOV-{:04d}'.format(num),
-        'fecha': fecha,
-        'fecha_dia': fecha.split(' ')[0],
-        'fecha_hora': fecha.split(' ')[1],
-        'tipo': {'codigo': t['codigo'], 'nombre': t['nombre']},
-        'genera_resguardo': genera_resguardo,
-        'equipo': {
-            'num': eq['num'],
-            'identificador': eq['identificador'],
-            'descripcion': '{} {}'.format(eq['marca'], eq['modelo']),
-        },
-        'ubicacion_origen': ({'codigo': origen, 'nombre': _UBI[origen]}
-                             if origen else None),
-        'ubicacion_llegada': ({'codigo': llegada, 'nombre': _UBI[llegada]}
-                              if llegada else None),
-        'personal_asigna': {'nombre': asigna} if asigna else None,
-        'personal_entrega': {'nombre': entrega} if entrega else None,
-        'nota': nota,
-    }
+TIPOS_MANUALES = ('REUB', 'REPA', 'RETE')
+ESTADOS_AL_RECUPERAR = ('UTIL', 'OBS')
+CAMPOS_MOVIMIENTO = ('tipo', 'ubicacion', 'resguardante', 'motivo', 'fecha',
+                     'estado_operativo', 'articulo')
 
 
-def _movimientos_prueba():
-    return [
-        _mov(1, 'ALTA', 1, '2026-09-22 10:14', llegada='UBI-LAB2',
-             asigna='María Elena Ruiz Soto', genera_resguardo=True),
-        _mov(2, 'ALTA', 2, '2026-09-22 10:31', llegada='UBI-LAB1',
-             asigna='María Elena Ruiz Soto', genera_resguardo=True),
-        _mov(3, 'ALTA', 3, '2026-09-23 09:05', llegada='UBI-OFI',
-             asigna='Juan Pérez Vázquez', genera_resguardo=True),
-        _mov(4, 'ALTA', 8, '2026-09-23 09:48', llegada='UBI-OFI',
-             asigna='Juan Pérez Vázquez', genera_resguardo=True),
-        _mov(5, 'ALTA', 6, '2026-09-24 11:20', llegada='UBI-LAB1',
-             asigna='María Elena Ruiz Soto', genera_resguardo=True),
-        _mov(6, 'ALTA', 13, '2026-09-24 12:02', llegada='UBI-OFI',
-             asigna='Juan Pérez Vázquez', genera_resguardo=True),
-        _mov(7, 'REUB', 6, '2026-09-25 08:40', origen='UBI-LAB1',
-             llegada='UBI-LAB2', asigna='Juan Pérez Vázquez',
-             nota='Se reubica por remodelación del laboratorio'),
-        _mov(8, 'REUB', 1, '2026-09-26 16:15', origen='UBI-LAB2',
-             llegada='UBI-LAB2', asigna='Juan Pérez Vázquez',
-             entrega='María Elena Ruiz Soto', genera_resguardo=True,
-             nota='Cambio de resguardante por reasignación de área'),
-        _mov(9, 'BAJA', 11, '2026-09-27 13:22', origen='UBI-OFI',
-             asigna='Carlos Alberto Méndez Ríos',
-             nota='Audífono dañado sin reparación posible'),
-        _mov(10, 'REPA', 9, '2026-09-30 10:00', origen='UBI-LAB2',
-             llegada='UBI-NOLOC', asigna='Diana Laura Espinoza Núñez',
-             nota='Puertos sin respuesta'),
-        _mov(11, 'ALTA', 12, '2026-10-01 09:10', llegada='UBI-NOLOC',
-             asigna='Ana Karen Villalobos Pérez', genera_resguardo=True),
-        _mov(12, 'BAJA', 14, '2026-10-02 15:45', origen='UBI-NOLOC',
-             asigna='Carlos Alberto Méndez Ríos',
-             nota='Equipo descontinuado, sin reparación disponible'),
-    ]
-
+# --- listado ------------------------------------------------------------
 
 def listado_movimientos(request):
-    movimientos = _movimientos_prueba()
+    pagina = numero_de_pagina(request)
+    f = {k: request.GET.get(k, '').strip() for k in ('q', 'tipo', 'ubicacion', 'articulo')}
+    if not f['articulo'].isdigit():
+        f['articulo'] = ''
+    params = {k: v for k, v in f.items() if v}
 
-    q = request.GET.get('q', '').strip()
-    f_tipo = request.GET.get('tipo', '').strip()
-    f_ubicacion = request.GET.get('ubicacion', '').strip()
+    error = ''
+    datos = {'count': 0, 'results': []}
+    try:
+        datos = llamar(request, 'GET', 'movimientos/?' + urlencode(dict(params, page=pagina)))
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        if e.status == 404 and pagina > 1:
+            return redirect(reverse('movimientos:listado')
+                            + ('?' + urlencode(params) if params else ''))
+        error = errores_api(e)[1]
 
-    if q:
-        aguja = q.lower()
+    tipos, ubicaciones = [], []
+    try:
+        tipos = opciones_catalogo(request, 'tipos-movimiento')
+        ubicaciones = opciones_catalogo(request, 'ubicaciones')
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        error = error or errores_api(e)[1]
 
-        def coincide(m):
-            campos = (
-                m['folio'],
-                m['equipo']['identificador'],
-                m['equipo']['descripcion'],
-                m['tipo']['nombre'],
-                m['personal_asigna']['nombre'] if m['personal_asigna'] else '',
-                m['personal_entrega']['nombre'] if m['personal_entrega'] else '',
-            )
-            return aguja in ' '.join(campos).lower()
-
-        movimientos = [m for m in movimientos if coincide(m)]
-
-    if f_tipo:
-        movimientos = [m for m in movimientos
-                       if m['tipo']['codigo'] == f_tipo]
-
-    if f_ubicacion:
-        def en_ubicacion(m):
-            origen = m['ubicacion_origen'] or {}
-            llegada = m['ubicacion_llegada'] or {}
-            return (origen.get('codigo') == f_ubicacion
-                    or llegada.get('codigo') == f_ubicacion)
-
-        movimientos = [m for m in movimientos if en_ubicacion(m)]
-
-    movimientos.sort(key=lambda m: m['fecha'], reverse=True)
-
-    total = len(movimientos)
-
-    paginator = Paginator(movimientos, 10)
-    page_obj = paginator.get_page(request.GET.get('page'))
-
-    params = request.GET.copy()
-    params.pop('page', None)
-    filtros_qs = params.urlencode()
-    qs_prefijo = '?{}&'.format(filtros_qs) if filtros_qs else '?'
-
-    hay_filtros = any([q, f_tipo, f_ubicacion])
+    articulo_filtro = None                       # chip «Artículo X» cuando se filtra por uno
+    if f['articulo']:
+        try:
+            a = llamar(request, 'GET', 'articulos/%s/' % f['articulo'])
+            articulo_filtro = {'num': a['num'], 'identificador': a['identificador'],
+                               'nombre': nombre_articulo(a)}
+        except SesionVencida:
+            raise
+        except ApiError:
+            articulo_filtro = {'num': f['articulo'], 'identificador': 'Artículo %s' % f['articulo'],
+                               'nombre': ''}
 
     contexto = {
-        'page_obj': page_obj,
-        'movimientos': page_obj.object_list,
-        'total': total,
-        'hay_filtros': hay_filtros,
-        'qs_prefijo': qs_prefijo,
-        'rango_paginas': list(paginator.get_elided_page_range(
-            page_obj.number, on_each_side=1, on_ends=1)),
-        'pagina_elipsis': paginator.ELLIPSIS,
-        'tipos': TIPOS_MOVIMIENTO,
-        'ubicaciones': UBICACIONES,
-        'registrado': request.GET.get('registrado', ''),
-        'f': {'q': q, 'tipo': f_tipo, 'ubicacion': f_ubicacion},
+        'movimientos': datos['results'],
+        'hay_filtros': bool(params),
+        'f': f,
+        'tipos': tipos,
+        'ubicaciones': ubicaciones,
+        'articulo_filtro': articulo_filtro,
+        'error_api': error,
     }
+    contexto.update(contexto_paginacion(request, datos['count'], pagina))
     return render(request, 'movimientos/listado.html', contexto)
 
 
-def _validar_movimiento(datos):
+# --- nuevo movimiento ----------------------------------------------------
+
+def _validar(v, articulo):
+    """Espejo de lo evidente de la API. Devuelve {campo: mensaje}."""
     errores = {}
-    limpio = {}
+    tipo = v['tipo']
+    sin_localizar = articulo['estado_operativo']['codigo'] == ESTADO_NOLOC
 
-    def txt(k):
-        return (datos.get(k) or '').strip()
-
-    tipo = txt('tipo')
-    if tipo not in _TIPO or tipo == 'ALTA':
+    if tipo not in TIPOS_MANUALES:
         errores['tipo'] = 'Selecciona el tipo de movimiento.'
-    limpio['tipo'] = tipo
-
-    equipo_num = txt('equipo')
-    equipo = _equipo_por_num(int(equipo_num)) if equipo_num.isdigit() else None
-    if not equipo:
-        errores['equipo'] = 'Selecciona el equipo.'
-    limpio['equipo_num'] = equipo_num
-    limpio['equipo'] = equipo
-
-    ubicacion = txt('ubicacion')
-    resguardante = txt('resguardante')
-    limpio['ubicacion'] = ubicacion
-    limpio['resguardante'] = resguardante
-
-    if tipo == 'REUB' and not ubicacion and not resguardante:
+    elif sin_localizar and tipo != 'REUB':
+        errores['tipo'] = 'El artículo está No localizado: primero se recupera con una reubicación.'
+    elif tipo == 'REUB' and not v['ubicacion'] and not v['resguardante']:
         errores['ubicacion'] = 'Especifica una nueva ubicación, un nuevo resguardante, o ambos.'
-    elif tipo == 'RETE' and not ubicacion:
-        errores['ubicacion'] = 'Indica dónde se reintegra el equipo.'
+    elif tipo == 'RETE' and not v['ubicacion']:
+        errores['ubicacion'] = 'Indica dónde se reintegra el artículo.'
+    elif tipo in ('REPA', 'RETE') and v['ubicacion'] == UBICACION_NOLOC:
+        errores['ubicacion'] = 'Para marcar un artículo como No localizado usa una reubicación.'
 
-    motivo = txt('motivo')
-    if not motivo:
+    if tipo in ('REPA', 'RETE') and v['resguardante']:
+        errores['resguardante'] = 'Este movimiento no cambia el resguardante.'
+
+    if _recupera(v, articulo) and v['estado_operativo'] not in ESTADOS_AL_RECUPERAR:
+        errores['estado_operativo'] = 'Confirma el estado del artículo: Útil u Obsoleto.'
+
+    if not v['motivo']:
         errores['motivo'] = 'El motivo es obligatorio.'
-    limpio['motivo'] = motivo
-
-    fecha = txt('fecha')
-    limpio['fecha'] = ''
-    if not fecha:
-        errores['fecha'] = 'Falta la fecha.'
-    else:
+    if v['fecha']:
         try:
-            f = datetime.strptime(fecha, '%Y-%m-%d').date()
-            if f > date.today():
+            if datetime.strptime(v['fecha'], '%Y-%m-%d').date() > timezone.localdate():
                 errores['fecha'] = 'La fecha no puede ser futura.'
-            else:
-                limpio['fecha'] = fecha
         except ValueError:
             errores['fecha'] = 'La fecha no es válida.'
+    return errores
 
-    return errores, limpio
+
+def _recupera(v, articulo):
+    """DEC-012: un No localizado que sale de «Sin ubicar» se reconfirma."""
+    return (articulo['estado_operativo']['codigo'] == ESTADO_NOLOC and v['tipo'] == 'REUB'
+            and v['ubicacion'] not in ('', UBICACION_NOLOC))
 
 
-def _siguiente_folio_movimiento():
-    """Folio simulado, igual que el de equipos. Cuando exista la tabla
-    real de movimientos, lo asigna la base de datos."""
-    return 'MOV-{:04d}'.format(len(_movimientos_prueba()) + 1)
+def _cuerpo(v, articulo):
+    cuerpo = {'tipo': v['tipo'], 'articulo': articulo['num'], 'motivo': v['motivo']}
+    for campo in ('ubicacion', 'resguardante', 'fecha'):
+        if v[campo]:
+            cuerpo[campo] = v[campo]
+    if _recupera(v, articulo):
+        cuerpo['estado_operativo'] = v['estado_operativo']
+    return cuerpo
+
+
+def _buscar_articulos(request, q):
+    """Primer paso: buscar el artículo por marbete, folio, serie, marca, etc."""
+    if not q:
+        return [], ''
+    try:
+        datos = llamar(request, 'GET', 'articulos/?' + urlencode({'q': q}))
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        return [], errores_api(e)[1]
+    return [dict(a, nombre=nombre_articulo(a)) for a in datos['results']], ''
 
 
 def nuevo_movimiento(request):
+    if not es_admin(request):
+        messages.error(request, 'Tu rol no puede registrar movimientos.')
+        return redirect('movimientos:listado')
+
+    num = (request.POST.get('articulo') if request.method == 'POST'
+           else request.GET.get('articulo', '')) or ''
+    num = num.strip()
+
+    # Paso 1: sin artículo elegido, se busca uno.
+    if not num.isdigit():
+        q = request.GET.get('q', '').strip()
+        encontrados, error = _buscar_articulos(request, q)
+        return render(request, 'movimientos/nuevo.html', {
+            'paso_busqueda': True, 'q': q, 'encontrados': encontrados, 'error_busqueda': error,
+            'buscado': bool(q),
+        })
+
+    try:
+        articulo = llamar(request, 'GET', 'articulos/%s/' % num)
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        if e.status == 404:
+            raise Http404
+        raise
+    articulo = dict(articulo, nombre=nombre_articulo(articulo))
+    sin_localizar = articulo['estado_operativo']['codigo'] == ESTADO_NOLOC
+
+    v = {campo: '' for campo in CAMPOS_MOVIMIENTO}
+    v['articulo'] = num
+    v['fecha'] = timezone.localdate().isoformat()
+    errores, general = {}, ''
+
     if request.method == 'POST':
-        bloqueado = request.POST.get('bloqueado') == '1'
-        errores, limpio = _validar_movimiento(request.POST)
+        for campo in CAMPOS_MOVIMIENTO:
+            v[campo] = request.POST.get(campo, '').strip()
+        errores = _validar(v, articulo)
         if not errores:
-            return redirect(
-                '{}?registrado={}'.format(
-                    reverse('movimientos:listado'), _siguiente_folio_movimiento()))
-    else:
-        bloqueado = bool(request.GET.get('equipo'))
-        errores = {}
-        limpio = {
-            'tipo': '',
-            'equipo_num': request.GET.get('equipo', ''),
-            'ubicacion': '',
-            'resguardante': '',
-            'motivo': '',
-            'fecha': date.today().isoformat(),
-        }
+            try:
+                creado = llamar(request, 'POST', 'movimientos/', _cuerpo(v, articulo))
+            except SesionVencida:
+                raise
+            except ApiError as e:
+                por_campo, general = errores_api(e, CAMPOS_MOVIMIENTO)
+                errores.update(por_campo)
+            else:
+                texto = 'Movimiento %s registrado.' % creado['folio']
+                if creado.get('requiere_resguardo'):
+                    texto += ' Cambió el resguardante: falta el resguardo con las dos firmas.'
+                messages.success(request, texto)
+                return redirect('movimientos:listado')
 
-    equipo_fijo = None
-    if bloqueado and limpio.get('equipo_num', '').isdigit():
-        equipo_fijo = _equipo_por_num(int(limpio['equipo_num']))
+    ubicaciones, personal, estados = [], [], []
+    try:
+        ubicaciones = opciones_catalogo(request, 'ubicaciones', v['ubicacion'], solo_activos=True)
+        personal = opciones_personal(request, actual=v['resguardante'])
+        estados = [e for e in opciones_catalogo(request, 'estados-operativos')
+                   if e['codigo'] in ESTADOS_AL_RECUPERAR]
+    except SesionVencida:
+        raise
+    except ApiError as e:
+        general = general or errores_api(e)[1]
 
-    contexto = {
-        'errores': errores,
-        'v': limpio,
-        'bloqueado': bloqueado,
-        'equipo_fijo': equipo_fijo,
-        'equipos': sorted(_equipos_prueba(), key=lambda e: e['identificador'] or ''),
-        'tipos': [t for t in TIPOS_MOVIMIENTO if t['codigo'] != 'ALTA'],
-        'ubicaciones': UBICACIONES,
-        'personal': sorted(_PERSONAL.keys()),
-        'hoy': date.today().isoformat(),
-    }
-    return render(request, 'movimientos/nuevo.html', contexto)
+    tipos = [{'codigo': 'REUB', 'nombre': 'Reubicación y/o cambio de resguardante'}]
+    if not sin_localizar:
+        tipos += [{'codigo': 'REPA', 'nombre': 'Envío a reparación'},
+                  {'codigo': 'RETE', 'nombre': 'Retorno de reparación'}]
+    try:                                   # nombres tal como los publica la API
+        nombres = {t['codigo']: t['nombre'] for t in opciones_catalogo(request, 'tipos-movimiento')}
+        for t in tipos:
+            t['nombre'] = nombres.get(t['codigo'], t['nombre'])
+    except SesionVencida:
+        raise
+    except ApiError:
+        pass
+
+    return render(request, 'movimientos/nuevo.html', {
+        'paso_busqueda': False, 'articulo': articulo, 'sin_localizar': sin_localizar,
+        'errores': errores, 'v': v, 'general': general,
+        'tipos': tipos, 'ubicaciones': ubicaciones, 'personal': personal, 'estados': estados,
+        'ubicacion_noloc': UBICACION_NOLOC, 'hoy': timezone.localdate().isoformat(),
+    })

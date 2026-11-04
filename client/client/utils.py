@@ -30,6 +30,8 @@ def listar_todo(request, ruta, **filtros):
     while True:
         consulta = urlencode(dict(filtros, page=pagina))
         datos = llamar(request, 'GET', '%s/?%s' % (ruta, consulta))
+        if isinstance(datos, list):     # catálogos fijos: lista simple, sin páginas
+            return datos
         resultados.extend(datos['results'])
         if not datos.get('next'):
             return resultados

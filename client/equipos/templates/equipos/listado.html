@@ -4,45 +4,32 @@
 {% block title %}Equipos · InventaCore{% endblock %}
 {% block nav_equipos %}active{% endblock %}
 {% block page_title %}Equipos{% endblock %}
-{% block page_subtitle %}Inventario de equipo electrónico del Departamento de Informática{% endblock %}
+{% block page_subtitle %}Inventario de artículos del plantel{% endblock %}
 
 {% block app_content %}
 
-{% if request.GET.creado %}
-  {% if request.GET.estado == 'PEND' %}
-  <div class="aviso aviso--ambar">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-    <span>
-      Equipo <strong>{{ request.GET.creado }}</strong> registrado, queda en estado <strong>Pendiente</strong>.
-      {% if request.GET.falta %}Falta {{ request.GET.falta }} para completarlo.{% endif %}
-    </span>
-  </div>
-  {% elif request.GET.estado == 'DON' %}
-  <div class="aviso aviso--violeta">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-    <span>Equipo <strong>{{ request.GET.creado }}</strong> registrado como <strong>Donado</strong>, sin costo de adquisición.</span>
-  </div>
-  {% else %}
-  <div class="aviso aviso--verde">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-    <span>Equipo registrado con el folio <strong>{{ request.GET.creado }}</strong>.</span>
-  </div>
-  {% endif %}
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
+</div>
 {% endif %}
 
 <div class="lista-header">
   <p class="lista-header__conteo">
     {% if hay_filtros %}
-      <strong>{{ total }}</strong> equipo{{ total|pluralize }} encontrado{{ total|pluralize }}
+      <strong>{{ total }}</strong> artículo{{ total|pluralize }} encontrado{{ total|pluralize }}
     {% else %}
-      <strong>{{ total }}</strong> equipo{{ total|pluralize }} registrado{{ total|pluralize }}
+      <strong>{{ total }}</strong> artículo{{ total|pluralize }} registrado{{ total|pluralize }}
     {% endif %}
   </p>
 
   {% if usuario.rol == 'ADMIN' %}
   <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="{% url 'equipos:registrar' %}">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-    Registrar equipo
+    Registrar artículo
   </a>
   {% endif %}
 </div>
@@ -55,8 +42,8 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
       </span>
       <input class="filtros__input" type="search" name="q" value="{{ f.q }}"
-             placeholder="Marbete, folio, serie, marca, modelo o resguardante"
-             aria-label="Buscar equipo">
+             placeholder="Marbete, folio, serie, marca, modelo, descripción o resguardante"
+             aria-label="Buscar artículo">
     </div>
     <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
   </div>
@@ -111,8 +98,8 @@
     <thead>
       <tr>
         <th>Identificador</th>
-        <th>Equipo</th>
-        <th>Categoría</th>
+        <th>Artículo</th>
+        <th>Tipo</th>
         <th>Ubicación</th>
         <th>Resguardante</th>
         <th>Estado</th>
@@ -126,11 +113,14 @@
           <a class="celda-id" href="{% url 'equipos:detalle' eq.num %}">{{ eq.identificador }}</a>
           <span class="celda-secundaria">{{ eq.origen.nombre }}</span>
         </td>
-        <td data-label="Equipo">
-          <span class="celda-fuerte">{{ eq.marca }} {{ eq.modelo }}</span>
-          <span class="celda-secundaria">{{ eq.num_serie }}</span>
+        <td data-label="Artículo">
+          <span class="celda-fuerte">{{ eq.nombre }}</span>
+          {% if eq.num_serie %}<span class="celda-secundaria">{{ eq.num_serie }}</span>{% endif %}
         </td>
-        <td data-label="Categoría">{{ eq.categoria.nombre }}</td>
+        <td data-label="Tipo">
+          {{ eq.tipo_articulo.nombre }}
+          <span class="celda-secundaria">{{ eq.categoria.nombre }}</span>
+        </td>
         <td data-label="Ubicación">{{ eq.ubicacion.nombre }}</td>
         <td data-label="Resguardante">{{ eq.resguardante.nombre }}</td>
         <td data-label="Estado" class="celda-estado">
@@ -139,7 +129,7 @@
         </td>
         <td class="celda-accion">
           <a class="celda-accion__link" href="{% url 'equipos:detalle' eq.num %}"
-             aria-label="Ver detalle de {{ eq.marca }} {{ eq.modelo }}">
+             aria-label="Ver detalle de {{ eq.nombre }}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           </a>
         </td>
@@ -190,12 +180,15 @@
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
   </div>
   {% if hay_filtros %}
-    <h2 class="vacio__titulo">Ningún equipo coincide</h2>
+    <h2 class="vacio__titulo">Ningún artículo coincide</h2>
     <p class="vacio__texto">Prueba con otra búsqueda o quita alguno de los filtros aplicados.</p>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'equipos:listado' %}">Limpiar filtros</a>
+  {% elif error_api %}
+    <h2 class="vacio__titulo">No se pudo cargar el listado</h2>
+    <p class="vacio__texto">Revisa el aviso de arriba e intenta de nuevo.</p>
   {% else %}
-    <h2 class="vacio__titulo">Todavía no hay equipos registrados</h2>
-    <p class="vacio__texto">Cuando se registre el primer equipo aparecerá en esta lista.</p>
+    <h2 class="vacio__titulo">Todavía no hay artículos registrados</h2>
+    <p class="vacio__texto">Cuando se registre el primer artículo aparecerá en esta lista.</p>
   {% endif %}
 </div>
 
@@ -215,6 +208,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
 <style>
   .lista-header {
     display: flex;

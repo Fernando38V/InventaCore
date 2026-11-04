@@ -1,16 +1,19 @@
 {% extends "base/layout_app.html" %}
+{% load static %}
 
 {% block title %}Movimientos · InventaCore{% endblock %}
 {% block nav_movimientos %}active{% endblock %}
 {% block page_title %}Movimientos{% endblock %}
-{% block page_subtitle %}Trazabilidad del equipo electrónico del Departamento de Informática{% endblock %}
+{% block page_subtitle %}Trazabilidad de los artículos del plantel{% endblock %}
 
 {% block app_content %}
 
-{% if registrado %}
-<div class="aviso-ok">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-  Movimiento <strong>{{ registrado }}</strong> registrado correctamente.
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
 </div>
 {% endif %}
 
@@ -23,13 +26,16 @@
     {% endif %}
   </p>
 
-  <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="{% url 'movimientos:nuevo' %}">
+  {% if usuario.rol == 'ADMIN' %}
+  <a class="btn btn-primary btn-sm d-flex align-items-center gap-2" href="{% url 'movimientos:nuevo' %}{% if f.articulo %}?articulo={{ f.articulo }}{% endif %}">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     Nuevo movimiento
   </a>
+  {% endif %}
 </div>
 
 <form class="filtros" method="get" action="{% url 'movimientos:listado' %}" id="formFiltros">
+  {% if f.articulo %}<input type="hidden" name="articulo" value="{{ f.articulo }}">{% endif %}
 
   <div class="filtros__busqueda">
     <div class="filtros__campo">
@@ -37,7 +43,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
       </span>
       <input class="filtros__input" type="search" name="q" value="{{ f.q }}"
-             placeholder="Folio, equipo, tipo o personal"
+             placeholder="Folio, artículo, motivo, tipo o personal"
              aria-label="Buscar movimiento">
     </div>
     <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
@@ -63,6 +69,13 @@
     {% endif %}
   </div>
 
+  {% if articulo_filtro %}
+  <div class="filtros__chip">
+    Artículo: <strong>{{ articulo_filtro.identificador }}</strong>{% if articulo_filtro.nombre %} · {{ articulo_filtro.nombre }}{% endif %}
+    <a href="{% url 'movimientos:listado' %}" aria-label="Quitar el filtro de artículo">×</a>
+  </div>
+  {% endif %}
+
 </form>
 
 {% if movimientos %}
@@ -74,7 +87,7 @@
         <th>Folio</th>
         <th>Fecha</th>
         <th>Tipo</th>
-        <th>Equipo</th>
+        <th>Artículo</th>
         <th>Recorrido</th>
         <th>Personal</th>
         <th><span class="visually-hidden">Acciones</span></th>
@@ -85,8 +98,8 @@
       <tr>
         <td data-label="Folio">
           <span class="celda-id">{{ m.folio }}</span>
-          {% if m.genera_resguardo %}
-          <span class="celda-secundaria">Genera resguardo</span>
+          {% if m.requiere_resguardo %}
+          <span class="celda-secundaria">Requiere resguardo</span>
           {% endif %}
         </td>
         <td data-label="Fecha" class="celda-fecha">
@@ -94,16 +107,12 @@
           <span class="celda-secundaria">{{ m.fecha_hora }}</span>
         </td>
         <td data-label="Tipo">{{ m.tipo.nombre }}</td>
-        <td data-label="Equipo">
-          <a class="celda-enlace" href="{% url 'equipos:detalle' m.equipo.num %}">{{ m.equipo.identificador }}</a>
-          <span class="celda-secundaria">{{ m.equipo.descripcion }}</span>
+        <td data-label="Artículo">
+          <a class="celda-enlace" href="{% url 'equipos:detalle' m.articulo.num %}">{{ m.articulo.identificador }}</a>
+          <span class="celda-secundaria">{{ m.articulo.descripcion }}</span>
         </td>
         <td data-label="Recorrido" class="celda-recorrido">
-          {% if m.tipo.codigo == 'BAJA' %}
-            <span class="celda-origen">{{ m.ubicacion_origen.nombre }}</span>
-            <span class="celda-flecha">→</span>
-            <span class="celda-baja">Baja del inventario</span>
-          {% elif m.ubicacion_origen %}
+          {% if m.ubicacion_origen %}
             <span class="celda-origen">{{ m.ubicacion_origen.nombre }}</span>
             <span class="celda-flecha">→</span>
             <span class="celda-destino">{{ m.ubicacion_llegada.nombre }}</span>
@@ -116,12 +125,13 @@
           {% if m.personal_entrega %}
           <span class="celda-secundaria">Recibe de {{ m.personal_entrega.nombre }}</span>
           {% else %}
-          <span class="celda-secundaria">Asigna</span>
+          <span class="celda-secundaria">Resguardante</span>
           {% endif %}
+          {% if m.nota %}<span class="celda-secundaria celda-nota">{{ m.nota }}</span>{% endif %}
         </td>
         <td class="celda-accion">
-          <a class="celda-accion__link" href="{% url 'equipos:detalle' m.equipo.num %}"
-             aria-label="Ver el equipo de este movimiento">
+          <a class="celda-accion__link" href="{% url 'equipos:detalle' m.articulo.num %}"
+             aria-label="Ver el artículo de este movimiento">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           </a>
         </td>
@@ -177,7 +187,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientos:listado' %}">Limpiar filtros</a>
   {% else %}
     <h2 class="vacio__titulo">Todavía no hay movimientos registrados</h2>
-    <p class="vacio__texto">Cuando se dé de alta o se reubique un equipo aparecerá aquí.</p>
+    <p class="vacio__texto">Cuando se registre o se reubique un artículo aparecerá aquí.</p>
   {% endif %}
 </div>
 
@@ -197,7 +207,16 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
 <style>
+  .filtros__chip {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 9px;
+    padding: 5px 6px 5px 11px; font-size: 12.5px; color: var(--ic-text);
+    background: #F2F4F7; border: 1px solid var(--ic-border); border-radius: 999px;
+  }
+  .filtros__chip a { padding: 0 7px; font-size: 16px; line-height: 1; color: var(--ic-muted); text-decoration: none; }
+  .celda-nota { max-width: 260px; font-style: italic; }
+
   .aviso-ok {
     display: flex;
     align-items: center;

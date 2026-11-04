@@ -1,9 +1,10 @@
 {% extends "base/layout_app.html" %}
+{% load static %}
 
-{% block title %}Registrar equipo · InventaCore{% endblock %}
+{% block title %}Registrar artículo · InventaCore{% endblock %}
 {% block nav_equipos %}active{% endblock %}
-{% block page_title %}Registrar equipo{% endblock %}
-{% block page_subtitle %}Alta de un nuevo equipo en el inventario{% endblock %}
+{% block page_title %}Registrar artículo{% endblock %}
+{% block page_subtitle %}Alta de un nuevo artículo en el inventario{% endblock %}
 
 {% block app_content %}
 
@@ -12,8 +13,16 @@
   Volver al listado
 </a>
 
+{% if general %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ general }}</span>
+</div>
+{% endif %}
+
 <div class="form-layout">
-<form method="post" novalidate class="form-equipo" id="formEquipo">
+<form method="post" novalidate class="form-equipo" id="formEquipo"
+      data-ubicacion-noloc="{{ ubicacion_noloc }}" data-estado-noloc="{{ estado_noloc }}">
 {% csrf_token %}
 
   <section class="form-card">
@@ -32,21 +41,15 @@
     <div class="campo" id="campoMarbete">
       <label class="campo__label" for="marbete_oficial">Marbete oficial <span class="campo__req">*</span></label>
       <input class="campo__control" type="text" name="marbete_oficial" id="marbete_oficial"
-             value="{{ v.marbete_oficial|default:'' }}" autocomplete="off">
-      <p class="campo__ayuda">Lo asigna el gobierno del estado.</p>
-      <p class="campo__ayuda" id="previewFolio"></p>
+             value="{{ v.marbete_oficial }}" maxlength="25" autocomplete="off">
+      <p class="campo__ayuda">Lo asigna el gobierno del estado. Los activos no llevan folio interno.</p>
       {% if errores.marbete_oficial %}<p class="campo__error">{{ errores.marbete_oficial }}</p>{% endif %}
     </div>
 
-    <div class="campo" id="campoFolio">
-      <label class="campo__label" for="folio_interno">Folio interno</label>
-      <div class="campo__folio">
-        <input class="campo__control" type="text" name="folio_interno" id="folio_interno"
-               value="{{ folio_sugerido }}" readonly>
-        <button class="campo__folio-btn" type="button" id="btnEditarFolio">Editar</button>
-      </div>
-      <p class="campo__ayuda" id="ayudaFolio">El sistema lo asigna automáticamente.</p>
-      {% if errores.folio_interno %}<p class="campo__error">{{ errores.folio_interno }}</p>{% endif %}
+    <div class="campo" id="campoFolio" hidden>
+      <p class="campo__ayuda campo__ayuda--sola">
+        El sistema asigna el folio interno al guardar (formato 02143MMAA-NNN). No se captura ni se edita.
+      </p>
     </div>
   </section>
 
@@ -55,48 +58,60 @@
 
     <div class="campo-grid">
       <div class="campo">
-        <label class="campo__label" for="categoria">Categoría <span class="campo__req">*</span></label>
-        <select class="campo__control" name="categoria" id="categoria" required>
-          <option value=""></option>
+        <label class="campo__label" for="categoria">Categoría</label>
+        <select class="campo__control" id="categoria">
+          <option value="">Selecciona la categoría</option>
           {% for c in categorias %}
           <option value="{{ c.codigo }}" {% if v.categoria == c.codigo %}selected{% endif %}>{{ c.nombre }}</option>
           {% endfor %}
         </select>
-        {% if errores.categoria %}<p class="campo__error">{{ errores.categoria }}</p>{% endif %}
+        <p class="campo__ayuda">Solo sirve para filtrar los tipos.</p>
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="tipo_articulo">Tipo de artículo <span class="campo__req">*</span></label>
+        <select class="campo__control" name="tipo_articulo" id="tipo_articulo" required>
+          <option value="">Selecciona el tipo</option>
+          {% for t in tipos %}
+          <option value="{{ t.codigo }}" data-categoria="{{ t.categoria }}" {% if v.tipo_articulo == t.codigo %}selected{% endif %}>{{ t.nombre }}</option>
+          {% endfor %}
+        </select>
+        {% if errores.tipo_articulo %}<p class="campo__error">{{ errores.tipo_articulo }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="marca">Marca</label>
+        <input class="campo__control" type="text" name="marca" id="marca"
+               value="{{ v.marca }}" maxlength="50" autocomplete="off">
+        {% if errores.marca %}<p class="campo__error">{{ errores.marca }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="modelo">Modelo</label>
+        <input class="campo__control" type="text" name="modelo" id="modelo"
+               value="{{ v.modelo }}" maxlength="60" autocomplete="off">
+        {% if errores.modelo %}<p class="campo__error">{{ errores.modelo }}</p>{% endif %}
       </div>
 
       <div class="campo">
         <label class="campo__label" for="num_serie">Número de serie</label>
         <input class="campo__control" type="text" name="num_serie" id="num_serie"
-               value="{{ v.num_serie|default:'' }}" autocomplete="off">
-        <p class="campo__ayuda">Déjalo vacío si el equipo no lo tiene visible. Se puede capturar después.</p>
+               value="{{ v.num_serie }}" maxlength="50" autocomplete="off">
+        <p class="campo__ayuda">Opcional. Déjalo vacío si no está visible; se puede capturar después.</p>
         {% if errores.num_serie %}<p class="campo__error">{{ errores.num_serie }}</p>{% endif %}
       </div>
 
       <div class="campo">
-        <label class="campo__label" for="marca">Marca <span class="campo__req">*</span></label>
-        <input class="campo__control" type="text" name="marca" id="marca"
-               value="{{ v.marca|default:'' }}" autocomplete="off">
-        {% if errores.marca %}<p class="campo__error">{{ errores.marca }}</p>{% endif %}
-      </div>
-
-      <div class="campo">
-        <label class="campo__label" for="modelo">Modelo <span class="campo__req">*</span></label>
-        <input class="campo__control" type="text" name="modelo" id="modelo"
-               value="{{ v.modelo|default:'' }}" autocomplete="off">
-        {% if errores.modelo %}<p class="campo__error">{{ errores.modelo }}</p>{% endif %}
-      </div>
-
-      <div class="campo">
-        <label class="campo__label" for="color">Color</label>
+        <label class="campo__label" for="color">Color <span class="campo__req">*</span></label>
         <input class="campo__control" type="text" name="color" id="color"
-               value="{{ v.color|default:'' }}" autocomplete="off">
+               value="{{ v.color }}" maxlength="25" autocomplete="off">
+        {% if errores.color %}<p class="campo__error">{{ errores.color }}</p>{% endif %}
       </div>
 
       <div class="campo">
         <label class="campo__label" for="fecha_adquisicion">Fecha de adquisición</label>
         <input class="campo__control" type="date" name="fecha_adquisicion" id="fecha_adquisicion"
-               value="{{ v.fecha_adquisicion|default:'' }}" max="{{ hoy }}">
+               value="{{ v.fecha_adquisicion }}" max="{{ hoy }}">
         {% if errores.fecha_adquisicion %}<p class="campo__error">{{ errores.fecha_adquisicion }}</p>{% endif %}
       </div>
 
@@ -104,7 +119,7 @@
         <label class="campo__label" for="costo_adquisicion">Costo de adquisición (MXN)</label>
         <input class="campo__control" type="number" step="0.01" min="0"
                name="costo_adquisicion" id="costo_adquisicion"
-               value="{{ v.costo_adquisicion|default:'' }}">
+               value="{{ v.costo_adquisicion }}">
         {% if errores.costo_adquisicion %}<p class="campo__error">{{ errores.costo_adquisicion }}</p>{% endif %}
       </div>
 
@@ -113,19 +128,21 @@
         <div class="campo__derivado">
           <span class="badge-estado badge-estado--ambar" id="badgeRegistro">Pendiente</span>
         </div>
+        <p class="campo__ayuda">Lo calcula el sistema con la fecha y el costo.</p>
       </div>
     </div>
 
     <div class="campo campo--check">
       <label class="campo__check" for="donado">
-        <input type="checkbox" name="donado" id="donado" {% if request.POST.donado %}checked{% endif %}>
-        <span>El equipo fue donado</span>
+        <input type="checkbox" name="donado" id="donado" {% if v.donado %}checked{% endif %}>
+        <span>El artículo fue donado</span>
       </label>
     </div>
 
     <div class="campo">
-      <label class="campo__label" for="descripcion">Descripción</label>
-      <textarea class="campo__control" name="descripcion" id="descripcion" rows="3">{{ v.descripcion|default:'' }}</textarea>
+      <label class="campo__label" for="descripcion">Descripción <span class="campo__req">*</span></label>
+      <textarea class="campo__control" name="descripcion" id="descripcion" rows="3" maxlength="150">{{ v.descripcion }}</textarea>
+      {% if errores.descripcion %}<p class="campo__error">{{ errores.descripcion }}</p>{% endif %}
     </div>
   </section>
 
@@ -136,7 +153,7 @@
       <div class="campo">
         <label class="campo__label" for="ubicacion">Ubicación <span class="campo__req">*</span></label>
         <select class="campo__control" name="ubicacion" id="ubicacion" required>
-          <option value=""></option>
+          <option value="">Selecciona la ubicación</option>
           {% for u in ubicaciones %}
           <option value="{{ u.codigo }}" {% if v.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>
           {% endfor %}
@@ -147,9 +164,9 @@
       <div class="campo">
         <label class="campo__label" for="resguardante">Resguardante <span class="campo__req">*</span></label>
         <select class="campo__control" name="resguardante" id="resguardante" required>
-          <option value=""></option>
+          <option value="">Selecciona el resguardante</option>
           {% for p in personal %}
-          <option value="{{ p }}" {% if v.resguardante == p %}selected{% endif %}>{{ p }}</option>
+          <option value="{{ p.valor }}" {% if v.resguardante == p.valor %}selected{% endif %}>{{ p.texto }}</option>
           {% endfor %}
         </select>
         {% if errores.resguardante %}<p class="campo__error">{{ errores.resguardante }}</p>{% endif %}
@@ -162,13 +179,15 @@
           <option value="{{ e.codigo }}" {% if v.estado_operativo == e.codigo %}selected{% endif %}>{{ e.nombre }}</option>
           {% endfor %}
         </select>
+        <p class="campo__ayuda" id="ayudaEstado">No localizado va siempre con la ubicación «Sin ubicar».</p>
+        {% if errores.estado_operativo %}<p class="campo__error">{{ errores.estado_operativo }}</p>{% endif %}
       </div>
     </div>
   </section>
 
   <div class="form-acciones">
     <a class="btn btn-outline-secondary" href="{% url 'equipos:listado' %}">Cancelar</a>
-    <button class="btn btn-primary" type="submit">Registrar equipo</button>
+    <button class="btn btn-primary" type="submit">Registrar artículo</button>
   </div>
 
 </form>
@@ -186,7 +205,7 @@
         <dd id="rOrigen">Activo</dd>
       </div>
       <div>
-        <dt>Equipo</dt>
+        <dt>Artículo</dt>
         <dd id="rEquipo">Sin capturar</dd>
       </div>
       <div>
@@ -194,8 +213,8 @@
         <dd id="rSerie">Sin capturar</dd>
       </div>
       <div>
-        <dt>Categoría</dt>
-        <dd id="rCategoria">Sin capturar</dd>
+        <dt>Tipo</dt>
+        <dd id="rTipo">Sin capturar</dd>
       </div>
       <div>
         <dt>Ubicación</dt>
@@ -208,7 +227,7 @@
     </dl>
 
     <p class="form-resumen__nota">
-      La etiqueta con el código QR se genera al guardar el equipo.
+      La etiqueta con el código QR se genera al guardar el artículo.
     </p>
   </aside>
 
@@ -220,28 +239,31 @@
 {{ block.super }}
 <script>
 (function () {
+  var form = document.getElementById('formEquipo');
+  var UBI_NOLOC = form.dataset.ubicacionNoloc;
+  var EST_NOLOC = form.dataset.estadoNoloc;
+
   var origen = document.getElementById('origen');
   var cMarbete = document.getElementById('campoMarbete');
   var cFolio = document.getElementById('campoFolio');
   var inputMarbete = document.getElementById('marbete_oficial');
-  var inputFolio = document.getElementById('folio_interno');
-  var btnEditar = document.getElementById('btnEditarFolio');
-  var ayudaFolio = document.getElementById('ayudaFolio');
-  var previewFolio = document.getElementById('previewFolio');
   var costo = document.getElementById('costo_adquisicion');
   var fecha = document.getElementById('fecha_adquisicion');
   var donado = document.getElementById('donado');
   var badge = document.getElementById('badgeRegistro');
+  var categoria = document.getElementById('categoria');
+  var tipo = document.getElementById('tipo_articulo');
+  var ubicacion = document.getElementById('ubicacion');
+  var estado = document.getElementById('estado_operativo');
+  var ayudaEstado = document.getElementById('ayudaEstado');
 
   var rIdentificador = document.getElementById('rIdentificador');
   var rOrigen = document.getElementById('rOrigen');
   var rEquipo = document.getElementById('rEquipo');
   var rSerie = document.getElementById('rSerie');
-  var rCategoria = document.getElementById('rCategoria');
+  var rTipo = document.getElementById('rTipo');
   var rUbicacion = document.getElementById('rUbicacion');
   var rResguardante = document.getElementById('rResguardante');
-
-  var folioSugerido = inputFolio.value;
 
   function textoDe(id) {
     var el = document.getElementById(id);
@@ -254,82 +276,89 @@
   }
 
   function sincronizarResumen() {
-    var ident = origen.value === 'ACT'
-      ? inputMarbete.value.trim()
-      : inputFolio.value.trim();
-    var equipo = [textoDe('marca'), textoDe('modelo')].filter(Boolean).join(' ');
+    var esActivo = origen.value === 'ACT';
+    var ident = esActivo ? inputMarbete.value.trim() : 'Folio interno (lo asigna el sistema)';
+    var nombre = [textoDe('marca'), textoDe('modelo')].filter(Boolean).join(' ') || textoDe('descripcion');
 
     rIdentificador.textContent = ident || 'Sin capturar';
     rOrigen.textContent = textoDe('origen') || 'Activo';
-    rEquipo.textContent = equipo || 'Sin capturar';
+    rEquipo.textContent = nombre || 'Sin capturar';
     rSerie.textContent = textoDe('num_serie') || 'Sin capturar';
-    rCategoria.textContent = textoDe('categoria') || 'Sin capturar';
+    rTipo.textContent = textoDe('tipo_articulo') || 'Sin capturar';
     rUbicacion.textContent = textoDe('ubicacion') || 'Sin capturar';
     rResguardante.textContent = textoDe('resguardante') || 'Sin capturar';
   }
 
+  // Activo: marbete. Comodato y Enser: folio interno que genera el sistema.
   function sincronizarIdentificador() {
     var esActivo = origen.value === 'ACT';
-
     cMarbete.hidden = !esActivo;
     cFolio.hidden = esActivo;
     inputMarbete.required = esActivo;
-    inputFolio.required = !esActivo;
-
-    previewFolio.hidden = !esActivo;
-    if (esActivo) {
-      previewFolio.innerHTML = 'Se asignará el folio interno <strong>' + folioSugerido + '</strong>.';
-    }
-
     sincronizarResumen();
   }
-
   origen.addEventListener('change', sincronizarIdentificador);
   sincronizarIdentificador();
 
-  function aplicarFolio() {
-    inputFolio.readOnly = true;
-    btnEditar.textContent = 'Editar';
-    ayudaFolio.textContent = 'El sistema lo asigna automáticamente.';
+  // Categoría -> tipos de esa categoría (el tipo es lo que se guarda).
+  function filtrarTipos() {
+    var cat = categoria.value;
+    Array.prototype.forEach.call(tipo.options, function (op) {
+      if (!op.value) { return; }
+      var visible = !cat || op.dataset.categoria === cat;
+      op.hidden = !visible;
+      op.disabled = !visible;
+    });
+    var actual = tipo.options[tipo.selectedIndex];
+    if (actual && actual.value && actual.disabled) { tipo.value = ''; }
   }
-
-  btnEditar.addEventListener('click', function () {
-    if (inputFolio.readOnly) {
-      inputFolio.readOnly = false;
-      inputFolio.focus();
-      inputFolio.select();
-      btnEditar.textContent = 'Listo';
-      ayudaFolio.textContent = 'Si lo cambias, dejará de seguir el consecutivo del sistema.';
-    } else {
-      aplicarFolio();
-    }
-    sincronizarResumen();
-  });
-
-  inputFolio.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      aplicarFolio();
-      sincronizarResumen();
+  categoria.addEventListener('change', function () { filtrarTipos(); sincronizarResumen(); });
+  tipo.addEventListener('change', function () {
+    var op = tipo.options[tipo.selectedIndex];
+    if (op && op.value && categoria.value !== op.dataset.categoria) {
+      categoria.value = op.dataset.categoria;
+      filtrarTipos();
     }
   });
+  filtrarTipos();
 
+  // DEC-012: No localizado y la ubicación «Sin ubicar» se sincronizan en ambos sentidos.
+  function sincronizarNoLocalizado(origenDelCambio) {
+    if (origenDelCambio === 'ubicacion') {
+      if (ubicacion.value === UBI_NOLOC) {
+        estado.value = EST_NOLOC;
+      } else if (estado.value === EST_NOLOC) {
+        estado.value = 'UTIL';
+      }
+    } else if (origenDelCambio === 'estado') {
+      if (estado.value === EST_NOLOC) {
+        ubicacion.value = UBI_NOLOC;
+      } else if (ubicacion.value === UBI_NOLOC) {
+        ubicacion.value = '';
+      }
+    }
+    var bloqueado = ubicacion.value === UBI_NOLOC;
+    Array.prototype.forEach.call(estado.options, function (op) {
+      op.disabled = bloqueado && op.value !== EST_NOLOC;
+    });
+    ayudaEstado.textContent = bloqueado
+      ? 'En «Sin ubicar» el estado es siempre No localizado.'
+      : 'No localizado va siempre con la ubicación «Sin ubicar».';
+  }
+  ubicacion.addEventListener('change', function () { sincronizarNoLocalizado('ubicacion'); sincronizarResumen(); });
+  estado.addEventListener('change', function () { sincronizarNoLocalizado('estado'); sincronizarResumen(); });
+  sincronizarNoLocalizado('');
+
+  // DEC-008: Donado manda; con fecha y costo es Registrado; si falta alguno, Pendiente.
+  // En un bien donado el costo no se bloquea (PEND-004).
   function sincronizarEstado() {
     if (donado.checked) {
-      costo.value = '';
-      costo.disabled = true;
-      costo.placeholder = 'No aplica para equipo donado';
       badge.textContent = 'Donado';
       badge.className = 'badge-estado badge-estado--violeta';
       return;
     }
-
-    costo.disabled = false;
-    costo.placeholder = '';
-
-    var faltaCosto = costo.value.trim() === '' || Number(costo.value) <= 0;
+    var faltaCosto = costo.value.trim() === '';
     var faltaFecha = fecha.value.trim() === '';
-
     if (faltaCosto || faltaFecha) {
       badge.textContent = 'Pendiente';
       badge.className = 'badge-estado badge-estado--ambar';
@@ -343,7 +372,7 @@
   fecha.addEventListener('input', sincronizarEstado);
   donado.addEventListener('change', sincronizarEstado);
 
-  document.querySelectorAll('#formEquipo input, #formEquipo select').forEach(function (el) {
+  form.querySelectorAll('input, select, textarea').forEach(function (el) {
     el.addEventListener('input', sincronizarResumen);
     el.addEventListener('change', sincronizarResumen);
   });
@@ -355,6 +384,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
 <style>
   .ic-back {
     display: inline-flex;

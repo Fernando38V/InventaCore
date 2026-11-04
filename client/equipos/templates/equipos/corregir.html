@@ -1,0 +1,79 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Corregir artículo · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Corregir datos{% endblock %}
+{% block page_subtitle %}{{ equipo.identificador }} · {{ equipo.nombre }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<style>
+  .corregir-nota { font-size: 13px; color: var(--ic-text-muted, #6b7280); margin: 0 0 16px; }
+  .corregir-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0; }
+  .corregir-resumen dt { font-size: 12px; color: var(--ic-text-muted, #6b7280); font-weight: 500; }
+  .corregir-resumen dd { margin: 2px 0 0; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'equipos:detalle' equipo.num %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver a la ficha
+</a>
+
+{% if general %}
+<div class="aviso aviso--rojo" role="alert"><span>{{ general }}</span></div>
+{% endif %}
+
+<form method="post" novalidate class="form-equipo">
+{% csrf_token %}
+
+  <section class="form-card">
+    <h2 class="form-card__title">Datos que no cambian aquí</h2>
+    <p class="corregir-nota">La ubicación y el resguardante solo cambian con un movimiento. El estado operativo se cambia desde la ficha.</p>
+    <dl class="corregir-resumen">
+      <div><dt>Ubicación</dt><dd>{{ equipo.ubicacion.nombre }}</dd></div>
+      <div><dt>Resguardante</dt><dd>{% if equipo.resguardante %}{{ equipo.resguardante.nombre_completo|default:equipo.resguardante.nombre }}{% else %}Sin especificar{% endif %}</dd></div>
+      <div><dt>Estado</dt><dd>{{ equipo.estado_operativo.nombre }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="form-card">
+    <h2 class="form-card__title">Datos del artículo</h2>
+    <div class="campo-grid">
+      {% for c in campos %}
+      <div class="campo {% if c.completo %}campo--completo{% endif %}">
+        <label class="campo__label" for="{{ c.nombre }}">{{ c.etiqueta }}{% if c.requerido %} <span class="campo__req">*</span>{% endif %}</label>
+        {% if c.tipo == 'textarea' %}
+        <textarea class="campo__control" name="{{ c.nombre }}" id="{{ c.nombre }}" rows="3" {% if c.max %}maxlength="{{ c.max }}"{% endif %}>{{ c.valor }}</textarea>
+        {% elif c.tipo == 'date' %}
+        <input class="campo__control" type="date" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" max="{{ hoy }}">
+        {% else %}
+        <input class="campo__control" type="text" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" {% if c.max %}maxlength="{{ c.max }}"{% endif %} autocomplete="off">
+        {% endif %}
+        {% if c.ayuda %}<p class="campo__ayuda">{{ c.ayuda }}</p>{% endif %}
+        {% if c.error %}<p class="campo__error">{{ c.error }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="form-card">
+    <h2 class="form-card__title">Motivo de la corrección</h2>
+    <div class="campo">
+      <label class="campo__label" for="motivo">Motivo <span class="campo__req">*</span></label>
+      <textarea class="campo__control" name="motivo" id="motivo" rows="2" maxlength="255">{{ motivo }}</textarea>
+      <p class="campo__ayuda">Queda en la bitácora junto con los valores anterior y nuevo.</p>
+      {% if error_motivo %}<p class="campo__error">{{ error_motivo }}</p>{% endif %}
+    </div>
+  </section>
+
+  <div class="form-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'equipos:detalle' equipo.num %}">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Guardar corrección</button>
+  </div>
+</form>
+
+{% endblock app_content %}

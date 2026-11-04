@@ -1,7 +1,8 @@
 {% comment %}
 Confirmación para activar o desactivar un registro. La baja es lógica y la API
 exige motivo. Los botones que lo abren llevan data-url, data-nombre,
-data-activar (1 = activar, 0 = desactivar) y data-aviso. Requiere catalogos.css.
+data-activar (1 = activar, 0 = desactivar) y data-aviso; opcionales: data-titulo y
+data-confirmar para cambiar los textos. Requiere catalogos.css.
 {% endcomment %}
 <div class="modal fade" id="modalEstado" tabindex="-1" aria-labelledby="modalEstadoLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -45,12 +46,14 @@ data-activar (1 = activar, 0 = desactivar) y data-aviso. Requiere catalogos.css.
 
     form.action = boton.dataset.url;
     document.getElementById('estadoActivar').value = boton.dataset.activar;
-    document.getElementById('modalEstadoLabel').textContent =
-      (activar ? '¿Activar ' : '¿Desactivar ') + boton.dataset.nombre + '?';
+    // data-titulo y data-confirmar son opcionales (la ficha de equipos los usa).
+    document.getElementById('modalEstadoLabel').textContent = boton.dataset.titulo ||
+      ((activar ? '¿Activar ' : '¿Desactivar ') + boton.dataset.nombre + '?');
     document.getElementById('estadoAviso').textContent = boton.dataset.aviso || '';
 
     var confirmar = document.getElementById('estadoConfirmar');
-    confirmar.textContent = activar ? 'Sí, activar' : 'Sí, desactivar';
+    confirmar.textContent = boton.dataset.confirmar ||
+      (activar ? 'Sí, activar' : 'Sí, desactivar');
     confirmar.className = 'btn btn-sm ' + (activar ? 'btn-primary' : 'btn-danger');
     motivo.value = '';
   });

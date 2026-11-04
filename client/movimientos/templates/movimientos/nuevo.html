@@ -4,7 +4,7 @@
 {% block title %}Nuevo movimiento · InventaCore{% endblock %}
 {% block nav_movimientos %}active{% endblock %}
 {% block page_title %}Nuevo movimiento{% endblock %}
-{% block page_subtitle %}Registra el cambio de ubicación, resguardante o estado de un equipo{% endblock %}
+{% block page_subtitle %}Reubicación, cambio de resguardante, reparación o recuperación de un artículo{% endblock %}
 
 {% block app_content %}
 
@@ -13,56 +13,72 @@
   Volver a movimientos
 </a>
 
+{% if paso_busqueda %}
+
+<div class="mov-card">
+  <h3 class="mov-card__title">¿Qué artículo vas a mover?</h3>
+  <form method="get" action="{% url 'movimientos:nuevo' %}" class="campo">
+    <label class="campo__label" for="q">Busca por marbete, folio, serie, marca, modelo o descripción</label>
+    <div class="busca">
+      <input class="campo__input" type="search" name="q" id="q" value="{{ q }}" autofocus autocomplete="off">
+      <button class="btn btn-primary btn-sm" type="submit">Buscar</button>
+    </div>
+  </form>
+
+  {% if error_busqueda %}
+  <div class="aviso aviso--rojo" role="alert"><span>{{ error_busqueda }}</span></div>
+  {% elif encontrados %}
+  <ul class="resultados">
+    {% for a in encontrados %}
+    <li>
+      <a href="{% url 'movimientos:nuevo' %}?articulo={{ a.num }}">
+        <span><span class="resultados__id">{{ a.identificador }}</span> · {{ a.nombre }}
+          <span class="resultados__meta d-block">{{ a.ubicacion.nombre }} · {{ a.estado_operativo.nombre }}</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif buscado %}
+  <p class="campo__ayuda" style="margin-top:12px">No se encontró ningún artículo con esa búsqueda.</p>
+  {% endif %}
+</div>
+
+{% else %}
+
+{% if general %}
+<div class="aviso aviso--rojo" role="alert"><span>{{ general }}</span></div>
+{% endif %}
+
 <div class="form-layout">
 
-<form method="post" novalidate id="formMovimiento">
+<form method="post" novalidate id="formMovimiento" data-ubicacion-noloc="{{ ubicacion_noloc }}"
+      data-sin-localizar="{{ sin_localizar|yesno:'1,0' }}">
   {% csrf_token %}
-  <input type="hidden" name="bloqueado" value="{{ bloqueado|yesno:'1,0' }}">
+  <input type="hidden" name="articulo" value="{{ articulo.num }}">
 
   <div class="mov-card">
-    <h3 class="mov-card__title">Equipo</h3>
-
-    {% if equipo_fijo %}
-      <input type="hidden" name="equipo" value="{{ equipo_fijo.num }}">
-      <div class="equipo-fijo">
-        <div class="equipo-fijo__id">{{ equipo_fijo.identificador }}</div>
-        <div class="equipo-fijo__desc">{{ equipo_fijo.marca }} {{ equipo_fijo.modelo }}</div>
-        <div class="equipo-fijo__meta">
-          Actualmente en <strong>{{ equipo_fijo.ubicacion.nombre }}</strong>,
-          resguardado por <strong>{{ equipo_fijo.resguardante.nombre }}</strong>
-        </div>
+    <h3 class="mov-card__title">Artículo</h3>
+    <div class="equipo-fijo">
+      <div class="equipo-fijo__id" id="artId">{{ articulo.identificador }}</div>
+      <div class="equipo-fijo__desc" id="artNombre">{{ articulo.nombre }}</div>
+      <div class="equipo-fijo__meta">
+        Actualmente en <strong>{{ articulo.ubicacion.nombre }}</strong>,
+        resguardado por <strong>{% if articulo.resguardante %}{{ articulo.resguardante.nombre }}{% else %}Sin especificar{% endif %}</strong>
+        · Estado: <strong>{{ articulo.estado_operativo.nombre }}</strong>
       </div>
-      <a class="equipo-fijo__cambiar" href="{% url 'movimientos:nuevo' %}">Elegir otro equipo</a>
-    {% else %}
-      <div class="campo">
-        <label class="campo__label" for="equipo">Selecciona el equipo</label>
-        <select class="campo__select {% if errores.equipo %}is-error{% endif %}" name="equipo" id="equipo" required>
-          <option value="">Buscar por identificador o modelo…</option>
-          {% for e in equipos %}
-          <option value="{{ e.num }}" {% if v.equipo_num == e.num|stringformat:"s" %}selected{% endif %}
-                  data-id="{{ e.identificador }}"
-                  data-desc="{{ e.marca }} {{ e.modelo }}"
-                  data-ubicacion="{{ e.ubicacion.nombre }}" data-resguardante="{{ e.resguardante.nombre }}">
-            {{ e.identificador }} — {{ e.marca }} {{ e.modelo }}
-          </option>
-          {% endfor %}
-        </select>
-        {% if errores.equipo %}<p class="campo__error">{{ errores.equipo }}</p>{% endif %}
-
-        <div class="equipo-fijo" id="equipoPreview" hidden>
-          <div class="equipo-fijo__id" id="equipoPreviewId"></div>
-          <div class="equipo-fijo__desc" id="equipoPreviewDesc"></div>
-          <div class="equipo-fijo__meta" id="equipoPreviewMeta"></div>
-        </div>
-      </div>
+    </div>
+    <a class="equipo-fijo__cambiar" href="{% url 'movimientos:nuevo' %}">Elegir otro artículo</a>
+    {% if errores.articulo %}<p class="campo__error">{{ errores.articulo }}</p>{% endif %}
+    {% if sin_localizar %}
+    <p class="campo__ayuda" style="margin-top:10px">El artículo está No localizado: solo se puede recuperar con una reubicación.</p>
     {% endif %}
   </div>
 
   <div class="mov-card">
     <h3 class="mov-card__title">Tipo de movimiento</h3>
-
     <div class="campo">
-      <label class="campo__label" for="tipo">¿Qué va a pasar con el equipo?</label>
+      <label class="campo__label" for="tipo">¿Qué va a pasar con el artículo?</label>
       <select class="campo__select {% if errores.tipo %}is-error{% endif %}" name="tipo" id="tipo" required>
         <option value="">Selecciona el tipo</option>
         {% for t in tipos %}
@@ -80,9 +96,7 @@
       <select class="campo__select {% if errores.ubicacion %}is-error{% endif %}" name="ubicacion" id="ubicacion">
         <option value="">Selecciona la ubicación</option>
         {% for u in ubicaciones %}
-        {% if u.codigo != 'UBI-NOLOC' %}
         <option value="{{ u.codigo }}" {% if v.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>
-        {% endif %}
         {% endfor %}
       </select>
       {% if errores.ubicacion %}<p class="campo__error">{{ errores.ubicacion }}</p>{% endif %}
@@ -94,13 +108,27 @@
     <h3 class="mov-card__title">Resguardante</h3>
     <div class="campo">
       <label class="campo__label" for="resguardante">Nuevo resguardante</label>
-      <select class="campo__select" name="resguardante" id="resguardante">
-        <option value="">Selecciona el resguardante</option>
+      <select class="campo__select {% if errores.resguardante %}is-error{% endif %}" name="resguardante" id="resguardante">
+        <option value="">Sin cambio de resguardante</option>
         {% for p in personal %}
-        <option value="{{ p }}" {% if v.resguardante == p %}selected{% endif %}>{{ p }}</option>
+        <option value="{{ p.valor }}" {% if v.resguardante == p.valor %}selected{% endif %}>{{ p.texto }}</option>
         {% endfor %}
       </select>
-      <p class="campo__ayuda">Especifica una nueva ubicación, un nuevo resguardante, o ambos.</p>
+      {% if errores.resguardante %}<p class="campo__error">{{ errores.resguardante }}</p>{% endif %}
+      <p class="campo__ayuda">Especifica una nueva ubicación, un nuevo resguardante, o ambos. Si cambia la persona se requiere un resguardo nuevo con dos firmas.</p>
+    </div>
+  </div>
+
+  <div class="mov-card" id="bloqueEstado" hidden>
+    <h3 class="mov-card__title">Confirma el estado del artículo</h3>
+    <div class="campo">
+      <p class="campo__ayuda" style="margin-top:0">Al recuperar un artículo No localizado se vuelve a confirmar su estado.</p>
+      <div class="opciones-estado">
+        {% for e in estados %}
+        <label><input type="radio" name="estado_operativo" value="{{ e.codigo }}" {% if v.estado_operativo == e.codigo %}checked{% endif %}> {{ e.nombre }}</label>
+        {% endfor %}
+      </div>
+      {% if errores.estado_operativo %}<p class="campo__error">{{ errores.estado_operativo }}</p>{% endif %}
     </div>
   </div>
 
@@ -110,7 +138,7 @@
     <div class="campo">
       <label class="campo__label" for="motivo">Motivo del movimiento</label>
       <textarea class="campo__textarea {% if errores.motivo %}is-error{% endif %}"
-                name="motivo" id="motivo" rows="3"
+                name="motivo" id="motivo" rows="3" maxlength="255"
                 placeholder="Describe brevemente por qué se registra este movimiento">{{ v.motivo }}</textarea>
       {% if errores.motivo %}<p class="campo__error">{{ errores.motivo }}</p>{% endif %}
     </div>
@@ -133,10 +161,11 @@
   <aside class="mov-resumen">
     <h2 class="mov-resumen__title">Resumen del movimiento</h2>
     <dl class="mov-resumen__lista">
-      <div><dt>Equipo</dt><dd id="rsEquipo">Sin seleccionar</dd></div>
+      <div><dt>Artículo</dt><dd id="rsEquipo">—</dd></div>
       <div><dt>Tipo de movimiento</dt><dd id="rsTipo">Sin seleccionar</dd></div>
       <div><dt>Nueva ubicación</dt><dd id="rsUbicacion">—</dd></div>
       <div><dt>Nuevo resguardante</dt><dd id="rsResguardante">—</dd></div>
+      <div><dt>Estado al recuperar</dt><dd id="rsEstado">—</dd></div>
       <div><dt>Fecha</dt><dd id="rsFecha">Sin capturar</dd></div>
     </dl>
     <p class="mov-resumen__nota">
@@ -156,7 +185,7 @@
         <h2 class="confirmar-modal__title" id="modalConfirmarLabel">¿Confirmar este movimiento?</h2>
         <dl class="confirmar-modal__resumen" id="resumenMovimiento"></dl>
         <p class="confirmar-modal__aviso">
-          El registro queda sellado con tu usuario y la fecha de hoy.
+          El registro queda sellado con tu usuario y la fecha indicada.
           Una vez guardado, no podrá eliminarse.
         </p>
       </div>
@@ -172,21 +201,28 @@
   </div>
 </div>
 
+{% endif %}
+
 {% endblock app_content %}
 
 {% block extra_js %}
 {{ block.super }}
+{% if not paso_busqueda %}
 <script>
 (function () {
+  var form = document.getElementById('formMovimiento');
+  var UBI_NOLOC = form.dataset.ubicacionNoloc;
+  var sinLocalizar = form.dataset.sinLocalizar === '1';
+
   var tipoSel = document.getElementById('tipo');
   var bloqueUbicacion = document.getElementById('bloqueUbicacion');
   var bloqueResguardante = document.getElementById('bloqueResguardante');
+  var bloqueEstado = document.getElementById('bloqueEstado');
   var tituloUbicacion = document.getElementById('tituloUbicacion');
   var labelUbicacion = document.getElementById('labelUbicacion');
   var ayudaUbicacion = document.getElementById('ayudaUbicacion');
   var ubicacionSel = document.getElementById('ubicacion');
   var resguardanteSel = document.getElementById('resguardante');
-  var equipoSel = document.getElementById('equipo');
   var motivoTxt = document.getElementById('motivo');
   var fechaInput = document.getElementById('fecha');
 
@@ -195,84 +231,81 @@
     if (op.value) NOMBRE_TIPO[op.value] = op.text;
   });
 
+  function estadoElegido() {
+    return form.querySelector('input[name="estado_operativo"]:checked');
+  }
+
+  // DEC-012: un artículo No localizado que sale de «Sin ubicar» se reconfirma.
+  function recupera() {
+    return sinLocalizar && tipoSel.value === 'REUB'
+      && ubicacionSel.value !== '' && ubicacionSel.value !== UBI_NOLOC;
+  }
+
   function sincronizarTipo() {
     var tipo = tipoSel.value;
 
-    bloqueUbicacion.hidden = !(tipo === 'REUB' || tipo === 'REPA' || tipo === 'RETE' || tipo === 'BAJA');
+    bloqueUbicacion.hidden = !(tipo === 'REUB' || tipo === 'REPA' || tipo === 'RETE');
     bloqueResguardante.hidden = (tipo !== 'REUB');
+
+    // «Sin ubicar» solo se usa en una reubicación y solo si el artículo está localizado
+    // (la pérdida se registra con REUB; un No localizado ya está ahí).
+    var permiteNoloc = (tipo === 'REUB' && !sinLocalizar);
+    Array.prototype.forEach.call(ubicacionSel.options, function (op) {
+      if (op.value === UBI_NOLOC) {
+        op.hidden = !permiteNoloc;
+        op.disabled = !permiteNoloc;
+      }
+    });
+    if (!permiteNoloc && ubicacionSel.value === UBI_NOLOC) { ubicacionSel.value = ''; }
 
     if (tipo === 'REUB') {
       tituloUbicacion.textContent = 'Ubicación';
       labelUbicacion.textContent = 'Nueva ubicación';
-      ayudaUbicacion.textContent = 'Déjala vacía si solo cambia el resguardante.';
+      ayudaUbicacion.textContent = sinLocalizar
+        ? 'Indica dónde se encontró el artículo.'
+        : 'Déjala vacía si solo cambia el resguardante. «Sin ubicar» marca el artículo como No localizado.';
     } else if (tipo === 'REPA') {
       tituloUbicacion.textContent = 'Ubicación';
       labelUbicacion.textContent = 'Ubicación durante la reparación';
-      ayudaUbicacion.textContent = 'Normalmente queda como Sin ubicar / No localizado.';
+      ayudaUbicacion.textContent = 'Opcional. Si la dejas vacía se conserva la ubicación actual.';
     } else if (tipo === 'RETE') {
       tituloUbicacion.textContent = 'Ubicación';
       labelUbicacion.textContent = 'Ubicación al regresar';
-      ayudaUbicacion.textContent = 'Indica a dónde vuelve el equipo.';
-    } else if (tipo === 'BAJA') {
-      tituloUbicacion.textContent = 'Ubicación';
-      labelUbicacion.textContent = 'Última ubicación conocida';
-      ayudaUbicacion.textContent = 'El equipo se marcará como baja del inventario.';
+      ayudaUbicacion.textContent = 'Indica a dónde vuelve el artículo.';
     }
 
+    sincronizarEstado();
+  }
+
+  function sincronizarEstado() {
+    bloqueEstado.hidden = !recupera();
     sincronizarResumen();
   }
 
   tipoSel.addEventListener('change', sincronizarTipo);
-  sincronizarTipo();
-
-  if (equipoSel) {
-    function sincronizarEquipo() {
-      var op = equipoSel.options[equipoSel.selectedIndex];
-      var preview = document.getElementById('equipoPreview');
-      if (op && op.value) {
-        document.getElementById('equipoPreviewId').textContent = op.dataset.id;
-        document.getElementById('equipoPreviewDesc').textContent = op.dataset.desc;
-        document.getElementById('equipoPreviewMeta').innerHTML =
-          'Actualmente en <strong>' + op.dataset.ubicacion + '</strong>, resguardado por <strong>' + op.dataset.resguardante + '</strong>';
-        preview.hidden = false;
-      } else {
-        preview.hidden = true;
-      }
-      sincronizarResumen();
-    }
-    equipoSel.addEventListener('change', sincronizarEquipo);
-    sincronizarEquipo();
-  }
-
-  if (ubicacionSel) ubicacionSel.addEventListener('change', sincronizarResumen);
-  if (resguardanteSel) resguardanteSel.addEventListener('change', sincronizarResumen);
+  ubicacionSel.addEventListener('change', sincronizarEstado);
+  resguardanteSel.addEventListener('change', sincronizarResumen);
+  form.querySelectorAll('input[name="estado_operativo"]').forEach(function (r) {
+    r.addEventListener('change', sincronizarResumen);
+  });
   fechaInput.addEventListener('input', sincronizarResumen);
 
+  function textoSelect(sel) {
+    var op = sel.options[sel.selectedIndex];
+    return op && op.value ? op.text : '';
+  }
+
   function sincronizarResumen() {
-    var equipoTxt = 'Sin seleccionar';
-    if (equipoSel) {
-      var op = equipoSel.options[equipoSel.selectedIndex];
-      if (op && op.value) equipoTxt = op.dataset.id + ' — ' + op.dataset.desc;
-    } else {
-      var fijoId = document.querySelector('.equipo-fijo__id');
-      if (fijoId) equipoTxt = fijoId.textContent;
-    }
-    document.getElementById('rsEquipo').textContent = equipoTxt;
-
+    document.getElementById('rsEquipo').textContent =
+      document.getElementById('artId').textContent + ' — ' + document.getElementById('artNombre').textContent;
     document.getElementById('rsTipo').textContent = NOMBRE_TIPO[tipoSel.value] || 'Sin seleccionar';
-
-    var ubicTxt = '—';
-    if (!bloqueUbicacion.hidden && ubicacionSel.value) {
-      ubicTxt = ubicacionSel.options[ubicacionSel.selectedIndex].text;
-    }
-    document.getElementById('rsUbicacion').textContent = ubicTxt;
-
-    var resgTxt = '—';
-    if (!bloqueResguardante.hidden && resguardanteSel.value) {
-      resgTxt = resguardanteSel.value;
-    }
-    document.getElementById('rsResguardante').textContent = resgTxt;
-
+    document.getElementById('rsUbicacion').textContent =
+      (!bloqueUbicacion.hidden && textoSelect(ubicacionSel)) || '—';
+    document.getElementById('rsResguardante').textContent =
+      (!bloqueResguardante.hidden && textoSelect(resguardanteSel)) || '—';
+    var est = estadoElegido();
+    document.getElementById('rsEstado').textContent =
+      (!bloqueEstado.hidden && est) ? est.parentElement.textContent.trim() : '—';
     document.getElementById('rsFecha').textContent = fechaInput.value || 'Sin capturar';
   }
 
@@ -301,16 +334,16 @@
       marcarError(tipoSel, 'Selecciona el tipo de movimiento.');
       return false;
     }
-    if (equipoSel && !equipoSel.value) {
-      marcarError(equipoSel, 'Selecciona el equipo.');
-      return false;
-    }
     if (tipoSel.value === 'REUB' && !ubicacionSel.value && !resguardanteSel.value) {
       marcarError(ubicacionSel, 'Especifica una nueva ubicación, un nuevo resguardante, o ambos.');
       return false;
     }
     if (tipoSel.value === 'RETE' && !ubicacionSel.value) {
-      marcarError(ubicacionSel, 'Indica dónde se reintegra el equipo.');
+      marcarError(ubicacionSel, 'Indica dónde se reintegra el artículo.');
+      return false;
+    }
+    if (recupera() && !estadoElegido()) {
+      marcarError(bloqueEstado.querySelector('.opciones-estado'), 'Confirma el estado del artículo: Útil u Obsoleto.');
       return false;
     }
     if (!motivoTxt.value.trim()) {
@@ -328,7 +361,7 @@
     sincronizarResumen();
     var filas = [
       ['Tipo', document.getElementById('rsTipo').textContent],
-      ['Equipo', document.getElementById('rsEquipo').textContent],
+      ['Artículo', document.getElementById('rsEquipo').textContent],
     ];
     if (!bloqueUbicacion.hidden && ubicacionSel.value) {
       filas.push(['Nueva ubicación', document.getElementById('rsUbicacion').textContent]);
@@ -336,13 +369,24 @@
     if (!bloqueResguardante.hidden && resguardanteSel.value) {
       filas.push(['Nuevo resguardante', document.getElementById('rsResguardante').textContent]);
     }
+    if (!bloqueEstado.hidden) {
+      filas.push(['Estado confirmado', document.getElementById('rsEstado').textContent]);
+    }
     filas.push(['Fecha', document.getElementById('rsFecha').textContent]);
 
-    var html = '';
+    var lista = document.getElementById('resumenMovimiento');
+    lista.textContent = '';
     filas.forEach(function (f) {
-      html += '<div class="confirmar-modal__fila"><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>';
+      var fila = document.createElement('div');
+      fila.className = 'confirmar-modal__fila';
+      var dt = document.createElement('dt');
+      dt.textContent = f[0];
+      var dd = document.createElement('dd');
+      dd.textContent = f[1];
+      fila.appendChild(dt);
+      fila.appendChild(dd);
+      lista.appendChild(fila);
     });
-    document.getElementById('resumenMovimiento').innerHTML = html;
   }
 
   document.getElementById('btnAbrirConfirmar').addEventListener('click', function () {
@@ -351,11 +395,15 @@
     var modal = new bootstrap.Modal(document.getElementById('modalConfirmar'));
     modal.show();
   });
+
+  sincronizarTipo();
 })();
 </script>
+{% endif %}
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
 <style>
   .ic-back {
     display: inline-flex;
@@ -618,5 +666,16 @@
     .form-layout { grid-template-columns: 1fr; }
     .mov-resumen { display: none; }
   }
+
+  .busca { display: flex; gap: 8px; margin-bottom: 4px; }
+  .busca .campo__input { flex: 1; min-width: 0; }
+  .resultados { list-style: none; margin: 12px 0 0; padding: 0; border: 1px solid var(--ic-border); border-radius: 10px; overflow: hidden; }
+  .resultados li + li { border-top: 1px solid var(--ic-border); }
+  .resultados a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 14px; color: var(--ic-text); text-decoration: none; }
+  .resultados a:hover { background: var(--ic-primary-soft); }
+  .resultados__id { font-weight: 700; }
+  .resultados__meta { font-size: 12.5px; color: var(--ic-muted); }
+  .opciones-estado { display: flex; gap: 10px; flex-wrap: wrap; }
+  .opciones-estado label { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--ic-border); border-radius: 8px; font-size: 13.5px; cursor: pointer; }
 </style>
 {% endblock %}
