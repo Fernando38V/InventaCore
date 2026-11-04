@@ -418,6 +418,43 @@ class CorreccionFichaTests(Base):
                          {'fecha_adquisicion': '2024-05-01', 'motivo': 'x'}, format='json')
         self.assertEqual(r.data['estado_registro']['codigo'], 'DON')
 
+    def test_el_costo_se_corrige_y_pasa_a_registrado(self):
+        p = self.alta(marbete_oficial='M2', num_serie='S2', costo_adquisicion=None)
+        self.assertEqual(p['estado_registro']['codigo'], 'PEND')
+        self.assertEqual(p['faltantes'], ['el costo de adquisición'])
+        r = self.c.patch('/api/articulos/%d/' % p['num'],
+                         {'costo_adquisicion': '8500.50', 'motivo': 'Llegó la factura'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['costo_adquisicion'], '8500.50')
+        self.assertEqual(r.data['estado_registro']['codigo'], 'REG')
+        b = Bitacora.objects.filter(tabla_afectada='articulo', accion='UPDATE').last()
+        self.assertEqual(b.motivo, 'Llegó la factura')
+        self.assertIn('costo_adquisicion', json.loads(b.valor_nuevo))
+        r = self.c.patch('/api/articulos/%d/' % p['num'],
+                         {'costo_adquisicion': None, 'motivo': 'Costo equivocado'}, format='json')
+        self.assertEqual(r.data['estado_registro']['codigo'], 'PEND')
+
+    def test_costo_invalido_o_sin_motivo(self):
+        self.assertIn('costo_adquisicion', self.corregir(costo_adquisicion='-5', motivo='x').data)
+        self.assertEqual(self.corregir(costo_adquisicion='100').data,
+                         {'motivo': 'Indique el motivo del cambio.'})
+
+    def test_en_un_donado_el_costo_no_se_modifica(self):
+        d = self.alta(marbete_oficial='M3', num_serie='S3', donado=True, costo_adquisicion=None,
+                      fecha_adquisicion=None)
+        r = self.c.patch('/api/articulos/%d/' % d['num'],
+                         {'costo_adquisicion': '100', 'motivo': 'x'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data, {'costo_adquisicion': 'En un bien Donado el costo no se modifica.'})
+
+    def test_la_carga_masiva_puede_dar_el_alta_sin_requerir_resguardo(self):
+        from articulos.servicios import alta_articulo
+        from articulos.serializers import ArticuloCrearSerializer
+        entrada = ArticuloCrearSerializer(data=self.datos(marbete_oficial='M9', num_serie='S9'))
+        entrada.is_valid(raise_exception=True)
+        a = alta_articulo(entrada.validated_data, self.admin, requiere_resguardo=False)
+        self.assertFalse(Movimiento.objects.get(articulo=a).requiere_resguardo)
+
     def test_fecha_futura(self):
         manana = (timezone.localdate() + timedelta(days=1)).isoformat()
         self.assertIn('fecha_adquisicion', self.corregir(fecha_adquisicion=manana, motivo='x').data)
@@ -455,3 +492,201 @@ class CorreccionFichaTests(Base):
     def test_put_y_delete_no_existen(self):
         self.assertEqual(self.c.put(self.url, {}, format='json').status_code, 405)
         self.assertEqual(self.c.delete(self.url).status_code, 405)
+
+
+class ExportacionTests(Base):
+    def setUp(self):
+        super().setUp()
+        for i in range(12):
+            self.alta(marbete_oficial='M%02d' % i, num_serie='S%02d' % i)
+        self.alta(origen='COM', marbete_oficial=None, num_serie='SC', descripcion='=HYPERLINK("x")',
+                  costo_adquisicion=None)
+
+    def test_todos_devuelve_todo_sin_paginar_y_respeta_filtros(self):
+        r = self.c.get('/api/articulos/todos/')
+        self.assertEqual((r.status_code, len(r.data)), (200, 13))
+        self.assertEqual(len(self.c.get('/api/articulos/').data['results']), 10)
+        r = self.c.get('/api/articulos/todos/?origen=COM')
+        self.assertEqual(len(r.data), 1)
+
+    def test_excel_con_las_columnas_de_dec_018(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        r = self.c.get('/api/articulos/exportar/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('spreadsheetml', r['Content-Type'])
+        self.assertIn('inventario_', r['Content-Disposition'])
+        hoja = load_workbook(BytesIO(r.content)).active
+        filas = list(hoja.values)
+        self.assertEqual(len(filas), 14)  # encabezado + 13 artículos
+        self.assertEqual(filas[0][:3], ('Identificador', 'Categoría', 'Tipo de artículo'))
+        self.assertEqual(filas[0][-1], 'Estado de registro')
+        self.assertNotIn('Cuenta contable', filas[0])
+        comodato = [f for f in filas[1:] if f[8] == 'Comodato'][0]
+        self.assertTrue(comodato[0].startswith('02143'))
+        self.assertEqual(comodato[7], "'=HYPERLINK(\"x\")")  # no se interpreta como fórmula
+        self.assertIsNone(comodato[13])
+        self.assertEqual(comodato[14], 'Pendiente')
+
+    def test_excel_respeta_filtros(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        r = self.c.get('/api/articulos/exportar/?origen=COM')
+        self.assertEqual(len(list(load_workbook(BytesIO(r.content)).active.values)), 2)
+
+    def test_consulta_puede_exportar(self):
+        c = self.cliente(self.obs)
+        self.assertEqual(c.get('/api/articulos/exportar/').status_code, 200)
+        self.assertEqual(c.get('/api/articulos/todos/').status_code, 200)
+
+
+import shutil
+import tempfile
+
+from django.test import override_settings
+
+from movimientos.models import Resguardo, ResguardoDetalle
+
+
+class ResguardosTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.carpeta = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.carpeta, True)
+        configuracion = override_settings(
+            RESGUARDOS_DIR=self.carpeta, CONTADORA_NOMBRE='Rosa María Gómez Luna')
+        configuracion.enable()
+        self.addCleanup(configuracion.disable)
+        self.a1 = self.alta(marbete_oficial='M1', num_serie='S1')
+        self.a2 = self.alta(marbete_oficial='M2', num_serie='S2', marca=None)
+        self.m1 = Movimiento.objects.get(articulo_id=self.a1['num']).folio
+        self.m2 = Movimiento.objects.get(articulo_id=self.a2['num']).folio
+
+    def emitir(self, movimientos='todos', resguardante=None):
+        if movimientos == 'todos':
+            movimientos = [self.m1, self.m2]
+        return self.c.post('/api/resguardos/', {
+            'resguardante': resguardante or self.ana.num,
+            'movimientos': movimientos}, format='json')
+
+    def test_un_resguardo_con_varios_articulos(self):
+        r = self.emitir()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['folio'], 'RES-0001')
+        self.assertEqual(r.data['numero_bienes'], 2)
+        self.assertEqual({a['identificador'] for a in r.data['articulos']}, {'M1', 'M2'})
+        self.assertEqual(r.data['usuario_emisor']['username'], 'admin')
+        self.assertEqual(ResguardoDetalle.objects.count(), 2)
+        self.assertTrue(Bitacora.objects.filter(tabla_afectada='resguardo', accion='INSERT').exists())
+
+    def test_el_pdf_se_guarda_y_la_reimpresion_entrega_el_original(self):
+        r = self.emitir()
+        pdf1 = self.c.get(r.data['pdf'])
+        self.assertEqual((pdf1.status_code, pdf1['Content-Type']), (200, 'application/pdf'))
+        self.assertTrue(pdf1.content.startswith(b'%PDF'))
+        import hashlib
+        self.assertEqual(hashlib.sha256(pdf1.content).hexdigest(), r.data['hash_pdf'])
+        pdf2 = self.c.get(r.data['pdf'])
+        self.assertEqual(pdf1.content, pdf2.content)
+        self.assertEqual(Resguardo.objects.count(), 1)  # reimprimir no crea folio nuevo
+        self.assertEqual(Movimiento.objects.count(), 2)
+
+    def test_el_pdf_trae_el_nombre_de_la_contadora_y_los_articulos(self):
+        r = self.emitir()
+        import re
+        import zlib
+        crudo = self.c.get(r.data['pdf']).content
+        texto = b''
+        for flujo in re.findall(rb'stream\r?\n(.*?)endstream', crudo, re.S):
+            try:
+                texto += zlib.decompress(__import__('base64').a85decode(flujo.strip(), adobe=True))
+            except Exception:
+                continue
+        self.assertIn(b'RES-0001', texto)
+        # reportlab escribe los acentos como secuencias octales (í = \\355, ó = \\363)
+        self.assertIn(b'Rosa Mar\\355a G\\363mez Luna', texto)
+        self.assertIn(b'Responsable de seguimiento', texto)
+        self.assertIn(b'M1', texto)
+
+    def test_una_asignacion_no_se_documenta_dos_veces(self):
+        self.assertEqual(self.emitir([self.m1]).status_code, 201)
+        r = self.emitir([self.m1, self.m2])
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('ya está documentado', r.data['movimientos'])
+        self.assertEqual(Resguardo.objects.count(), 1)
+
+    def test_no_mezcla_resguardantes_ni_movimientos_que_no_lo_requieren(self):
+        self.mov(tipo='REUB', articulo=self.a1['num'], resguardante=str(self.beto.num),
+                 motivo='Cambio de persona')
+        m_beto = Movimiento.objects.filter(articulo_id=self.a1['num']).first().folio
+        r = self.emitir([m_beto, self.m2])  # m_beto es de Beto
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('otra persona', r.data['movimientos'])
+        self.mov(tipo='REPA', articulo=self.a2['num'], ubicacion='UBI-LAB1', motivo='Falla')
+        reparacion = Movimiento.objects.filter(articulo_id=self.a2['num']).first().folio
+        r = self.emitir([reparacion])
+        self.assertIn('no requiere resguardo', r.data['movimientos'])
+
+    def test_un_articulo_que_ya_no_esta_a_cargo_no_se_documenta(self):
+        self.mov(tipo='REUB', articulo=self.a1['num'], resguardante=str(self.beto.num),
+                 motivo='Cambio de persona')
+        r = self.emitir([self.m1])  # la ALTA de Ana, pero ya lo tiene Beto
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('ya no está a cargo', r.data['movimientos'])
+
+    def test_pendientes_y_marca_en_el_movimiento(self):
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.ana.num)
+        self.assertEqual(r.data['count'], 2)
+        self.emitir([self.m1])
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.ana.num)
+        self.assertEqual([m['folio'] for m in r.data['results']], [self.m2])
+        m = self.c.get('/api/movimientos/%s/' % self.m1).data
+        self.assertEqual(m['resguardo'], 'RES-0001')
+        self.assertIsNone(self.c.get('/api/movimientos/%s/' % self.m2).data['resguardo'])
+
+    def test_validaciones_de_entrada(self):
+        self.assertEqual(self.emitir([]).status_code, 400)
+        self.assertEqual(self.emitir(['XYZ']).status_code, 400)
+        self.assertEqual(self.emitir(['MOV-0999']).status_code, 400)
+        self.assertEqual(self.emitir([self.m1, self.m1]).status_code, 400)
+        self.assertEqual(self.emitir(resguardante=99999).status_code, 400)
+        self.assertEqual(Resguardo.objects.count(), 0)
+
+    def test_sin_nombre_de_contadora_no_se_emite(self):
+        with override_settings(CONTADORA_NOMBRE=''):
+            r = self.emitir()
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('CONTADORA_NOMBRE', r.data['detalle'])
+        self.assertEqual(Resguardo.objects.count(), 0)
+
+    def test_si_el_archivo_cambia_la_reimpresion_avisa(self):
+        import os
+        r = self.emitir()
+        with open(os.path.join(self.carpeta, 'RES-0001.pdf'), 'ab') as f:
+            f.write(b'alterado')
+        self.assertEqual(self.c.get(r.data['pdf']).status_code, 409)
+
+    def test_los_resguardos_no_se_editan_ni_se_borran(self):
+        from api.inmutable import RegistroInmutable
+        self.emitir()
+        res = Resguardo.objects.get()
+        with self.assertRaises(RegistroInmutable):
+            res.delete()
+        res.hash_pdf = 'x'
+        with self.assertRaises(RegistroInmutable):
+            res.save()
+
+    def test_consulta_lee_pero_no_emite(self):
+        r = self.emitir()
+        c = self.cliente(self.obs)
+        self.assertEqual(c.get('/api/resguardos/').status_code, 200)
+        self.assertEqual(c.get(r.data['pdf']).status_code, 200)
+        self.assertEqual(c.post('/api/resguardos/', {'resguardante': self.ana.num,
+                                                      'movimientos': [self.m2]}, format='json').status_code, 403)
+
+    def test_lista_y_filtros(self):
+        self.emitir([self.m1])
+        self.assertEqual(self.c.get('/api/resguardos/?resguardante=%d' % self.ana.num).data['count'], 1)
+        self.assertEqual(self.c.get('/api/resguardos/?resguardante=%d' % self.beto.num).data['count'], 0)
+        self.assertEqual(self.c.get('/api/resguardos/?articulo=%d' % self.a1['num']).data['count'], 1)
+        self.assertEqual(self.c.get('/api/resguardos/?q=RES-0001').data['count'], 1)

@@ -100,6 +100,9 @@ class ArticuloCorregirSerializer(serializers.Serializer):
     color = serializers.CharField(max_length=25, required=False)
     descripcion = serializers.CharField(max_length=150, required=False)
     fecha_adquisicion = serializers.DateField(required=False, allow_null=True)
+    costo_adquisicion = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, allow_null=True,
+        min_value=Decimal('0'))
     estado_operativo = serializers.CharField(required=False)
     motivo = serializers.CharField(max_length=255, error_messages={
         'blank': 'Indique el motivo del cambio.', 'required': 'Indique el motivo del cambio.'})

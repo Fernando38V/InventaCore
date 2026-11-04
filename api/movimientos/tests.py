@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from api.inmutable import RegistroInmutable
 from articulos.tests import crear, crear_personal
-from movimientos.models import Movimiento, Resguardo
+from movimientos.models import Movimiento, Resguardo, ResguardoDetalle
 from personal.models import Personal
 from usuarios.models import Rol, Usuario
 
@@ -148,29 +148,44 @@ class MovimientoInmutableTests(BaseMovimientos):
 
 
 class ResguardoTests(BaseMovimientos):
-    def test_un_resguardo_por_movimiento(self):
+    """Diseño PEND-001 / DEC-016: RESGUARDO + RESGUARDO_DETALLE (movimiento único)."""
+
+    def resguardo(self, folio='RES-0001'):
+        return Resguardo.objects.create(
+            folio=folio, resguardante=self.beto, usuario_emisor=self.usuario,
+            ruta_pdf='%s.pdf' % folio, hash_pdf='0' * 64)
+
+    def test_un_resguardo_lista_varios_movimientos(self):
+        m1 = self.mov(resguardante_nuevo=self.beto)
+        m2 = self.mov(folio='MOV-0002', resguardante_nuevo=self.beto)
+        r = self.resguardo()
+        ResguardoDetalle.objects.create(resguardo=r, movimiento=m1)
+        ResguardoDetalle.objects.create(resguardo=r, movimiento=m2)
+        self.assertEqual(r.detalles.count(), 2)
+
+    def test_una_asignacion_no_se_documenta_dos_veces(self):
         m = self.mov(resguardante_nuevo=self.beto)
-        Resguardo.objects.create(folio='RES-0001', movimiento=m)
+        ResguardoDetalle.objects.create(resguardo=self.resguardo(), movimiento=m)
         with self.assertRaises(IntegrityError), transaction.atomic():
-            Resguardo.objects.create(folio='RES-0002', movimiento=m)
+            ResguardoDetalle.objects.create(resguardo=self.resguardo('RES-0002'), movimiento=m)
 
-    def test_la_ruta_del_pdf_puede_faltar_y_llenarse_despues(self):
-        r = Resguardo.objects.create(
-            folio='RES-0001', movimiento=self.mov(resguardante_nuevo=self.beto))
-        self.assertIsNone(r.ruta_pdf)
-        r.ruta_pdf = 'resguardos/RES-0001.pdf'
-        r.save()
-        self.assertEqual(Resguardo.objects.get().ruta_pdf, 'resguardos/RES-0001.pdf')
+    def test_la_ruta_del_pdf_es_unica(self):
+        self.resguardo()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Resguardo.objects.create(
+                folio='RES-0002', resguardante=self.beto, usuario_emisor=self.usuario,
+                ruta_pdf='RES-0001.pdf', hash_pdf='1' * 64)
 
-    def test_no_se_borra(self):
-        r = Resguardo.objects.create(
-            folio='RES-0001', movimiento=self.mov(resguardante_nuevo=self.beto))
+    def test_no_se_edita_ni_se_borra(self):
+        r = self.resguardo()
         with self.assertRaises(RegistroInmutable):
             r.delete()
+        r.hash_pdf = 'x'
+        with self.assertRaises(RegistroInmutable):
+            r.save()
 
-    def test_no_se_borra_un_movimiento_con_resguardo(self):
+    def test_no_se_borra_un_movimiento_documentado(self):
         m = self.mov(resguardante_nuevo=self.beto)
-        Resguardo.objects.create(folio='RES-0001', movimiento=m)
+        ResguardoDetalle.objects.create(resguardo=self.resguardo(), movimiento=m)
         with self.assertRaises(RegistroInmutable):
             m.delete()
-

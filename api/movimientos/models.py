@@ -87,26 +87,52 @@ class Movimiento(InmutableModel):
         return self.folio
 
 
-class Resguardo(models.Model):
-    """Documento PDF que ampara al resguardante (RF-18). Uno por movimiento
-    que lo genere. No se borra; solo se llena `ruta_pdf` al generar el PDF."""
+class Resguardo(InmutableModel):
+    """Documento PDF que el resguardante firma (RF-18, DEC-007, DEC-016).
+
+    Se genera bajo demanda para uno o varios movimientos del mismo
+    resguardante. El PDF emitido se conserva sin cambios (`hash_pdf` permite
+    comprobarlo) y la reimpresión entrega ese mismo archivo, sin folio ni
+    movimiento nuevos. Generarlo no equivale a que esté firmado.
+    """
 
     folio = models.CharField(max_length=20, primary_key=True)  # RES-0001
-    fecha_generacion = models.DateTimeField(default=timezone.now, editable=False)
-    ruta_pdf = models.CharField(max_length=255, null=True, blank=True)
-    movimiento = models.OneToOneField(
-        Movimiento, on_delete=models.PROTECT,
-        db_column='movimiento', related_name='resguardo')
+    fecha_emision = models.DateTimeField(default=timezone.now, editable=False)
+    resguardante = models.ForeignKey(
+        'personal.Personal', on_delete=models.PROTECT,
+        db_column='resguardante', related_name='resguardos')
+    usuario_emisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        db_column='usuario_emisor', related_name='resguardos_emitidos')
+    # Ruta del archivo dentro de la carpeta de resguardos (RESGUARDOS_DIR).
+    ruta_pdf = models.CharField(max_length=255, unique=True)
+    hash_pdf = models.CharField(max_length=64)  # SHA-256 en hexadecimal
 
     class Meta:
         db_table = 'resguardo'
-        ordering = ['-fecha_generacion', '-folio']
+        ordering = ['-fecha_emision', '-folio']
         verbose_name = 'resguardo'
         verbose_name_plural = 'resguardos'
 
-    def delete(self, *args, **kwargs):
-        from api.inmutable import RegistroInmutable
-        raise RegistroInmutable('Los resguardos no se pueden borrar.')
-
     def __str__(self):
         return self.folio
+
+
+class ResguardoDetalle(InmutableModel):
+    """Una asignación (movimiento) documentada en un resguardo. El movimiento
+    es único: una asignación no se documenta dos veces. El artículo se obtiene
+    por el movimiento."""
+
+    num = models.AutoField(primary_key=True)
+    resguardo = models.ForeignKey(
+        Resguardo, on_delete=models.PROTECT,
+        db_column='resguardo', related_name='detalles')
+    movimiento = models.OneToOneField(
+        Movimiento, on_delete=models.PROTECT,
+        db_column='movimiento', related_name='detalle_resguardo')
+
+    class Meta:
+        db_table = 'resguardo_detalle'
+        ordering = ['num']
+        verbose_name = 'detalle de resguardo'
+        verbose_name_plural = 'detalles de resguardo'

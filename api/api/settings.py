@@ -153,3 +153,11 @@ REST_FRAMEWORK = {
 
 # El token de acceso vence al día siguiente de iniciar sesión.
 TOKEN_VIGENCIA_HORAS = 24
+
+# --- Resguardos en PDF (RF-18, DEC-007, DEC-016) -----------------------------
+# Nombre completo de la Contadora que firma como responsable de seguimiento.
+# Sin él, la API no emite resguardos y avisa que falta configurarlo.
+CONTADORA_NOMBRE = 'Lic. Jania Elizabeth Cardenas Vela'
+INSTITUCION_NOMBRE = 'CONALEP Plantel Tijuana II'
+# Carpeta del servidor donde se guardan los PDF emitidos (no se sobrescriben).
+RESGUARDOS_DIR = BASE_DIR / 'resguardos_pdf'
