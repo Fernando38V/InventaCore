@@ -25,20 +25,28 @@ def _duplicado(campo, valor, mensaje):
 
 
 @transaction.atomic
-def alta_articulo(datos, usuario, requiere_resguardo=None):
-    """Alta con su movimiento ALTA. `requiere_resguardo` lo decide el sistema
-    (verdadero salvo que el bien entre No localizado); la carga masiva lo manda
-    en falso porque no genera comprobante (DEC-007, DEC-017)."""
+def alta_articulo(datos, usuario, requiere_resguardo=None, folio_interno=None, motivo=None):
+    """Alta con su movimiento ALTA.
+
+    `requiere_resguardo` lo decide el sistema (verdadero salvo que el bien entre
+    No localizado). La carga masiva (DEC-007, DEC-017) lo manda en falso porque
+    no genera comprobante, respeta el folio que el bien ya tiene
+    (`folio_interno`, RF-06) y pone su propio `motivo` en el movimiento ALTA.
+    """
     origen = datos['origen']
     _duplicado('marbete_oficial', datos.get('marbete_oficial'), 'Ese marbete ya está registrado.')
     _duplicado('num_serie', datos.get('num_serie'), 'Ese número de serie ya está registrado.')
 
     folio = None
     if origen.pk in ('COM', 'ENS'):
-        try:
-            folio = siguiente_folio_interno()
-        except FolioAgotado as error:
-            raise ValidationError({'origen': str(error)})
+        if folio_interno:
+            _duplicado('folio_interno', folio_interno, 'Ese folio ya está registrado.')
+            folio = folio_interno
+        else:
+            try:
+                folio = siguiente_folio_interno()
+            except FolioAgotado as error:
+                raise ValidationError({'origen': str(error)})
 
     ubicacion = datos['ubicacion']
     estado_operativo = (EstadoOperativo.objects.get(pk='NOLOC')
@@ -66,7 +74,7 @@ def alta_articulo(datos, usuario, requiere_resguardo=None):
     # localizado no generan resguardo; el resto sí.
     movimiento = Movimiento.objects.create(
         folio=siguiente_folio_movimiento(),
-        motivo='Alta del artículo en el sistema',
+        motivo=motivo or 'Alta del artículo en el sistema',
         articulo=articulo, tipo_movimiento=TipoMovimiento.objects.get(pk='ALTA'),
         ubicacion_origen=None, ubicacion_destino=ubicacion,
         resguardante_anterior=None, resguardante_nuevo=articulo.resguardante,

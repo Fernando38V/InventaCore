@@ -1,4 +1,4 @@
-# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard y Reportes (v10)
+# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva (v12)
 
 Backend: `http://127.0.0.1:8000/api/`. Todas las peticiones (menos el login) llevan
 `Authorization: Token <token>`. El rol CONSULTA solo puede hacer GET; ADMIN puede todo.
@@ -23,6 +23,9 @@ Los ejemplos son respuestas reales del backend. Refleja DECISIONES.md al 03/11/2
 | POST | `/resguardos/` | Emitir un resguardo (solo Administrador) |
 | GET | `/resguardos/<folio>/pdf/` | El PDF emitido, sin cambios (reimpresión) |
 | GET | `/resguardos/pendientes/?resguardante=<num>` | Asignaciones que requieren resguardo y aún no tienen |
+| GET | `/carga-masiva/plantilla/` | Plantilla .xlsx con listas desplegables (solo Administrador) |
+| POST | `/carga-masiva/validar/` | Sube el Excel y devuelve la vista previa; no guarda nada (solo Administrador) |
+| POST | `/carga-masiva/confirmar/` | Guarda solo las filas válidas (solo Administrador) |
 | GET | `/dashboard/` | Totales para el tablero (DEC-020) |
 | GET | `/reportes/inventario/` | Inventario filtrable sin paginar; `?formato=xlsx` lo descarga |
 | GET | `/reportes/resguardante/<num>/` | Artículos que tiene hoy un resguardante; `?formato=xlsx` |
@@ -289,8 +292,7 @@ Respuesta `201`:
 - Errores `400` (en `movimientos`): el folio no existe, no requiere resguardo, es de otra persona, ya está
   documentado en otro resguardo, o el artículo ya no está a cargo de ese resguardante.
 - Cada movimiento trae ahora `"resguardo": "RES-0001"` (o `null` si todavía no está documentado).
-- Las altas de la carga masiva (DEC-017) no generan resguardo: el servicio de alta acepta
-  `requiere_resguardo=False` para eso. La carga masiva en sí todavía no está construida.
+- Las altas de la carga masiva (DEC-017) no generan resguardo (`requiere_resguardo: false`).
 
 ## Dashboard — `GET /dashboard/` (DEC-020)
 
@@ -327,6 +329,87 @@ Todos sin paginar y abiertos a Admin y Consulta.
   Ubicación, Resguardante, Estado operativo, Fecha de adquisición, Costo de adquisición, Estado de registro.
   Sin cuenta contable. Los textos que empiezan con `=`, `+`, `-` o `@` llevan un apóstrofo para que Excel no
   los tome como fórmula. El archivo se llama `inventario_AAAAMMDD.xlsx`.
+
+## Carga masiva desde Excel (RF-24, RF-25, DEC-017)
+
+Solo Administrador. Antes de la primera carga deben existir categorías, tipos, ubicaciones y personal.
+
+1. **Plantilla:** `GET /carga-masiva/plantilla/` baja `plantilla_carga_masiva.xlsx`: un libro con una hoja por
+   origen, como lo trabaja la Contadora: *Activos*, *Comodatos* y *Enseres* (más *Instrucciones* y las hojas
+   auxiliares *Listas* y *Tipos*, que alimentan los desplegables). **El origen sale de la hoja**; no hay columna
+   "Origen". Columnas de cada hoja: Marbete (en Activos) o Folio (en Comodatos y Enseres), **Categoría**,
+   **Tipo de artículo** (columnas separadas; el desplegable del tipo muestra solo los de la categoría elegida),
+   Marca, Modelo, Número de serie, Color, Descripción, Ubicación, Resguardante, Estado operativo, Fecha de
+   adquisición, Costo de adquisición, ¿Donado? (Sí/No). **No** trae el estado de registro: lo calcula el sistema.
+2. **Vista previa:** `POST /carga-masiva/validar/`, `multipart/form-data`, campo `archivo`. No guarda nada.
+3. **Confirmar:** `POST /carga-masiva/confirmar/`, `multipart/form-data`, campos `archivo` (el mismo) y `hash`
+   (el de la vista previa). Vuelve a validar y guarda solo las filas válidas, todas en una transacción
+   (si algo falla, no se guarda nada). Si el archivo cambió respecto a la vista previa: `400`.
+
+Hojas: se aceptan también en singular (`Activo`, `Comodato`, `Enser`) y sin importar mayúsculas o acentos. Puede
+faltar alguna (o venir vacía) mientras haya al menos una con filas. Cualquier otra hoja (por ejemplo *Licencias*)
+se ignora y se informa en `hojas_ignoradas`. Se procesan en el orden Activos, Comodatos, Enseres.
+
+La vista previa trae `ya_cargado` (`null`, o `{"fecha": "2026-11-04 11:20", "usuario": "admin"}` si **ese mismo
+archivo** ya se cargó). Confirmar un archivo ya cargado responde `400`: así subirlo dos veces no duplica las filas
+que no tienen marbete, folio ni serie (por ejemplo un enser sin folio), que el sistema no puede reconocer como
+repetidas por sus datos. Un archivo con cualquier cambio sí se puede cargar.
+
+Respuesta de la vista previa (los `datos` de cada fila traen todas las columnas, aquí se recortan):
+
+```json
+{"archivo": "inventario_2026.xlsx", "hash": "9b0615db…", "total": 4, "validas": 2, "con_error": 2,
+ "ya_cargado": null, "hojas_ignoradas": ["Licencias"],
+ "hojas": [{"hoja": "Activos", "origen": "Activo", "filas": 2, "validas": 1, "con_error": 1},
+           {"hoja": "Enseres", "origen": "Enser", "filas": 2, "validas": 1, "con_error": 1}],
+ "columnas": {"identificador": "Marbete o folio", "categoria": "Categoría", "tipo_articulo": "Tipo de artículo",
+              "…": "…", "donado": "¿Donado?"},
+ "filas": [
+   {"hoja": "Activos", "fila": 2, "estado": "valida", "errores": {},
+    "datos": {"origen": "Activo", "identificador": "02-520-00001", "categoria": "EQUIPO DE CÓMPUTO", "tipo_articulo": "Laptop", "…": "…"}},
+   {"hoja": "Activos", "fila": 4, "estado": "error", "errores": {"identificador": "Los activos llevan marbete oficial."},
+    "datos": {"origen": "Activo", "identificador": null, "…": "…"}},
+   {"hoja": "Enseres", "fila": 5, "estado": "error",
+    "errores": {"tipo_articulo": "El tipo \"Laptop\" no pertenece a la categoría \"MUEBLES\"."},
+    "datos": {"origen": "Enser", "identificador": "IC-2019-044", "…": "…"}}]}
+```
+
+`hoja` + `fila` identifican la fila del Excel (la fila se numera desde 2 en cada hoja). `errores` va por clave de
+columna (las de `columnas`). Respuesta `201` de confirmar:
+
+```json
+{"archivo": "inventario_2026.xlsx", "hash": "9b0615db…", "total": 4, "cargados": 2, "rechazados": 2,
+ "hojas": [{"hoja": "Activos", "origen": "Activo", "filas": 3, "validas": 2, "con_error": 1}],
+ "articulos": [{"hoja": "Activos", "fila": 2, "num": 1, "identificador": "02-520-00001"},
+               {"hoja": "Enseres", "fila": 2, "num": 2, "identificador": "021431126-001"}],
+ "filas_rechazadas": [{"hoja": "Activos", "fila": 4, "estado": "error", "errores": {"…": "…"}, "datos": {"…": "…"}}]}
+```
+
+Reglas:
+- Cada fila se valida con las mismas reglas del alta manual. Los catálogos se reconocen sin distinguir
+  mayúsculas, acentos ni espacios extra; Categoría y Tipo aceptan el nombre o el código. El **tipo se busca
+  dentro de la categoría de la fila**: si el tipo existe pero en otra categoría el error dice que no pertenece
+  a ella. El mismo nombre de tipo puede existir en dos categorías. Ubicación y Resguardante aceptan la
+  etiqueta de la lista (`E001 · Nombre`) o solo el código. El resguardante se identifica por su **número de
+  empleado**, no por el nombre.
+- **Marbete o folio:** en Activos es el marbete (obligatorio). En Comodatos y Enseres es el folio que el bien ya
+  tiene (se respeta aunque tenga otro formato); si va vacío, el sistema asigna uno (`02143MMYY-NNN`).
+- Se rechaza como duplicado un marbete, folio o serie que ya existe en el sistema, y los repetidos dentro del
+  mismo archivo, también entre hojas (la segunda aparición; el mensaje dice la hoja y fila de la primera).
+- Fecha `DD/MM/AAAA` (también `AAAA-MM-DD`); costo numérico (acepta `$` y comas); ¿Donado? `Sí`/`No`
+  (vacío = No); estado operativo `Útil`/`Obsoleto` (vacío = Útil). Un bien en "Sin ubicar" queda No localizado.
+- Cada artículo cargado genera su ALTA con motivo `Carga masiva (archivo.xlsx, DD/MM/AAAA)` y
+  `requiere_resguardo: false` (no genera resguardo pendiente). En la bitácora queda una fila por artículo y
+  otra del lote (`modulo: carga_masiva`: archivo, huella, filas cargadas por hoja y rechazadas).
+- Límites: 2000 filas (entre las tres hojas) y 5 MB por archivo. Errores de archivo (no es .xlsx, ninguna de las
+  tres hojas, faltan columnas en una hoja —el mensaje nombra la hoja—, sin filas, demasiadas filas) llegan como
+  `400` con `{"archivo": "mensaje"}`.
+- Si faltan folios del mes (máximo 999), las filas de Comodatos/Enseres sin folio que ya no caben se marcan con
+  error; con folio propio sí entran.
+- Los inventarios por año se cargan del más reciente (2026) al más antiguo: los anteriores solo agregan lo
+  que no aparece en los más recientes (lo garantiza el rechazo de duplicados).
+- Los desplegables (incluido el del tipo dependiente de la categoría) se probaron en LibreOffice; falta
+  probarlos en Excel real.
 
 ## Errores
 
