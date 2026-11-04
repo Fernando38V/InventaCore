@@ -45,3 +45,6 @@ Thumbs.db
 
 # Configuraciones locales sensibles (no subir)
 */settings_local.py
+
+# PDF de resguardos emitidos (datos personales, no se suben)
+api/resguardos_pdf/

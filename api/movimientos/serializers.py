@@ -26,7 +26,8 @@ class MovimientoSerializer(serializers.BaseSerializer):
     def optimizar(consulta):
         return consulta.select_related(
             'articulo', 'tipo_movimiento', 'ubicacion_origen', 'ubicacion_destino',
-            'resguardante_anterior', 'resguardante_nuevo', 'usuario__personal')
+            'resguardante_anterior', 'resguardante_nuevo', 'usuario__personal',
+            'detalle_resguardo')
 
     def to_representation(self, m):
         local = timezone.localtime(m.fecha_movimiento)
@@ -40,6 +41,9 @@ class MovimientoSerializer(serializers.BaseSerializer):
             'fecha_hora': local.strftime('%H:%M'),
             'tipo': par(m.tipo_movimiento),
             'requiere_resguardo': m.requiere_resguardo,
+            # Folio del resguardo que ya documenta esta asignación (o null).
+            'resguardo': (m.detalle_resguardo.resguardo_id
+                          if hasattr(m, 'detalle_resguardo') else None),
             'articulo': {
                 'num': m.articulo_id,
                 'identificador': m.articulo.identificador,
@@ -83,3 +87,42 @@ class MovimientoCrearSerializer(serializers.Serializer):
         if fecha and fecha > timezone.localdate():
             raise serializers.ValidationError('La fecha no puede ser futura.')
         return fecha
+
+
+class ResguardoSerializer(serializers.BaseSerializer):
+    """Solo lectura. `pdf` es la ruta de descarga del archivo original."""
+
+    @staticmethod
+    def optimizar(consulta):
+        return consulta.select_related(
+            'resguardante', 'usuario_emisor').prefetch_related(
+            'detalles__movimiento__articulo')
+
+    def to_representation(self, r):
+        detalles = list(r.detalles.all())
+        return {
+            'folio': r.folio,
+            'fecha_emision': timezone.localtime(r.fecha_emision).strftime('%Y-%m-%d %H:%M'),
+            'resguardante': persona(r.resguardante),
+            'usuario_emisor': {'num': r.usuario_emisor_id, 'username': r.usuario_emisor.username},
+            'numero_bienes': len(detalles),
+            'hash_pdf': r.hash_pdf,
+            'pdf': '/api/resguardos/%s/pdf/' % r.folio,
+            'articulos': [{
+                'num': d.movimiento.articulo_id,
+                'identificador': d.movimiento.articulo.identificador,
+                'descripcion': _descripcion(d.movimiento.articulo),
+                'movimiento': d.movimiento_id,
+            } for d in detalles],
+        }
+
+
+class ResguardoCrearSerializer(serializers.Serializer):
+    resguardante = serializers.IntegerField(error_messages={
+        'required': 'Seleccione al resguardante.', 'invalid': 'Seleccione al resguardante.'})
+    movimientos = serializers.ListField(
+        child=serializers.RegexField(r'^MOV-\d+$', error_messages={
+            'invalid': 'Folio de movimiento no válido.'}),
+        allow_empty=False, error_messages={
+            'required': 'Seleccione al menos un movimiento.',
+            'empty': 'Seleccione al menos un movimiento.'})

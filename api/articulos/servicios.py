@@ -25,7 +25,10 @@ def _duplicado(campo, valor, mensaje):
 
 
 @transaction.atomic
-def alta_articulo(datos, usuario):
+def alta_articulo(datos, usuario, requiere_resguardo=None):
+    """Alta con su movimiento ALTA. `requiere_resguardo` lo decide el sistema
+    (verdadero salvo que el bien entre No localizado); la carga masiva lo manda
+    en falso porque no genera comprobante (DEC-007, DEC-017)."""
     origen = datos['origen']
     _duplicado('marbete_oficial', datos.get('marbete_oficial'), 'Ese marbete ya está registrado.')
     _duplicado('num_serie', datos.get('num_serie'), 'Ese número de serie ya está registrado.')
@@ -67,7 +70,8 @@ def alta_articulo(datos, usuario):
         articulo=articulo, tipo_movimiento=TipoMovimiento.objects.get(pk='ALTA'),
         ubicacion_origen=None, ubicacion_destino=ubicacion,
         resguardante_anterior=None, resguardante_nuevo=articulo.resguardante,
-        requiere_resguardo=ubicacion.pk != UBICACION_NO_LOCALIZADO,
+        requiere_resguardo=(ubicacion.pk != UBICACION_NO_LOCALIZADO
+                            if requiere_resguardo is None else requiere_resguardo),
         usuario=usuario)
     registrar(usuario, 'movimientos', 'INSERT', movimiento, nuevo=datos_de(movimiento))
     return articulo
@@ -81,9 +85,9 @@ CAMPOS_CORREGIBLES = ('marbete_oficial', 'marca', 'modelo', 'num_serie', 'color'
 def corregir_articulo(articulo, datos, usuario):
     """Corrige datos de la ficha con motivo y bitácora (DEC-013).
 
-    - Marbete (solo Activos), marca, modelo, serie, color, descripción y fecha
-      de adquisición. Si cambia la fecha, el estado de registro se recalcula
-      (DEC-008).
+    - Marbete (solo Activos), marca, modelo, serie, color, descripción, fecha
+      y costo de adquisición. Si cambia la fecha o el costo, el estado de
+      registro se recalcula (DEC-008); en un bien Donado el costo no se toca.
     - Estado operativo: solo Útil <-> Obsoleto, con motivo. Un artículo No
       localizado no pasa a Obsoleto (DEC-012): se recupera con una reubicación.
     - Ubicación y resguardante no se tocan aquí: solo cambian por movimiento.
@@ -118,6 +122,12 @@ def corregir_articulo(articulo, datos, usuario):
                 setattr(articulo, campo, valor)
     if 'fecha_adquisicion' in datos:
         articulo.fecha_adquisicion = datos['fecha_adquisicion']
+    if 'costo_adquisicion' in datos:
+        # DEC-013: en un bien Donado el costo no se modifica mientras PEND-004 siga abierto.
+        if articulo.estado_registro_id == 'DON':
+            errores['costo_adquisicion'] = 'En un bien Donado el costo no se modifica.'
+        else:
+            articulo.costo_adquisicion = datos['costo_adquisicion']
 
     if 'estado_operativo' in datos:
         nuevo = datos['estado_operativo']

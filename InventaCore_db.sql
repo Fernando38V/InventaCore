@@ -2,7 +2,7 @@
    SISTEMA DE CONTROL Y GESTIÓN DE INVENTARIO PARA EQUIPO ELECTRÓNICO
    CONALEP Tijuana II — Departamento de Informática
    ==========================================================================
-   Script v3 (reescrito) — compatible con MySQL 8.0 y MariaDB 10.x (XAMPP).
+   Script v4 (sincronizado con DECISIONES.md del 01/11/2026) — compatible con MySQL 8.0 y MariaDB 10.x (XAMPP).
    Fuentes: Diccionario de datos v2 + RF-01..RF-23 + RNF-01..RNF-11.
    Probado: se ejecuta de principio a fin en MariaDB 10.11 sin errores.
 
@@ -54,8 +54,9 @@
      DEC-004  Sin triggers: la bitácora la escribe Django en la misma
               transacción que el movimiento y la actualización del artículo.
      DEC-005  QR = identificador técnico basado en la PK; sin tabla ni URL.
-     DEC-006  Tipos de movimiento: ALTA, REUB, REPA, RETE y BAJA. Ningún
-              movimiento sin cambio efectivo.
+     DEC-006  Tipos de movimiento: ALTA, REUB, REPA y RETE (actualizada
+              01/11/2026: ya no existe BAJA). Ningún movimiento sin cambio
+              efectivo.
      DEC-008  Estado de registro: Donado tiene prioridad; si no, con fecha y
               costo es Registrado y si falta alguno, Pendiente.
      DEC-010  Activo -> marbete sin folio; Comodato y Enser -> folio interno
@@ -66,8 +67,13 @@
               modelo, serie, fecha y costo. Color y descripción también son
               NOT NULL (actualizado por Fernando el 27/10/2026: un registro
               no puede quedar tan vacío y son datos visuales del bien).
-     DEC-012  UBI-NOLOC y el estado NOLOC van siempre juntos (CHECK).
-     DEC-013  Ubicación y resguardante solo cambian por movimiento.
+     DEC-012  Estados: Útil, Obsoleto y No localizado (01/11/2026: se
+              eliminó Autorizado para baja). UBI-NOLOC y el estado NOLOC van
+              siempre juntos (CHECK). Un artículo No localizado no pasa a
+              Obsoleto (lo valida la API).
+     DEC-013  Ubicación y resguardante solo cambian por movimiento. El
+              estado Obsoleto se marca desde la ficha, con motivo y bitácora,
+              sin movimiento.
      DEC-014  departamento y ubicacion son entidades distintas, sin relación.
      DEC-015  Los catálogos se amplían desde el sistema y el SISTEMA genera
               los códigos (la API; no hay columna extra).
@@ -89,19 +95,15 @@
        valor nuevo y motivo (obligatorio al corregir). Sin inicios de sesión.
 
    PENDIENTE (no se implementa como definitivo; ver PENDIENTES.md)
-     PEND-001  Diseño relacional de resguardos. La tabla resguardo de abajo
-               (1:1 con movimiento) es PROVISIONAL: DEC-007 pide resguardos
-               bajo demanda para varios artículos de una persona.
-     PEND-002  Folios: ¿Comodato y Enser comparten consecutivo? ¿qué pasa al
-               llegar a 999? Los folios del Excel tienen 10 dígitos antes del
-               guion y el nuevo 9. ¿Activo sin marbete conocido?
-     PEND-003  Significado de Obsoleto y AUTB; ¿estado "En reparación"?; ¿baja
-               de un bien no localizado? Hoy el CHECK de no localizado impide
-               dar de baja (AUTB) un artículo que sigue en UBI-NOLOC.
+     (PEND-001, el diseño relacional de resguardos, pasó a DEC-016 el 03/11/2026:
+     ver RESGUARDO y RESGUARDO_DETALLE en el bloque 7.)
+     (PEND-002, PEND-003, PEND-006, PEND-008 y PEND-009 se cerraron el
+     29/10 y 01/11/2026 y pasaron a DECISIONES.md: DEC-006, DEC-007, DEC-010,
+     DEC-011, DEC-012 y DEC-013.)
      PEND-004  ¿El costo de un Donado se bloquea o se captura? Por eso el CHECK
                de Donado NO exige ni prohíbe el costo.
      PEND-005  PK de movimiento (num + folio único) y numero_empleado NULL.
-     PEND-006/007  Resguardos y personal que deja la institución.
+     PEND-007  Personal que deja la institución (sin respuesta aún).
      PEND-010  valor_anterior y valor_nuevo como texto largo (Django ya los
                crea LONGTEXT).
 
@@ -130,17 +132,20 @@
                resguardante). Que exista la fila en resguardo ES el dato.
      Datos:    ubicación UBI-NOLOC (decisión 10); estados operativos del
                frontend (decisión 4); tipos de movimiento ALTA, REUB,
-               REPA y RETE (decisiones 5 y 14); Rol.nombre "Contadora" (el DD decía "contador";
-               RF dice Contadora)
+               REPA y RETE (decisiones 5 y 14 y DEC-006); roles ADMIN y CONSULTA
+               (la Contadora usa el rol ADMIN, DEC-001)
      Cambios del 27/10/2026 (sincronización con DECISIONES.md):
                articulo ya no tiene categoria: solo tipo_articulo NOT NULL (DEC-002)
                articulo.color y articulo.descripcion siguen NOT NULL (DEC-011,
                versión del 27/10/2026); marca, modelo y serie pasan a NULL
                chk_articulo_estado_registro: Donado ya no exige costo vacío
-               tipo_movimiento: se agrega BAJA (DEC-006); el CHECK de movimiento
-               la trata como REPA y RETE
                movimiento.requiere_resguardo (DEC-016) y su CHECK
                rol: OBS (Observador) se renombra CONSULTA (DEC-001)
+     Cambios del 01/11/2026 (DEC-006 y DEC-012):
+               estado_operativo: se quita AUTB (quedan UTIL, OBS y NOLOC)
+               tipo_movimiento: se quita BAJA; los CHECK de movimiento la
+               dejan de nombrar
+               ubicacion UBI-NOLOC: el cambio se hace con REUB
      Longitudes ajustadas para que quepan los datos: rol.descripcion 150,
                articulo.modelo 60, categoria.nombre 100.
    ========================================================================== */
@@ -386,7 +391,7 @@ CREATE TABLE movimiento (
     resguardante_nuevo     INT          NOT NULL,
     /* DEC-016: lo fija el sistema al crear el movimiento. ALTA: lo decide la
        API (no se genera en el alta histórica de un bien no localizado).
-       REUB: verdadero si cambió el resguardante. REPA, RETE y BAJA: falso. */
+       REUB: verdadero si cambió el resguardante. REPA y RETE: falso. */
     requiere_resguardo     BOOLEAN      NOT NULL,
     usuario                INT          NOT NULL,   -- sellado de auditoría (RF-16)
     KEY ix_movimiento_articulo_fecha (articulo, fecha_movimiento),   -- RF-17
@@ -405,8 +410,8 @@ CREATE TABLE movimiento (
     CONSTRAINT fk_movimiento_usuario
         FOREIGN KEY (usuario) REFERENCES usuario (num),
     /* DEC-006: ALTA no tiene origen ni anterior. REUB cambia ubicación,
-       resguardante o ambos: no hay movimientos sin cambio efectivo. REPA,
-       RETE y BAJA conservan el resguardante (la ubicación puede o no cambiar);
+       resguardante o ambos: no hay movimientos sin cambio efectivo. REPA y
+       RETE conservan el resguardante (la ubicación puede o no cambiar);
        lo que no cambia se repite igual, nunca NULL. Usa los códigos fijos. */
     CONSTRAINT chk_movimiento_cambia_algo CHECK (
         (tipo_movimiento = 'ALTA'
@@ -419,7 +424,7 @@ CREATE TABLE movimiento (
             AND (ubicacion_origen <> ubicacion_destino
                  OR resguardante_anterior <> resguardante_nuevo))
         OR
-        (tipo_movimiento IN ('REPA', 'RETE', 'BAJA')
+        (tipo_movimiento IN ('REPA', 'RETE')
             AND ubicacion_origen IS NOT NULL
             AND resguardante_anterior IS NOT NULL
             AND resguardante_anterior = resguardante_nuevo)
@@ -429,27 +434,46 @@ CREATE TABLE movimiento (
         tipo_movimiento = 'ALTA'
         OR (tipo_movimiento = 'REUB'
             AND requiere_resguardo = (resguardante_anterior <> resguardante_nuevo))
-        OR (tipo_movimiento IN ('REPA', 'RETE', 'BAJA')
+        OR (tipo_movimiento IN ('REPA', 'RETE')
             AND requiere_resguardo = FALSE)
     )
 ) ENGINE=InnoDB;
 
 
 /* ==========================================================================
-   BLOQUE 7 — RESGUARDO (PROVISIONAL: ver PEND-001)
+   BLOQUE 7 — RESGUARDO y RESGUARDO_DETALLE (PEND-001 aceptada → DEC-016)
 
-   DEC-007 pide resguardos bajo demanda para uno o varios artículos de una
-   persona, con el PDF conservado. Esta tabla 1:1 con movimiento se reemplaza
-   por RESGUARDO + RESGUARDO_DETALLE (propuesta PEND-001) cuando Adad la
-   valide. No se implementa más sobre ella hasta entonces.
+   DEC-007: los resguardos se generan bajo demanda para uno o varios artículos
+   del mismo resguardante; el resguardante firma un solo documento. El PDF
+   emitido se conserva sin cambios (hash_pdf permite comprobarlo) y la
+   reimpresión entrega ese archivo, sin folio ni movimiento nuevos.
+   Se reemplaza la relación 1:1 con movimiento: ahora una asignación
+   (movimiento) se documenta una sola vez (UNIQUE) pero un resguardo reúne
+   varias. El artículo se obtiene por el movimiento.
+   El PDF se guarda en la carpeta RESGUARDOS_DIR del servidor, sin
+   sobrescribir; ruta_pdf es el nombre del archivo dentro de esa carpeta.
    ========================================================================== */
 
 CREATE TABLE resguardo (
-    folio             VARCHAR(20)  NOT NULL PRIMARY KEY,   -- RES-0001 (lo genera Django, decisión 16)
-    fecha_generacion  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ruta_pdf          VARCHAR(255) NULL,       -- NULL permitido, como en el DD
-    movimiento        VARCHAR(20)  NOT NULL UNIQUE,
-    CONSTRAINT fk_resguardo_movimiento
+    folio            VARCHAR(20)  NOT NULL PRIMARY KEY,   -- RES-0001 (lo genera Django)
+    fecha_emision    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resguardante     INT          NOT NULL,
+    usuario_emisor   INT          NOT NULL,
+    ruta_pdf         VARCHAR(255) NOT NULL UNIQUE,
+    hash_pdf         VARCHAR(64)  NOT NULL,               -- SHA-256 en hexadecimal
+    CONSTRAINT fk_resguardo_resguardante
+        FOREIGN KEY (resguardante)   REFERENCES personal (num),
+    CONSTRAINT fk_resguardo_usuario
+        FOREIGN KEY (usuario_emisor) REFERENCES usuario (num)
+) ENGINE=InnoDB;
+
+CREATE TABLE resguardo_detalle (
+    num         INT         NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    resguardo   VARCHAR(20) NOT NULL,
+    movimiento  VARCHAR(20) NOT NULL UNIQUE,   -- una asignación no se documenta dos veces
+    CONSTRAINT fk_resguardo_detalle_resguardo
+        FOREIGN KEY (resguardo)  REFERENCES resguardo (folio),
+    CONSTRAINT fk_resguardo_detalle_movimiento
         FOREIGN KEY (movimiento) REFERENCES movimiento (folio)
 ) ENGINE=InnoDB;
 
@@ -507,13 +531,13 @@ INSERT INTO origen (codigo, nombre, descripcion) VALUES
 ('COM', 'Comodato',  'Bien recibido en comodato, identificado por folio interno del plantel'),
 ('ENS', 'Enser',     'Bien menor del plantel, identificado por folio interno');
 
-/* Estados provisionales (DEC-012; reglas de transición en PEND-003 y
-   PEND-009). NOLOC y UBI-NOLOC están protegidos: no se desactivan ni se
+/* Estados (DEC-012, 01/11/2026): Útil, Obsoleto y No localizado. Obsoleto
+   equivale a lo que la institución llama baja; el registro nunca se borra.
+   NOLOC y UBI-NOLOC están protegidos: no se desactivan ni se
    renombran. */
 INSERT INTO estado_operativo (codigo, nombre) VALUES
 ('UTIL',  'Útil'),
 ('OBS',   'Obsoleto'),
-('AUTB',  'Autorizado para baja'),
 ('NOLOC', 'No localizado');
 
 INSERT INTO estado_registro (codigo, nombre) VALUES
@@ -521,15 +545,14 @@ INSERT INTO estado_registro (codigo, nombre) VALUES
 ('REG',  'Registrado'),
 ('DON',  'Donado');
 
-/* DEC-006: cinco tipos internos. ALTA se registra sola al crear un artículo
-   (no es opción manual); el formulario "Nuevo movimiento" ofrece REUB, REPA,
-   RETE y BAJA. */
+/* DEC-006: cuatro tipos internos. ALTA se registra sola al crear un artículo
+   (no es opción manual); el formulario "Nuevo movimiento" ofrece REUB, REPA
+   y RETE. */
 INSERT INTO tipo_movimiento (codigo, nombre) VALUES
 ('ALTA', 'Alta de artículo'),
 ('REUB', 'Reubicación y/o cambio de resguardante'),
 ('REPA', 'Envío a reparación'),
-('RETE', 'Retorno de reparación'),
-('BAJA', 'Baja');
+('RETE', 'Retorno de reparación');
 
 /* RF-11: oficina y dos laboratorios. Responsable NULL hasta confirmar el
    nombre del jefe de Informática (RF-12 solo exige que el campo exista).
@@ -540,7 +563,7 @@ INSERT INTO ubicacion (codigo, nombre, descripcion, responsable) VALUES
 ('UBI-OFI',   'Oficina de Informática',       'Oficina del Departamento de Informática', NULL),
 ('UBI-LAB1',  'Laboratorio de Informática 1', 'Laboratorio de cómputo 1', NULL),
 ('UBI-LAB2',  'Laboratorio de Informática 2', 'Laboratorio de cómputo 2', NULL),
-('UBI-NOLOC', 'Sin ubicar / No localizado',   'Ubicación temporal para artículo no localizado en una revisión. Se llega con un Cambio de ubicación con motivo documentado', NULL);
+('UBI-NOLOC', 'Sin ubicar / No localizado',   'Ubicación temporal para artículo no localizado en una revisión. Se llega con una reubicación (REUB) con motivo documentado', NULL);
 
 /* ==========================================================================
    PENDIENTE DE ARRANQUE (no se puede hacer desde SQL)
@@ -550,6 +573,16 @@ INSERT INTO ubicacion (codigo, nombre, descripcion, responsable) VALUES
      El folio de Comodato/Enser sigue la fórmula de la decisión 37.
    ========================================================================== */
 
+
+/* ==========================================================================
+   USUARIO DE PRUEBA (SOLO DESARROLLO) - borrar antes de producción
+   Sirve para probar el login del front con el back mientras no existan
+   usuarios reales: usuario "admin", contraseña "admin".
+   La contraseña va hasheada (formato de Django, RNF-01), no en texto plano.
+   Ejecutar DESPUÉS de las migraciones de Django (python manage.py migrate),
+   porque estos INSERT usan los roles y el departamento DEP-INF ya sembrados.
+   Se ejecutan en este orden: el usuario necesita un empleado al que ligarse.
+   ========================================================================== */
 INSERT INTO personal (numero_empleado, nombre_pila, primer_apellido, puesto, activo, departamento)
 VALUES ('DEMO-001', 'Usuario', 'Demo', 'Administrador del sistema', 1, 'DEP-INF');
 
