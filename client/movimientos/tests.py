@@ -178,10 +178,10 @@ class NuevoTests(BaseMov):
         self.entrar()
         self.api.respuestas[('POST', 'movimientos/')] = movimiento(requiere_resguardo=True)
         self.api.respuestas[('GET', 'movimientos/')] = pagina([])
-        r = self.client.post('/movimientos/nuevo/', datos(ubicacion='', resguardante='3'),
+        r = self.client.post('/movimientos/nuevo/', datos(ubicacion='', resguardante='4'),
                              follow=True)
         self.assertContains(r, 'falta el resguardo con las dos firmas')
-        self.assertEqual(self.api.escrituras()[0][2]['resguardante'], '3')
+        self.assertEqual(self.api.escrituras()[0][2]['resguardante'], '4')
         self.assertNotIn('ubicacion', self.api.escrituras()[0][2])
 
     def test_reub_sin_ubicacion_ni_resguardante(self):
@@ -189,6 +189,30 @@ class NuevoTests(BaseMov):
         r = self.enviar(ubicacion='')
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Especifica una nueva ubicación')
+
+    def test_reub_a_la_ubicacion_actual_se_rechaza(self):
+        self.entrar()
+        r = self.enviar(ubicacion='UBI-LAB1')          # el artículo ya está en LAB1
+        self.assertEqual(self.api.escrituras(), [])
+        self.assertContains(r, 'ya está en esa ubicación')
+
+    def test_reub_al_resguardante_actual_se_rechaza(self):
+        self.entrar()
+        r = self.enviar(ubicacion='', resguardante='3')  # RESG num 3
+        self.assertEqual(self.api.escrituras(), [])
+        self.assertContains(r, 'ya es el resguardante')
+
+    def test_repa_y_rete_si_aceptan_la_misma_ubicacion(self):
+        self.entrar()
+        self.api.respuestas[('POST', 'movimientos/')] = movimiento()
+        self.enviar(tipo='REPA', ubicacion='UBI-LAB1')
+        self.assertEqual(self.api.escrituras()[0][2]['ubicacion'], 'UBI-LAB1')
+
+    def test_formulario_lleva_la_ubicacion_y_el_resguardante_actuales(self):
+        self.entrar()
+        r = self.client.get('/movimientos/nuevo/?articulo=7')
+        self.assertContains(r, 'data-ubicacion-actual="UBI-LAB1"')
+        self.assertContains(r, 'data-resguardante-actual="3"')
 
     def test_rete_exige_ubicacion(self):
         self.entrar()
@@ -318,7 +342,7 @@ class RecuperarNoLocalizadoTests(BaseMov):
     def test_solo_cambio_de_resguardante_no_pide_estado(self):
         self.entrar()
         self.api.respuestas[('POST', 'movimientos/')] = movimiento()
-        self.client.post('/movimientos/nuevo/', datos(ubicacion='', resguardante='3'))
+        self.client.post('/movimientos/nuevo/', datos(ubicacion='', resguardante='4'))
         self.assertNotIn('estado_operativo', self.api.escrituras()[0][2])
 
     def test_estado_no_se_manda_si_el_articulo_esta_localizado(self):

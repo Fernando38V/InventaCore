@@ -86,6 +86,14 @@ class ListadoTests(BaseEquipos):
         self.assertContains(r, 'M-100')
         self.assertContains(r, 'Dell Latitude')
 
+    def test_el_modulo_se_llama_articulos(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
+        r = self.client.get('/equipos/')
+        self.assertContains(r, '<span>Artículos</span>')
+        self.assertContains(r, '<title>Artículos · InventaCore</title>')
+        self.assertNotContains(r, '<span>Equipos</span>')
+
     def test_sin_marca_ni_modelo_no_usa_la_descripcion_como_nombre(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina(

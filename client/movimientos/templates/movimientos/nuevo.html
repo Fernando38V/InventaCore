@@ -54,6 +54,7 @@
 <div class="form-layout">
 
 <form method="post" novalidate id="formMovimiento" data-ubicacion-noloc="{{ ubicacion_noloc }}"
+      data-ubicacion-actual="{{ ubicacion_actual }}" data-resguardante-actual="{{ resguardante_actual }}"
       data-sin-localizar="{{ sin_localizar|yesno:'1,0' }}">
   {% csrf_token %}
   <input type="hidden" name="articulo" value="{{ articulo.num }}">
@@ -214,6 +215,8 @@
   var form = document.getElementById('formMovimiento');
   var UBI_NOLOC = form.dataset.ubicacionNoloc;
   var sinLocalizar = form.dataset.sinLocalizar === '1';
+  var UBI_ACTUAL = form.dataset.ubicacionActual;
+  var RESG_ACTUAL = form.dataset.resguardanteActual;
 
   var tipoSel = document.getElementById('tipo');
   var bloqueUbicacion = document.getElementById('bloqueUbicacion');
@@ -258,6 +261,21 @@
       }
     });
     if (!permiteNoloc && ubicacionSel.value === UBI_NOLOC) { ubicacionSel.value = ''; }
+
+    // En una reubicación no se ofrece lo que el artículo ya tiene (en REPA/RETE la
+    // misma ubicación sí es válida: puede volver al mismo lugar).
+    var ocultaActuales = (tipo === 'REUB');
+    Array.prototype.forEach.call(ubicacionSel.options, function (op) {
+      if (op.value && op.value === UBI_ACTUAL) {
+        op.hidden = ocultaActuales;
+        op.disabled = ocultaActuales;
+      }
+    });
+    if (ocultaActuales && ubicacionSel.value === UBI_ACTUAL) { ubicacionSel.value = ''; }
+    Array.prototype.forEach.call(resguardanteSel.options, function (op) {
+      if (op.value && op.value === RESG_ACTUAL) { op.hidden = true; op.disabled = true; }
+    });
+    if (resguardanteSel.value === RESG_ACTUAL) { resguardanteSel.value = ''; }
 
     if (tipo === 'REUB') {
       tituloUbicacion.textContent = 'Ubicación';

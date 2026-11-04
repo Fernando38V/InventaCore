@@ -97,6 +97,14 @@ def _validar(v, articulo):
     elif tipo in ('REPA', 'RETE') and v['ubicacion'] == UBICACION_NOLOC:
         errores['ubicacion'] = 'Para marcar un artículo como No localizado usa una reubicación.'
 
+    if tipo == 'REUB':
+        # Una reubicación debe cambiar algo: no se ofrece lo que el artículo ya tiene.
+        if 'ubicacion' not in errores and v['ubicacion'] \
+                and v['ubicacion'] == (articulo.get('ubicacion') or {}).get('codigo'):
+            errores['ubicacion'] = 'El artículo ya está en esa ubicación.'
+        if v['resguardante'] and v['resguardante'] == _num_resguardante(articulo):
+            errores['resguardante'] = 'Esa persona ya es el resguardante del artículo.'
+
     if tipo in ('REPA', 'RETE') and v['resguardante']:
         errores['resguardante'] = 'Este movimiento no cambia el resguardante.'
 
@@ -112,6 +120,11 @@ def _validar(v, articulo):
         except ValueError:
             errores['fecha'] = 'La fecha no es válida.'
     return errores
+
+
+def _num_resguardante(articulo):
+    r = articulo.get('resguardante')
+    return str(r['num']) if r and r.get('num') is not None else ''
 
 
 def _recupera(v, articulo):
@@ -249,5 +262,7 @@ def nuevo_movimiento(request):
         'paso_busqueda': False, 'articulo': articulo, 'sin_localizar': sin_localizar,
         'errores': errores, 'v': v, 'general': general,
         'tipos': tipos, 'ubicaciones': ubicaciones, 'personal': personal, 'estados': estados,
-        'ubicacion_noloc': UBICACION_NOLOC, 'hoy': timezone.localdate().isoformat(),
+        'ubicacion_noloc': UBICACION_NOLOC,
+        'ubicacion_actual': (articulo.get('ubicacion') or {}).get('codigo', ''),
+        'resguardante_actual': _num_resguardante(articulo), 'hoy': timezone.localdate().isoformat(),
     })
