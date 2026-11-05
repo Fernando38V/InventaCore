@@ -48,3 +48,6 @@ Thumbs.db
 
 # PDF de resguardos emitidos (datos personales, no se suben)
 api/resguardos_pdf/
+
+# Temporales de Office
+~$*
