@@ -1,4 +1,4 @@
-# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva (v12)
+# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva (v13)
 
 Backend: `http://127.0.0.1:8000/api/`. Todas las peticiones (menos el login) llevan
 `Authorization: Token <token>`. El rol CONSULTA solo puede hacer GET; ADMIN puede todo.
@@ -132,8 +132,7 @@ Solo cambia lo que se manda. `motivo` es obligatorio y queda en la bitácora.
 
 Se pueden corregir: `marbete_oficial` (solo Activos), `marca`, `modelo`, `num_serie`, `color`,
 `descripcion`, `fecha_adquisicion`, `costo_adquisicion` y `estado_operativo`. Si cambia la fecha o el costo,
-el estado de registro se recalcula (DEC-008). En un bien Donado el costo no se modifica (responde `400`
-mientras PEND-004 siga abierto) y el estado se queda Donado. La ubicación y el resguardante no cambian aquí: solo por movimiento.
+el estado de registro se recalcula (DEC-008). En un bien Donado el costo también se puede capturar o corregir (DEC-021) y el estado se queda Donado. La ubicación y el resguardante no cambian aquí: solo por movimiento.
 
 `estado_operativo` acepta `UTIL` u `OBS` (Obsoleto se marca desde la ficha, sin movimiento; la ubicación y
 el resguardante se conservan). Un artículo No localizado no pasa a Obsoleto: se recupera con una
@@ -346,6 +345,21 @@ Solo Administrador. Antes de la primera carga deben existir categorías, tipos, 
    (el de la vista previa). Vuelve a validar y guarda solo las filas válidas, todas en una transacción
    (si algo falla, no se guarda nada). Si el archivo cambió respecto a la vista previa: `400`.
 
+Cambios de la v13 (DEC-017 y DEC-021, 05/11/2026):
+- Cada fila trae `avisos` (`{}` si no hay): avisos que **no bloquean** la fila. Claves: `marca`, `modelo` o
+  `num_serie` cuando el valor era `S/S`, `S/M`, `S/N`, `N/A`, `NA` o un guion (se toma como vacío y no se guarda),
+  y `posible_duplicado` en una fila sin marbete, folio ni serie que coincide en tipo, descripción, marca, modelo,
+  color, ubicación y resguardante con un artículo del sistema o con otra fila del archivo.
+- La vista previa trae `folios_nuevos` (cuántos folios asignará el sistema: filas válidas de Comodatos y Enseres
+  sin folio) y `con_aviso`; cada fila trae `folio_nuevo` (true/false). El cliente puede exigir su casilla de
+  confirmación con ese número; la API no la exige.
+- Confirmar trae `folios_nuevos` y cada artículo cargado `folio_nuevo`; el `identificador` es el folio asignado.
+- La plantilla oculta las hojas *Listas* y *Tipos* (los desplegables siguen funcionando), trae las instrucciones
+  en 5 pasos con un ejemplo en la hoja *Instrucciones*, y sus hojas de datos van vacías.
+- Costo en un bien Donado (DEC-021): opcional y editable. `PATCH /articulos/{num}/` con `costo_adquisicion`
+  funciona también en un Donado (con `motivo` y bitácora; el estado de registro sigue siendo Donado). `null` lo
+  deja vacío; nunca se guarda 0 por omisión. Antes respondía `400` "En un bien Donado el costo no se modifica."
+
 Hojas: se aceptan también en singular (`Activo`, `Comodato`, `Enser`) y sin importar mayúsculas o acentos. Puede
 faltar alguna (o venir vacía) mientras haya al menos una con filas. Cualquier otra hoja (por ejemplo *Licencias*)
 se ignora y se informa en `hojas_ignoradas`. Se procesan en el orden Activos, Comodatos, Enseres.
@@ -359,13 +373,13 @@ Respuesta de la vista previa (los `datos` de cada fila traen todas las columnas,
 
 ```json
 {"archivo": "inventario_2026.xlsx", "hash": "9b0615db…", "total": 4, "validas": 2, "con_error": 2,
- "ya_cargado": null, "hojas_ignoradas": ["Licencias"],
+ "ya_cargado": null, "hojas_ignoradas": ["Licencias"], "folios_nuevos": 1, "con_aviso": 0,
  "hojas": [{"hoja": "Activos", "origen": "Activo", "filas": 2, "validas": 1, "con_error": 1},
            {"hoja": "Enseres", "origen": "Enser", "filas": 2, "validas": 1, "con_error": 1}],
  "columnas": {"identificador": "Marbete o folio", "categoria": "Categoría", "tipo_articulo": "Tipo de artículo",
               "…": "…", "donado": "¿Donado?"},
  "filas": [
-   {"hoja": "Activos", "fila": 2, "estado": "valida", "errores": {},
+   {"hoja": "Activos", "fila": 2, "estado": "valida", "errores": {}, "avisos": {}, "folio_nuevo": false,
     "datos": {"origen": "Activo", "identificador": "02-520-00001", "categoria": "EQUIPO DE CÓMPUTO", "tipo_articulo": "Laptop", "…": "…"}},
    {"hoja": "Activos", "fila": 4, "estado": "error", "errores": {"identificador": "Los activos llevan marbete oficial."},
     "datos": {"origen": "Activo", "identificador": null, "…": "…"}},

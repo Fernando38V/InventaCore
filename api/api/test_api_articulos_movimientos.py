@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from api.test_api import BaseAPI
+from articulos.models import Articulo
 from auditoria.models import Bitacora
 from catalogos.models import Categoria, TipoArticulo
 from movimientos.models import Movimiento
@@ -439,13 +440,23 @@ class CorreccionFichaTests(Base):
         self.assertEqual(self.corregir(costo_adquisicion='100').data,
                          {'motivo': 'Indique el motivo del cambio.'})
 
-    def test_en_un_donado_el_costo_no_se_modifica(self):
+    def test_en_un_donado_el_costo_se_puede_capturar_y_corregir(self):
+        """DEC-021: opcional, sigue siendo Donado, vacío queda NULL (no 0)."""
         d = self.alta(marbete_oficial='M3', num_serie='S3', donado=True, costo_adquisicion=None,
                       fecha_adquisicion=None)
+        self.assertIsNone(Articulo.objects.get(pk=d['num']).costo_adquisicion)
         r = self.c.patch('/api/articulos/%d/' % d['num'],
-                         {'costo_adquisicion': '100', 'motivo': 'x'}, format='json')
-        self.assertEqual(r.status_code, 400)
-        self.assertEqual(r.data, {'costo_adquisicion': 'En un bien Donado el costo no se modifica.'})
+                         {'costo_adquisicion': '100', 'motivo': 'La Contadora lo determinó'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        a = Articulo.objects.get(pk=d['num'])
+        self.assertEqual((str(a.costo_adquisicion), a.estado_registro_id), ('100.00', 'DON'))
+        self.assertTrue(Bitacora.objects.filter(
+            tabla_afectada='articulo', accion='UPDATE', registro_id=str(a.num),
+            motivo='La Contadora lo determinó').exists())
+        r = self.c.patch('/api/articulos/%d/' % d['num'],
+                         {'costo_adquisicion': None, 'motivo': 'Se capturó por error'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIsNone(Articulo.objects.get(pk=d['num']).costo_adquisicion)
 
     def test_la_carga_masiva_puede_dar_el_alta_sin_requerir_resguardo(self):
         from articulos.servicios import alta_articulo

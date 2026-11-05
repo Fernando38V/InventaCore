@@ -115,6 +115,10 @@ def _hoja_conocida(nombre):
     return None
 
 
+# Marcadores que la Contadora usa para "no tiene": se toman como vacío (DEC-011, PEND-021).
+MARCADORES_VACIOS = {'s/s', 's/m', 's/n', 'n/a', 'na', '-', '--', '---', '—', '–'}
+
+
 def _texto(valor):
     if valor is None:
         return None
@@ -177,32 +181,41 @@ def _etiqueta_personal(p):
 INSTRUCCIONES = [
     'PLANTILLA DE CARGA MASIVA DE ARTÍCULOS — InventaCore',
     '',
-    'Antes de cargar: deben existir en el sistema las categorías, los tipos de artículo, '
-    'las ubicaciones y el personal. Las listas desplegables salen de esos catálogos.',
+    'Antes de cargar deben existir en el sistema las categorías, los tipos de artículo, las '
+    'ubicaciones y el personal: las listas desplegables salen de esos catálogos.',
     '',
-    '1. El libro trae una hoja por origen: "Activos", "Comodatos" y "Enseres". Llene cada bien en la '
-    'hoja que le corresponde, una fila por artículo. Puede dejar vacías las hojas que no use. '
-    'No cambie ni mueva los encabezados ni los nombres de las hojas.',
-    '2. Obligatorios: Categoría, Tipo de artículo, Color, Descripción, Ubicación y Resguardante. '
-    'En Activos, también el Marbete.',
-    '3. Activos: la primera columna es el MARBETE oficial. Comodatos y Enseres: la primera columna es '
-    'el FOLIO que el bien ya tiene (se respeta aunque tenga otro formato); si no tiene, déjelo vacío '
-    'y el sistema le asigna uno.',
-    '4. Elija primero la Categoría y después el Tipo de artículo: la lista de tipos muestra solo los '
-    'de la categoría elegida. Ubicación y Resguardante también se eligen de la lista; el resguardante '
-    'se identifica por su número de empleado.',
-    '5. Estado operativo: Útil u Obsoleto. Si lo deja vacío será Útil. Un bien en la ubicación '
-    '"Sin ubicar" queda No localizado automáticamente.',
-    '6. Fecha de adquisición: DD/MM/AAAA. Costo de adquisición: número (por ejemplo 12500.50).',
-    '7. ¿Donado?: Sí o No (vacío = No). El estado de registro (Registrado, Pendiente o Donado) '
-    'lo calcula el sistema; no se captura.',
-    '8. El número de serie es opcional, pero no puede repetirse. Un marbete, folio o serie que ya '
-    'existe en el sistema se rechaza como duplicado.',
-    '9. Cargue primero el inventario más reciente (2026) y después los años anteriores: estos '
-    'solo agregan los bienes que no aparecen en los más recientes.',
-    f'10. Máximo {MAX_FILAS} filas por archivo (entre las tres hojas). Al subirlo verá una vista previa '
-    'con las filas válidas y las filas con error; al confirmar solo entran las válidas.',
-    '11. Las hojas "Listas" y "Tipos" alimentan los desplegables: no las modifique.',
+    '1. ELIJA LA HOJA. El libro trae una hoja por origen: "Activos", "Comodatos" y "Enseres". '
+    'Capture cada bien en la hoja que le corresponde, una fila por artículo. Las hojas que no use '
+    'pueden quedar vacías. No cambie los encabezados ni los nombres de las hojas.',
+    '2. CAPTURE LOS DATOS OBLIGATORIOS (encabezado en rojo): Categoría, Tipo de artículo, Color, '
+    'Descripción, Ubicación y Resguardante; en Activos, también el Marbete. En Comodatos y Enseres la '
+    'primera columna es el Folio que el bien ya tiene (se respeta aunque tenga otro formato); si no '
+    'tiene, déjela vacía y el sistema le asigna uno nuevo.',
+    '3. USE LAS LISTAS. Elija primero la Categoría y después el Tipo de artículo (la lista solo muestra '
+    'los tipos de esa categoría). Ubicación, Resguardante, Estado operativo y ¿Donado? también se '
+    'eligen de la lista; el resguardante se identifica por su número de empleado.',
+    '4. SI PEGA DATOS DE OTRO EXCEL, use Pegado especial > Valores (solo valores), para no perder las '
+    'listas. Fecha de adquisición: DD/MM/AAAA. Costo: un número (12500.50), opcional también en bienes '
+    'donados. En marca, modelo y número de serie, "S/S", "S/M", "N/A" o un guion se toman como vacío. '
+    'El estado de registro lo calcula el sistema; no se captura. Estado operativo vacío = Útil.',
+    '5. SUBA EL ARCHIVO. El sistema muestra una vista previa con las filas válidas y las filas con error '
+    '(y avisos, por ejemplo posibles duplicados); al confirmar solo entran las válidas. Un marbete, folio '
+    'o serie que ya existe se rechaza. No suba dos veces el mismo archivo. Máximo '
+    f'{MAX_FILAS} filas entre las tres hojas. Cargue primero el inventario más reciente (2026) y después '
+    'los años anteriores.',
+    '',
+    'EJEMPLO (no lo copie: es solo para ver el formato)',
+]
+
+EJEMPLO = [
+    ('Hoja Activos', ['Marbete', 'Categoría', 'Tipo de artículo', 'Marca', 'Modelo', 'Número de serie',
+                      'Color', 'Descripción']),
+    ('', ['02-520-00001', 'EQUIPO DE CÓMPUTO', 'Laptop', 'Dell', 'Latitude 5420', 'SN12345',
+          'Negro', 'Laptop de oficina']),
+    ('', ['Ubicación', 'Resguardante', 'Estado operativo', 'Fecha de adquisición',
+          'Costo de adquisición', '¿Donado?']),
+    ('', ['Oficina de Informática', '1234 · Nombre del empleado', 'Útil', '15/01/2024',
+          '12500.50', 'No']),
 ]
 
 
@@ -216,6 +229,14 @@ def generar_plantilla():
         celda.alignment = Alignment(wrap_text=True, vertical='top')
     ayuda['A1'].font = Font(bold=True, size=13)
     ayuda.column_dimensions['A'].width = 120
+    for numero in (5, 6, 7, 8, 9):
+        ayuda.row_dimensions[numero].height = 48
+    fila_ejemplo = len(INSTRUCCIONES) + 1
+    ayuda.cell(row=len(INSTRUCCIONES), column=1).font = Font(bold=True)
+    for desplazamiento, (_, valores) in enumerate(EJEMPLO):
+        ayuda.cell(row=fila_ejemplo + desplazamiento, column=1,
+                   value='   ' + '  |  '.join(valores)).font = Font(
+            italic=True, bold=(desplazamiento % 2 == 0))
 
     hojas = [libro.create_sheet(nombre) for nombre, _, _ in HOJAS]
     listas = libro.create_sheet('Listas')
@@ -296,6 +317,11 @@ def generar_plantilla():
         for fila in hoja.iter_rows(min_row=2, max_row=min(ultima, 300)):
             fila[posicion['fecha_adquisicion']].number_format = 'DD/MM/YYYY'
             fila[posicion['costo_adquisicion']].number_format = '#,##0.00'
+
+    # Las hojas que alimentan los desplegables se ocultan: la Contadora no las necesita
+    # (los desplegables siguen funcionando con las hojas ocultas).
+    listas.sheet_state = 'hidden'
+    tipos_hoja.sheet_state = 'hidden'
 
     salida = BytesIO()
     libro.save(salida)
@@ -435,11 +461,12 @@ def _primer_mensaje(errores):
     return resultado
 
 
-def _fila_previa(hoja, numero, crudo, errores, alta=None, folio=None):
+def _fila_previa(hoja, numero, crudo, errores, alta=None, folio=None, avisos=None):
     resumen = {clave: _texto(crudo.get(clave)) for clave in ENCABEZADOS}
     resumen['origen'] = ORIGEN_NOMBRE[hoja]
     return {'hoja': hoja, 'fila': numero, 'estado': 'error' if errores else 'valida',
-            'errores': errores, 'datos': resumen, '_alta': alta, '_folio': folio}
+            'errores': errores, 'avisos': avisos if avisos is not None else {}, 'datos': resumen,
+            '_alta': alta, '_folio': folio}
 
 
 ORIGEN_DE_HOJA = {hoja: origen for hoja, origen, _ in HOJAS}
@@ -448,7 +475,14 @@ ORIGEN_NOMBRE = {'Activos': 'Activo', 'Comodatos': 'Comodato', 'Enseres': 'Enser
 
 def _validar_fila(hoja, numero, crudo, cat):
     errores = {}
+    avisos = {}
     origen = ORIGEN_DE_HOJA[hoja]
+    crudo = dict(crudo)
+    for clave in ('marca', 'modelo', 'num_serie'):
+        texto = _texto(crudo.get(clave))
+        if texto is not None and _n(texto) in MARCADORES_VACIOS:
+            avisos[clave] = '"%s" se tomó como vacío y no se guardó.' % texto
+            crudo[clave] = None
 
     def pedir(clave):
         if _texto(crudo.get(clave)) is None:
@@ -511,7 +545,7 @@ def _validar_fila(hoja, numero, crudo, cat):
             errores['identificador'] = 'El folio no puede tener más de 25 caracteres.'
 
     if errores:
-        return _fila_previa(hoja, numero, crudo, errores)
+        return _fila_previa(hoja, numero, crudo, errores, avisos=avisos)
 
     entrada = {'origen': origen, 'tipo_articulo': tipo, 'ubicacion': ubicacion,
                'resguardante': resguardante, 'color': color, 'descripcion': descripcion,
@@ -524,8 +558,9 @@ def _validar_fila(hoja, numero, crudo, cat):
         entrada['estado_operativo'] = estado
     serializador = ArticuloCrearSerializer(data=entrada)
     if not serializador.is_valid():
-        return _fila_previa(hoja, numero, crudo, _primer_mensaje(serializador.errors))
-    return _fila_previa(hoja, numero, crudo, {}, alta=serializador.validated_data, folio=folio)
+        return _fila_previa(hoja, numero, crudo, _primer_mensaje(serializador.errors), avisos=avisos)
+    return _fila_previa(hoja, numero, crudo, {}, alta=serializador.validated_data, folio=folio,
+                        avisos=avisos)
 
 
 def _revisar_duplicados(filas):
@@ -582,6 +617,47 @@ def _revisar_duplicados(filas):
             fila['estado'], fila['errores'] = 'error', errores
 
 
+def _clave_parecido(tipo, descripcion, marca, modelo, color, ubicacion, resguardante):
+    return (tipo, _n(descripcion), _n(marca), _n(modelo), _n(color), ubicacion, resguardante)
+
+
+def _avisar_posibles_duplicados(filas):
+    """Aviso (no rechazo) en las filas sin marbete, folio ni serie —que no se pueden reconocer
+    como repetidas por un identificador— cuando coinciden tipo, descripción, marca, modelo,
+    color, ubicación y resguardante con un artículo existente o con otra fila del archivo."""
+    candidatos = [f for f in filas if f['estado'] == 'valida' and not f['_folio']
+                  and not f['_alta'].get('marbete_oficial') and not f['_alta'].get('num_serie')]
+    if not candidatos:
+        return
+    tipos = {f['_alta']['tipo_articulo'].pk for f in candidatos}
+    en_base = {}
+    for a in Articulo.objects.filter(tipo_articulo_id__in=tipos).values_list(
+            'num', 'tipo_articulo_id', 'descripcion', 'marca', 'modelo', 'color',
+            'ubicacion_id', 'resguardante_id'):
+        en_base.setdefault(_clave_parecido(*a[1:]), a[0])
+    vistos = {}
+    for fila in candidatos:
+        alta = fila['_alta']
+        clave = _clave_parecido(alta['tipo_articulo'].pk, alta['descripcion'], alta.get('marca'),
+                                alta.get('modelo'), alta['color'], alta['ubicacion'].pk,
+                                alta['resguardante'].pk)
+        if clave in en_base:
+            fila['avisos']['posible_duplicado'] = (
+                'Posible duplicado: se parece al artículo %d que ya está en el sistema.'
+                % en_base[clave])
+        elif clave in vistos:
+            fila['avisos']['posible_duplicado'] = (
+                'Posible duplicado: se parece a la fila %d de la hoja %s de este archivo.'
+                % (vistos[clave]['fila'], vistos[clave]['hoja']))
+        else:
+            vistos[clave] = fila
+
+
+def _asigna_folio(fila):
+    return fila['estado'] == 'valida' and fila['_alta']['origen'].pk in ('COM', 'ENS') \
+        and not fila['_folio']
+
+
 def _revisar_folios_disponibles(filas):
     """Los folios que asigna el sistema (Comodato y Enser sin folio) caben en
     el máximo de 999 del mes (RF-06)."""
@@ -616,6 +692,9 @@ def validar_archivo(contenido):
     filas = [_validar_fila(hoja, numero, crudo, catalogos) for hoja, numero, crudo in crudas]
     _revisar_duplicados(filas)
     _revisar_folios_disponibles(filas)
+    _avisar_posibles_duplicados(filas)
+    for f in filas:
+        f['folio_nuevo'] = _asigna_folio(f)
     validas = sum(1 for f in filas if f['estado'] == 'valida')
     huella = hashlib.sha256(contenido).hexdigest()
     previo = _lote_previo(huella)
@@ -629,6 +708,9 @@ def validar_archivo(contenido):
     return {
         'hash': huella,
         'total': len(filas), 'validas': validas, 'con_error': len(filas) - validas,
+        # Filas válidas de Comodatos/Enseres sin folio: el sistema les asignará uno nuevo al confirmar.
+        'folios_nuevos': sum(1 for f in filas if f['folio_nuevo']),
+        'con_aviso': sum(1 for f in filas if f['avisos']),
         # Si este mismo archivo ya se cargó: cuándo y quién (confirmar lo rechaza).
         'ya_cargado': None if previo is None else {
             'fecha': timezone.localtime(previo.fecha_hora).strftime('%Y-%m-%d %H:%M'),
@@ -673,13 +755,15 @@ def cargar_archivo(contenido, nombre, usuario, hash_revisado):
                 raise ValidationError({'archivo': 'No se pudo cargar la fila %d de %s (%s). No se guardó nada.' % (
                     fila['fila'], fila['hoja'], '; '.join(str(v) for v in _aplanar(error.detail)))})
             cargados.append({'hoja': fila['hoja'], 'fila': fila['fila'], 'num': articulo.num,
-                             'identificador': articulo.identificador})
+                             'identificador': articulo.identificador,
+                             'folio_nuevo': fila['folio_nuevo']})
         Bitacora.objects.create(
             usuario=usuario, modulo='carga_masiva', accion='INSERT', tabla_afectada='articulo',
             registro_id='lote-%s' % resultado['hash'][:12],
             valor_nuevo=json.dumps({
                 'archivo': nombre, 'hash': resultado['hash'], 'filas_en_archivo': resultado['total'],
                 'cargados': len(cargados), 'rechazados': resultado['con_error'],
+                'folios_asignados': sum(1 for c in cargados if c['folio_nuevo']),
                 'por_hoja': {h['hoja']: sum(1 for c in cargados if c['hoja'] == h['hoja'])
                              for h in resultado['hojas']}},
                 ensure_ascii=False),
@@ -688,6 +772,7 @@ def cargar_archivo(contenido, nombre, usuario, hash_revisado):
     return {
         'archivo': nombre, 'hash': resultado['hash'], 'total': resultado['total'],
         'cargados': len(cargados), 'rechazados': len(rechazadas),
+        'folios_nuevos': sum(1 for c in cargados if c['folio_nuevo']),
         'hojas': resultado['hojas'], 'articulos': cargados, 'filas_rechazadas': publicas(rechazadas),
     }
 

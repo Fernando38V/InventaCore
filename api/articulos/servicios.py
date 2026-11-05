@@ -95,7 +95,8 @@ def corregir_articulo(articulo, datos, usuario):
 
     - Marbete (solo Activos), marca, modelo, serie, color, descripción, fecha
       y costo de adquisición. Si cambia la fecha o el costo, el estado de
-      registro se recalcula (DEC-008); en un bien Donado el costo no se toca.
+      registro se recalcula (DEC-008); en un bien Donado el costo también se puede
+      capturar o corregir y sigue siendo Donado (DEC-021).
     - Estado operativo: solo Útil <-> Obsoleto, con motivo. Un artículo No
       localizado no pasa a Obsoleto (DEC-012): se recupera con una reubicación.
     - Ubicación y resguardante no se tocan aquí: solo cambian por movimiento.
@@ -131,11 +132,9 @@ def corregir_articulo(articulo, datos, usuario):
     if 'fecha_adquisicion' in datos:
         articulo.fecha_adquisicion = datos['fecha_adquisicion']
     if 'costo_adquisicion' in datos:
-        # DEC-013: en un bien Donado el costo no se modifica mientras PEND-004 siga abierto.
-        if articulo.estado_registro_id == 'DON':
-            errores['costo_adquisicion'] = 'En un bien Donado el costo no se modifica.'
-        else:
-            articulo.costo_adquisicion = datos['costo_adquisicion']
+        # DEC-021: el costo de un Donado también se captura o corrige (vacío = NULL, no 0);
+        # el estado de registro de un Donado sigue siendo Donado.
+        articulo.costo_adquisicion = datos['costo_adquisicion']
 
     if 'estado_operativo' in datos:
         nuevo = datos['estado_operativo']

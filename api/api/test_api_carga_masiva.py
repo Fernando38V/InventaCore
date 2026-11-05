@@ -106,6 +106,19 @@ class PlantillaTests(CargaBase):
         wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
         self.assertEqual([c.value for c in wb['Tipos']['A'][1:] if c.value], ['Laptop'])
 
+    def test_la_plantilla_oculta_las_hojas_auxiliares_y_va_vacia(self):
+        wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
+        estados = {h.title: h.sheet_state for h in wb.worksheets}
+        self.assertEqual(estados, {'Instrucciones': 'visible', 'Activos': 'visible', 'Comodatos': 'visible',
+                                   'Enseres': 'visible', 'Listas': 'hidden', 'Tipos': 'hidden'})
+        for nombre in ('Activos', 'Comodatos', 'Enseres'):
+            self.assertIsNone(wb[nombre]['B2'].value)  # ni filas de ejemplo que se puedan cargar
+        texto = ' '.join(str(c.value) for c in wb['Instrucciones']['A'] if c.value)
+        self.assertIn('Pegado especial', texto)
+        self.assertIn('EJEMPLO', texto)
+        self.assertIn('S/S', texto)
+        self.assertIn('5. SUBA EL ARCHIVO', texto)
+
     def test_la_plantilla_llenada_se_puede_cargar(self):
         wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
         for hoja, valores in (('Activos', ['M-1', 'EQUIPO DE CÓMPUTO', 'Laptop', None, None, None, 'Negro',
@@ -274,12 +287,77 @@ class ValidarTests(CargaBase):
         ])
         self.assertEqual([f['estado'] for f in r.data['filas']], ['valida', 'valida'], r.data['filas'])
 
+    def test_s_s_na_y_guion_se_toman_como_vacio_con_aviso_sin_bloquear(self):
+        r = self.validar([fila(marca='S/S', modelo='n/a', num_serie='-')])
+        f = r.data['filas'][0]
+        self.assertEqual(f['estado'], 'valida', f)
+        self.assertEqual(set(f['avisos']), {'marca', 'modelo', 'num_serie'})
+        self.assertEqual(f['avisos']['marca'], '"S/S" se tomó como vacío y no se guardó.')
+        self.assertEqual((f['datos']['marca'], f['datos']['modelo'], f['datos']['num_serie']), (None,) * 3)
+        self.assertEqual(r.data['con_aviso'], 1)
+        # no es un número de serie: dos filas con "S/S" no chocan entre sí
+        r = self.validar([fila(num_serie='S/S'), fila(identificador='M-2', num_serie='S/S')])
+        self.assertEqual(r.data['validas'], 2, r.data['filas'])
+        self.confirmar(libro([fila(marca='S/M', num_serie='s/s')]))
+        a = Articulo.objects.get()
+        self.assertEqual((a.marca, a.modelo or None, a.num_serie), (None, 'Latitude', None))
+
+    def test_la_vista_previa_cuenta_los_folios_nuevos(self):
+        r = self.validar([fila(), fila(hoja='Comodatos', identificador=None, num_serie='S2'),
+                          fila(hoja='Enseres', identificador=None, num_serie='S3'),
+                          fila(hoja='Enseres', identificador='ENS-9', num_serie='S4'),
+                          fila(hoja='Enseres', identificador=None, num_serie='S5', color=None)])  # con error
+        self.assertEqual(r.data['folios_nuevos'], 2)
+        self.assertEqual([f['folio_nuevo'] for f in r.data['filas']], [False, True, True, False, False])
+
+    def test_el_resultado_lista_los_folios_asignados(self):
+        r = self.confirmar(libro([fila(), fila(hoja='Comodatos', identificador=None, num_serie='S2'),
+                                  fila(hoja='Enseres', identificador='IC-77', num_serie='S3')]))
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['folios_nuevos'], 1)
+        self.assertEqual([a['folio_nuevo'] for a in r.data['articulos']], [False, True, False])
+        nuevo = r.data['articulos'][1]['identificador']
+        self.assertRegex(nuevo, r'^02143\d{4}-\d{3}$')
+        self.assertEqual(json.loads(Bitacora.objects.get(modulo='carga_masiva').valor_nuevo)['folios_asignados'], 1)
+
+    def test_aviso_de_posible_duplicado_sin_folio_ni_serie(self):
+        sin = dict(hoja='Enseres', identificador=None, num_serie=None, descripcion='Silla de oficina',
+                   marca='Nova', modelo='X1', color='Negro')
+        c = self.confirmar(libro([fila(**sin)]))
+        self.assertEqual(c.status_code, 201, c.data)
+        r = self.validar([
+            fila(**sin),                                      # igual a uno que ya está en el sistema
+            fila(**dict(sin, color='Rojo')),                 # distinto color: sin aviso
+            fila(**dict(sin, descripcion='Mesa', hoja='Comodatos')),
+            fila(**dict(sin, descripcion='Mesa', hoja='Comodatos')),   # igual a la fila anterior del archivo
+            fila(identificador='M-9', num_serie='SN-9'),     # con marbete y serie: no se revisa
+        ])
+        # las filas salen en el orden de las hojas: Activos, Comodatos, Enseres
+        filas = r.data['filas']
+        self.assertEqual([f['estado'] for f in filas], ['valida'] * 5)
+        self.assertEqual(filas[0]['avisos'], {})                                  # con marbete y serie
+        self.assertEqual(filas[1]['avisos'], {})                                  # primera Mesa
+        self.assertIn('fila 2 de la hoja Comodatos', filas[2]['avisos']['posible_duplicado'])
+        self.assertIn('se parece al artículo', filas[3]['avisos']['posible_duplicado'])  # ya en el sistema
+        self.assertEqual(filas[4]['avisos'], {})                                  # otro color
+        # es un aviso: no bloquea la carga
+        r = self.confirmar(libro([fila(**dict(sin, marca='NOVA'))]))   # otro archivo, mismo parecido
+        self.assertEqual((r.status_code, r.data['cargados']), (201, 1))
+
     def test_donado_y_sin_ubicar(self):
         r = self.validar([
             fila(donado='Sí', costo_adquisicion=None, fecha_adquisicion=None),
             fila(identificador='M-002', num_serie='S2', ubicacion='UBI-NOLOC'),
         ])
         self.assertEqual(r.data['validas'], 2, r.data['filas'])
+
+    def test_donado_con_costo_o_sin_costo_se_acepta_y_sigue_donado(self):
+        """DEC-021: el costo de un Donado es opcional; vacío queda NULL."""
+        self.confirmar(libro([fila(donado='Sí', costo_adquisicion=3000),
+                              fila(identificador='M-2', num_serie='S2', donado='Sí', costo_adquisicion=None)]))
+        a, b = Articulo.objects.order_by('num')
+        self.assertEqual((str(a.costo_adquisicion), a.estado_registro_id), ('3000.00', 'DON'))
+        self.assertEqual((b.costo_adquisicion, b.estado_registro_id), (None, 'DON'))
 
     def test_estado_no_localizado_a_mano_con_otra_ubicacion_es_error(self):
         r = self.validar([fila(estado_operativo='No localizado')])
