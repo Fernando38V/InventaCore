@@ -50,6 +50,8 @@
         <textarea class="campo__control" name="{{ c.nombre }}" id="{{ c.nombre }}" rows="3" {% if c.max %}maxlength="{{ c.max }}"{% endif %}>{{ c.valor }}</textarea>
         {% elif c.tipo == 'date' %}
         <input class="campo__control" type="date" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" max="{{ hoy }}">
+        {% elif c.tipo == 'costo' %}
+        <input class="campo__control" type="text" inputmode="decimal" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" autocomplete="off" placeholder="Sin costo">
         {% else %}
         <input class="campo__control" type="text" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" {% if c.max %}maxlength="{{ c.max }}"{% endif %} autocomplete="off">
         {% endif %}

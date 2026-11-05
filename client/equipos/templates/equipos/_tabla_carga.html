@@ -15,6 +15,7 @@ data-estado="valida|error" para el filtro de la vista previa.
         <th>Resguardante</th>
         <th>Adquisición</th>
         <th>Resultado</th>
+        <th>Avisos</th>
       </tr>
     </thead>
     <tbody>
@@ -58,6 +59,13 @@ data-estado="valida|error" para el filtro de la vista previa.
               {% for campo, mensaje in f.errores %}<li><strong>{{ campo }}:</strong> {{ mensaje }}</li>{% endfor %}
             </ul>
           {% endif %}
+        </td>
+        <td data-label="Avisos">
+          {% if f.avisos %}
+            <ul class="carga-avisos">
+              {% for campo, mensaje in f.avisos %}<li><strong>{{ campo }}:</strong> {{ mensaje }}</li>{% endfor %}
+            </ul>
+          {% else %}<span class="celda-vacia">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}

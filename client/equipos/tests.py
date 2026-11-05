@@ -316,7 +316,7 @@ class CorregirTests(BaseEquipos):
     def datos(self, **cambios):
         d = {'marbete_oficial': 'M-100', 'marca': 'Dell', 'modelo': 'Latitude',
              'num_serie': 'SN1', 'color': 'Negro', 'fecha_adquisicion': '2026-01-10',
-             'descripcion': 'Laptop de laboratorio', 'motivo': 'Error de captura'}
+             'costo_adquisicion': '12000.00', 'descripcion': 'Laptop de laboratorio', 'motivo': 'Error de captura'}
         d.update(cambios)
         return d
 
@@ -327,6 +327,60 @@ class CorregirTests(BaseEquipos):
         self.assertRedirects(r, '/articulos/detalle/7/', fetch_redirect_response=False)
         self.assertEqual(self.api.escrituras(), [
             ('PATCH', 'articulos/7/', {'color': 'Gris', 'motivo': 'Error de captura'})])
+
+    def test_el_formulario_ofrece_el_costo_tambien_en_donados(self):
+        self.entrar()
+        r = self.client.get('/articulos/detalle/7/corregir/')
+        self.assertContains(r, 'name="costo_adquisicion"')
+        self.assertContains(r, 'value="12000"')            # sin ceros de más
+        self.api.respuestas[('GET', 'articulos/7/')] = articulo(
+            estado_registro={'codigo': 'DON', 'nombre': 'Donado', 'tono': 'violeta'},
+            costo_adquisicion=None)
+        r = self.client.get('/articulos/detalle/7/corregir/')
+        self.assertContains(r, 'name="costo_adquisicion"')
+        self.assertNotContains(r, 'disabled')
+
+    def test_corregir_costo_lo_manda_con_motivo(self):
+        self.entrar()
+        self.api.respuestas[('PATCH', 'articulos/7/')] = articulo()
+        self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion='1,500.50'))
+        self.assertEqual(self.api.escrituras(), [
+            ('PATCH', 'articulos/7/', {'costo_adquisicion': '1500.5', 'motivo': 'Error de captura'})])
+
+    def test_vaciar_el_costo_manda_null_no_cero(self):
+        self.entrar()
+        self.api.respuestas[('PATCH', 'articulos/7/')] = articulo()
+        self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion=''))
+        self.assertEqual(self.api.escrituras()[0][2], {'costo_adquisicion': None, 'motivo': 'Error de captura'})
+
+    def test_mismo_costo_con_otro_formato_no_es_un_cambio(self):
+        self.entrar()
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion='12000'))
+        self.assertEqual(self.api.escrituras(), [])
+        self.assertContains(r, 'No hiciste ningún cambio')
+
+    def test_costo_en_donado_sin_costo_se_puede_capturar(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/7/')] = articulo(
+            estado_registro={'codigo': 'DON', 'nombre': 'Donado', 'tono': 'violeta'},
+            costo_adquisicion=None)
+        self.api.respuestas[('PATCH', 'articulos/7/')] = articulo()
+        self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion='800'))
+        self.assertEqual(self.api.escrituras()[0][2], {'costo_adquisicion': '800', 'motivo': 'Error de captura'})
+
+    def test_costo_invalido_o_negativo_no_llega_a_la_api(self):
+        self.entrar()
+        for malo in ('abc', '-5'):
+            r = self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion=malo))
+            self.assertContains(r, 'El costo debe ser un número')
+        self.assertEqual(self.api.escrituras(), [])
+
+    def test_si_la_api_rechaza_el_costo_se_muestra_junto_al_campo(self):
+        self.entrar()
+        self.api.respuestas[('PATCH', 'articulos/7/')] = ApiError(
+            400, {'costo_adquisicion': 'En un bien Donado el costo no se modifica.'})
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(costo_adquisicion='900'))
+        self.assertContains(r, 'En un bien Donado el costo no se modifica.')
 
     def test_vaciar_marca_manda_null(self):
         self.entrar()
@@ -360,11 +414,10 @@ class CorregirTests(BaseEquipos):
             folio_interno='021432611-001', identificador='021432611-001')
         self.assertNotContains(self.client.get('/articulos/detalle/7/corregir/'), 'name="marbete_oficial"')
 
-    def test_no_se_ofrece_corregir_ubicacion_ni_resguardante_ni_costo(self):
+    def test_no_se_ofrece_corregir_ubicacion_ni_resguardante_ni_estado(self):
         self.entrar()
         r = self.client.get('/articulos/detalle/7/corregir/')
-        for nombre in ('name="ubicacion"', 'name="resguardante"', 'name="costo_adquisicion"',
-                       'name="estado_operativo"'):
+        for nombre in ('name="ubicacion"', 'name="resguardante"', 'name="estado_operativo"'):
             self.assertNotContains(r, nombre)
 
     def test_error_de_la_api_junto_al_campo(self):

@@ -108,6 +108,10 @@
     <span class="carga-stat__valor">{{ previa.con_error }}</span>
     <span class="carga-stat__etiqueta">Con error: no se cargarán</span>
   </div>
+  <div class="carga-stat {% if con_avisos %}carga-stat--ambar{% endif %}">
+    <span class="carga-stat__valor">{{ con_avisos }}</span>
+    <span class="carga-stat__etiqueta">Con avisos (no bloquean)</span>
+  </div>
   <div class="carga-hojas">
     {% for h in previa.hojas %}
     <span class="carga-hoja"><strong>{{ h.hoja }}</strong> {{ h.filas }} fila{{ h.filas|pluralize }}{% if h.con_error %} · <span class="carga-hoja__error">{{ h.con_error }} con error</span>{% endif %}</span>
@@ -120,6 +124,23 @@
   Puedes corregir las filas con error en el Excel y subirlo otra vez, o confirmar ahora y cargar solo las válidas.
   Si cargas solo las válidas, después sube un archivo con las filas corregidas.
 </p>
+{% endif %}
+
+{% if folios_nuevos and puede_confirmar %}
+<div class="carga-folios" id="cargaFolios">
+  <p class="carga-folios__titulo">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    Se asignarán {{ folios_nuevos }} folio{{ folios_nuevos|pluralize }} nuevo{{ folios_nuevos|pluralize }}
+  </p>
+  <p class="carga-folios__texto">
+    {{ folios_nuevos }} Comodato{{ folios_nuevos|pluralize }} o Enser{{ folios_nuevos|pluralize:",es" }} no traen folio y el sistema les dará uno del consecutivo del mes
+    (máximo 999 por mes, compartido por Comodatos y Enseres). Un folio asignado no se puede deshacer.
+  </p>
+  <label class="carga-folios__check" for="aceptoFolios">
+    <input type="checkbox" name="acepto_folios" id="aceptoFolios" form="formConfirmar">
+    <span>Confirmo que se asignen {{ folios_nuevos }} folio{{ folios_nuevos|pluralize }} nuevo{{ folios_nuevos|pluralize }}</span>
+  </label>
+</div>
 {% endif %}
 
 <div class="carga-filtro" role="tablist" aria-label="Filtrar filas">
@@ -136,7 +157,8 @@
 <div class="carga-acciones">
   <a class="btn btn-outline-secondary btn-sm" href="{% url 'equipos:carga_masiva' %}">Subir otro archivo</a>
   {% if puede_confirmar %}
-  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCarga">
+  <button type="button" class="btn btn-primary btn-sm" id="btnAbrirCarga" data-bs-toggle="modal" data-bs-target="#modalCarga"
+          {% if folios_nuevos %}disabled title="Marca la casilla de confirmación de folios"{% endif %}>
     Cargar {{ previa.validas }} artículo{{ previa.validas|pluralize }}
   </button>
   {% else %}
@@ -159,6 +181,7 @@
           <h2 class="confirmar-modal__title" id="modalCargaLabel">¿Cargar {{ previa.validas }} artículo{{ previa.validas|pluralize }}?</h2>
           <p class="confirmar-modal__aviso">
             Cada artículo se registra con su movimiento de ALTA «Carga masiva» y no genera resguardo pendiente.
+            {% if folios_nuevos %}Se asignarán {{ folios_nuevos }} folio{{ folios_nuevos|pluralize }} nuevo{{ folios_nuevos|pluralize }}.{% endif %}
             {% if previa.con_error %}Las {{ previa.con_error }} fila{{ previa.con_error|pluralize }} con error no se cargarán.{% endif %}
             Los artículos cargados no se pueden borrar desde aquí.
           </p>
@@ -202,16 +225,35 @@
 {% include "equipos/_tabla_carga.html" with filas=rechazadas %}
 {% endif %}
 
-{% if resultado.articulos %}
+{% if folios_asignados %}
+<h3 class="carga-subtitulo">Folios asignados ({{ folios_asignados|length }})</h3>
+<p class="carga-nota">El sistema asignó estos folios. Anótalos o etiqueta los bienes con ellos.</p>
+<div class="carga-tabla-wrap" id="cargaFoliosAsignados">
+  <table class="carga-tabla carga-tabla--compacta">
+    <thead><tr><th>Fila</th><th>Folio asignado</th><th></th></tr></thead>
+    <tbody>
+      {% for a in folios_asignados %}
+      <tr>
+        <td data-label="Fila">{{ a.hoja }} · {{ a.fila }}</td>
+        <td data-label="Folio asignado"><a class="carga-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a></td>
+        <td><a class="carga-ver" href="{% url 'equipos:detalle' a.num %}">Ver ficha</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if articulos %}
 <h3 class="carga-subtitulo">Artículos cargados</h3>
 <div class="carga-tabla-wrap">
   <table class="carga-tabla carga-tabla--compacta">
     <thead><tr><th>Fila</th><th>Identificador</th><th></th></tr></thead>
     <tbody>
-      {% for a in resultado.articulos %}
+      {% for a in articulos %}
       <tr>
         <td data-label="Fila">{{ a.hoja }} · {{ a.fila }}</td>
-        <td data-label="Identificador"><a class="carga-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a></td>
+        <td data-label="Identificador"><a class="carga-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a>{% if a.folio_nuevo %} <span class="badge-estado badge-estado--azul">Folio asignado</span>{% endif %}</td>
         <td><a class="carga-ver" href="{% url 'equipos:detalle' a.num %}">Ver ficha</a></td>
       </tr>
       {% endfor %}
@@ -281,6 +323,14 @@
       b.addEventListener('click', function () { aplicar(b.dataset.filtro); });
     });
     aplicar(document.querySelector('.carga-filtro__btn.is-activo').dataset.filtro);
+  }
+
+  // Con folios nuevos, cargar exige la casilla (el servidor también la pide).
+  var acepto = document.getElementById('aceptoFolios');
+  var abrir = document.getElementById('btnAbrirCarga');
+  if (acepto && abrir) {
+    acepto.addEventListener('change', function () { abrir.disabled = !acepto.checked; });
+    abrir.disabled = !acepto.checked;
   }
 
   var formConfirmar = document.getElementById('formConfirmar');
@@ -358,6 +408,16 @@
   .carga-stat__etiqueta { font-size: 12px; color: var(--ic-muted); }
   .carga-stat--verde .carga-stat__valor { color: #067647; }
   .carga-stat--rojo .carga-stat__valor { color: #B42318; }
+  .carga-stat--ambar .carga-stat__valor { color: #B54708; }
+  .carga-folios {
+    max-width: 860px; padding: 13px 16px; margin-bottom: 14px;
+    background: #FFFAEB; border: 1px solid #FEDF89; border-radius: 10px;
+  }
+  .carga-folios__titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 13.5px; font-weight: 700; color: #B54708; }
+  .carga-folios__texto { margin: 0 0 10px; font-size: 12.5px; color: var(--ic-text); line-height: 1.5; }
+  .carga-folios__check { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; color: var(--ic-ink); cursor: pointer; }
+  .carga-folios__check input { width: 16px; height: 16px; accent-color: var(--ic-primary); }
+  .carga-avisos { margin: 0; padding-left: 16px; font-size: 12px; color: #B54708; line-height: 1.45; min-width: 200px; }
   .carga-hojas { display: flex; flex-direction: column; justify-content: center; gap: 4px; font-size: 12.5px; color: var(--ic-text); }
   .carga-hoja__error { color: #B42318; font-weight: 600; }
 
