@@ -1,6 +1,6 @@
 # PENDIENTES — InventaCore
 
-Última actualización: 03/11/2026
+Última actualización: 04/11/2026
 Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No implementar como definitivo nada de aquí.
 
 ## Cerrados el 29/10 y 01/11/2026 (pasaron a DECISIONES.md)
@@ -12,6 +12,7 @@ Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No 
 - PEND-009 Cambios de estado desde la ficha: Obsoleto desde la ficha con motivo y bitácora (DEC-013).
 - Roles en el cliente: Consulta no accede a catálogos, personal, bitácora ni usuarios (DEC-019).
 - Error 500 al registrar un tipo de artículo duplicado: corregido en TipoArticuloSerializer (400 con mensaje). Era el único UniqueConstraint del modelo.
+- PEND-004 Costo en bienes donados: opcional, ni se exige ni se bloquea; vacío queda NULL (DEC-021, 04/11/2026).
 - Costo de adquisición después del alta: se corrige desde la ficha con motivo y bitácora (DEC-013, 03/11/2026). Pendiente de que Adad lo implemente.
 - Dashboard y reportes: alcance mínimo en DEC-020.
 - Nombre de la Contadora en la firma: dato del sistema (DEC-007).
@@ -70,13 +71,20 @@ Prioridad: MEDIA
 
 - Confirmar con la Contadora que las columnas de DEC-018 le sirven para la dirección estatal (no compartió un formato oficial; se toma como base el Excel de referencia del Contexto).
 
+PEND-021 — Ajustes a la carga masiva y a la plantilla (04/11/2026)
+Prioridad: ALTA (antes de entregar la plantilla a la Contadora)
+Estado: aceptado por Fernando; los cambios se reparten entre cliente y API.
+
+- S/S, S/M, N/A o guion en marca, modelo o serie: tratarlos como vacío (`_texto()` en `api/articulos/carga_masiva.py`) con aviso que no bloquea.
+- Comodato o Enser sin folio: la vista previa muestra "se asignarán N folios nuevos" y una casilla obligatoria; el resultado lista los folios asignados. Sin la casilla, el botón Confirmar no se habilita.
+- Posible duplicado en filas sin folio ni serie: aviso por fila (no rechazo) cuando coinciden tipo, descripción, marca, modelo, color, ubicación y resguardante con un artículo existente o con otra fila del archivo.
+- Plantilla: ocultar las hojas Listas y Tipos; instrucciones en 5 pasos con "pegar solo valores", columnas obligatorias marcadas y una fila de ejemplo; entregarla vacía y generada con los catálogos reales (se genera con `generar_plantilla()`, no se edita el .xlsx).
+- Propuesta (no es decisión): "revertir lote" solo para Administrador dentro de las primeras 24 horas, porque hoy un artículo cargado por error no se puede borrar ni dar de baja. Pendiente de decidir.
+- Quitar el bloqueo del costo en bienes Donados en el cliente (DEC-021).
+- Preguntar a la Contadora: si usa Excel o Google Sheets (el desplegable dependiente usa INDIRECT) y si todos los bienes tienen folio o marbete.
+- Probar en Excel real que los desplegables dependientes funcionan.
+
 ## Para la Contadora o la institución
-
-PEND-004 — Bienes donados
-Prioridad: MEDIA
-
-- ¿El costo se bloquea o se captura en un bien donado?
-- Propuesta de cierre (pendiente de Fernando): el costo es opcional en un bien Donado, ni se exige ni se bloquea. Lo que ya hace el backend y el SQL. El frontend hoy lo bloquea y habría que quitarlo. Si Fernando la confirma, pasa a DECISIONES.md; la Contadora puede corregirla.
 
 PEND-007 — Personal que deja la institución
 Prioridad: MEDIA
@@ -93,7 +101,9 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: login real, rol real y pantallas de catálogos y personal ya conectadas a la API (01/11/2026). Siguen con datos de prueba y por adaptar: equipos, movimientos, dashboard y reportes (datos de prueba, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo). Se adaptan cuando el backend publique los endpoints de artículos y movimientos.
+- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos, movimientos y pantalla de carga masiva conectados y unidos a main (04/11/2026, commit c152d1a). Siguen pendientes dashboard, reportes, resguardos en PDF, Usuarios y Perfil. Lo que sigue de la línea anterior ya no aplica para artículos y movimientos: Siguen con datos de prueba y por adaptar: equipos, movimientos, dashboard y reportes (datos de prueba, folio IC-, QR con URL, NOLOC no sincronizado, nombres de campo del DD viejo). Se adaptan cuando el backend publique los endpoints de artículos y movimientos.
+- Archivos de prueba de Adad (`api/prueba_inventario.xlsx`, `api/~$prueba_inventario.xlsx`, `api/prueba_carga_masiva.py`) siguen versionados; quitarlos del repositorio y agregar `~$*` al .gitignore.
+- Nombre de la Contadora en settings.py: confirmado como Lic. Jania Elizabeth Cardenas Vela (04/11/2026); moverlo a variable de entorno es opcional (repositorio privado).
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
 - requirements.txt: falta qrcode (lo usa client) y openpyxl (carga y exportación).

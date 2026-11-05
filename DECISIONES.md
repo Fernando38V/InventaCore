@@ -1,6 +1,6 @@
 # DECISIONES — InventaCore
 
-Última actualización: 03/11/2026
+Última actualización: 04/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
 Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
@@ -59,7 +59,7 @@ Pendiente técnico: PEND-001.
 
 Estado: CONFIRMADA
 Decisión: Registrado, Pendiente y Donado. Donado tiene prioridad. Si no es donado: con fecha y costo de adquisición completos es Registrado; si falta alguno, Pendiente. El sistema siempre lo calcula, también en la carga masiva: la plantilla solo trae la columna "¿Donado?" (Sí/No), nunca el estado de registro. La fecha de adquisición puede capturarse o corregirse después desde la ficha, y el estado se recalcula. Si un Administrador corrige un Donado por error, queda en BITACORA y se recalcula.
-Pendiente institucional: costo en bienes donados (PEND-004).
+El costo de un bien Donado es opcional (DEC-021).
 
 ## DEC-009 — Alcance del software y de la tesina
 
@@ -98,7 +98,7 @@ Decisión: Tres estados: Útil, Obsoleto y No localizado. Se eliminan "Autorizad
 ## DEC-013 — Edición de la ficha
 
 Estado: CONFIRMADA (actualizada 01/11/2026)
-Decisión: Ubicación y resguardante solo cambian por MOVIMIENTO. Marca, modelo, serie, color, descripción, fecha de adquisición y costo de adquisición se corrigen desde la ficha con motivo y registro en BITACORA, solo por el Administrador. Al cambiar la fecha o el costo, el estado de registro se recalcula (DEC-008); en un bien Donado el costo no se modifica mientras PEND-004 siga abierto. Así un artículo Pendiente por falta de costo puede pasar a Registrado (confirmado 03/11/2026). El cambio a Obsoleto se hace desde la ficha con motivo obligatorio y BITACORA, sin movimiento (Obsoleto es un estado, no un lugar); la ubicación y el resguardante se conservan. Un artículo puede darse de alta ya como Obsoleto. No localizado y reparación siguen sus propias reglas.
+Decisión: Ubicación y resguardante solo cambian por MOVIMIENTO. Marca, modelo, serie, color, descripción, fecha de adquisición y costo de adquisición se corrigen desde la ficha con motivo y registro en BITACORA, solo por el Administrador. Al cambiar la fecha o el costo, el estado de registro se recalcula (DEC-008); en un bien Donado el costo también se puede capturar o corregir (DEC-021). Así un artículo Pendiente por falta de costo puede pasar a Registrado (confirmado 03/11/2026). El cambio a Obsoleto se hace desde la ficha con motivo obligatorio y BITACORA, sin movimiento (Obsoleto es un estado, no un lugar); la ubicación y el resguardante se conservan. Un artículo puede darse de alta ya como Obsoleto. No localizado y reparación siguen sus propias reglas.
 
 ## DEC-014 — DEPARTAMENTO y UBICACION
 
@@ -123,9 +123,11 @@ Decisión:
 
 - El sistema genera una plantilla de Excel. La Contadora pasa ahí su inventario existente y la sube al sistema. El equipo del proyecto no carga los datos.
 - Antes de la primera carga deben existir en el sistema las categorías, los tipos, las ubicaciones y el personal.
-- Las columnas de catálogo (tipo, origen, ubicación, resguardante, estado operativo, ¿Donado?) traen listas desplegables generadas desde los catálogos, para evitar variantes de escritura. El sistema vuelve a validar todo al subir el archivo.
+- La plantilla tiene una hoja por origen (Activos, Comodatos y Enseres); el origen lo define la hoja, no una columna. Las columnas de catálogo (tipo, ubicación, resguardante, estado operativo, ¿Donado?) traen listas desplegables generadas desde los catálogos, para evitar variantes de escritura. El sistema vuelve a validar todo al subir el archivo.
 - Antes de guardar, el sistema muestra una vista previa con las filas válidas y las filas con error y su motivo. Al confirmar, solo entran las filas válidas.
-- Un identificador (marbete o folio) que ya existe en el sistema se rechaza como duplicado.
+- Un identificador (marbete o folio) que ya existe en el sistema se rechaza como duplicado. Lo mismo el número de serie, que es único cuando viene capturado, dentro del archivo y contra la base. Subir de nuevo el mismo archivo se detecta por su huella (sha256).
+- Un Comodato o Enser sin folio recibe uno nuevo del consecutivo mensual compartido (DEC-010). Antes de guardar, la vista previa avisa cuántos folios se asignarán y exige marcar una casilla de confirmación; el resultado lista los folios asignados (04/11/2026).
+- Un texto como S/S, S/M, N/A o un guion en marca, modelo o serie se toma como vacío y no se guarda (DEC-011); la vista previa lo avisa sin bloquear la fila (04/11/2026).
 - Cada artículo cargado genera su ALTA automática con motivo "Carga masiva" (archivo y fecha), sin resguardo pendiente.
 - El estado de registro lo calcula el sistema (DEC-008).
 - Orden de carga de los inventarios por año (23, 24, 25 y 26): primero el más reciente (2026) y después los anteriores, que solo agregan los bienes que no aparecen en los más recientes.
@@ -155,3 +157,13 @@ Decisión: Alcance mínimo para construir.
 - Dashboard: totales por estado operativo, estado de registro y ubicación; artículos Pendientes de datos; últimos movimientos.
 - Reportes: inventario filtrable (por ubicación, resguardante y estado), artículos de un resguardante, historial de un artículo y la exportación a Excel (DEC-018).
 - Implementación: API de Adad (endpoint de conteos) y cliente; PENDIENTE.
+
+## DEC-021 — Costo en bienes donados
+
+Estado: CONFIRMADA (04/11/2026, a partir de lo que indicó la Contadora)
+Decisión: El costo de adquisición de un bien Donado es opcional: ni se exige ni se bloquea. La Contadora lo captura cuando se lo piden y lo determina ella. Si se deja en blanco queda vacío (NULL), no 0; si se captura, se guarda. El estado de registro de un Donado sigue siendo Donado (DEC-008) tenga o no costo.
+
+- Se aplica en el alta manual, en la corrección desde la ficha (DEC-013, con motivo y BITACORA) y en la carga masiva.
+- El backend y el SQL ya lo permiten; el cliente debe quitar el bloqueo del costo en bienes Donados.
+- Se descarta un valor 0 por defecto: un 0 afirma que el bien costó cero, que no es lo mismo que no tener el dato, y entra en sumas y reportes.
+  Impacto: RF de alta y de corrección; frontend (quitar el bloqueo); pruebas.
