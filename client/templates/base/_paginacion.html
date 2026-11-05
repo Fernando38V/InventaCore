@@ -1,0 +1,33 @@
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="paginacion" aria-label="Paginación del listado">
+
+  <p class="paginacion__rango">
+    Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ total }}
+  </p>
+
+  <div class="paginacion__controles">
+    {% if page_obj.has_previous %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.previous_page_number }}">Anterior</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Anterior</span>
+    {% endif %}
+
+    {% for p in rango_paginas %}
+      {% if p == pagina_elipsis %}
+        <span class="paginacion__puntos">…</span>
+      {% elif p == page_obj.number %}
+        <span class="paginacion__num is-active">{{ p }}</span>
+      {% else %}
+        <a class="paginacion__num" href="{{ qs_prefijo }}page={{ p }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <a class="paginacion__btn" href="{{ qs_prefijo }}page={{ page_obj.next_page_number }}">Siguiente</a>
+    {% else %}
+      <span class="paginacion__btn is-disabled">Siguiente</span>
+    {% endif %}
+  </div>
+
+</nav>
+{% endif %}

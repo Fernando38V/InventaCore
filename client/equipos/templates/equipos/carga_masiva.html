@@ -22,7 +22,6 @@
 {% include "base/_avisos.html" %}
 
 {% if paso == 'subir' %}
-{# ------------------------------------------------------------- paso 1 #}
 
 {% if error %}
 <div class="aviso aviso--rojo" role="alert">
@@ -73,7 +72,6 @@
 </div>
 
 {% elif paso == 'previa' %}
-{# ------------------------------------------------------------- paso 2 #}
 
 <div class="carga-archivo">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
@@ -200,7 +198,6 @@
 {% endif %}
 
 {% else %}
-{# ------------------------------------------------------------- paso 3 #}
 
 <div class="aviso aviso--verde" role="status">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -275,7 +272,6 @@
 {{ block.super }}
 <script>
 (function () {
-  // Paso 1: nombre del archivo elegido, arrastrar y soltar, y aviso de espera.
   var input = document.getElementById('archivo');
   if (input) {
     var drop = document.getElementById('cargaDrop');
@@ -304,7 +300,6 @@
     });
   }
 
-  // Paso 2: filtro de filas.
   var botones = document.querySelectorAll('.carga-filtro__btn');
   if (botones.length) {
     var filas = document.querySelectorAll('.carga-tabla tbody tr[data-estado]');
@@ -325,7 +320,6 @@
     aplicar(document.querySelector('.carga-filtro__btn.is-activo').dataset.filtro);
   }
 
-  // Con folios nuevos, cargar exige la casilla (el servidor también la pide).
   var acepto = document.getElementById('aceptoFolios');
   var abrir = document.getElementById('btnAbrirCarga');
   if (acepto && abrir) {

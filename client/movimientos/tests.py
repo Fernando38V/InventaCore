@@ -79,7 +79,7 @@ class ListadoTests(BaseMov):
         self.entrar()
         self.api.respuestas[('GET', 'movimientos/')] = pagina([movimiento(requiere_resguardo=True)])
         r = self.client.get('/movimientos/')
-        self.assertContains(r, 'Requiere resguardo')
+        self.assertContains(r, 'Resguardo pendiente')
         self.assertNotContains(r, 'Baja del inventario')
 
     def test_boton_mover_por_fila_solo_para_admin(self):

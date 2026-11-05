@@ -1,0 +1,152 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Dashboard · InventaCore{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Resumen del inventario del plantel{% endblock %}
+
+{% block app_content %}
+
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>No se pudo cargar el tablero. {{ error_api }}</span>
+</div>
+{% else %}
+
+<div class="dash-grid dash-grid--kpis">
+  <a class="panel kpi" href="{% url 'equipos:listado' %}">
+    <span class="kpi__etiqueta">Artículos registrados</span>
+    <span class="kpi__valor">{{ d.total_articulos }}</span>
+    <span class="kpi__pie">Ver el inventario</span>
+  </a>
+  <a class="panel kpi {% if pendientes.total %}kpi--alerta{% endif %}" href="{% url 'equipos:listado' %}?estado_registro=PEND">
+    <span class="kpi__etiqueta">Pendientes de datos</span>
+    <span class="kpi__valor">{{ pendientes.total }}</span>
+    <span class="kpi__pie">Sin fecha o costo de adquisición</span>
+  </a>
+  <a class="panel kpi {% if nolocalizados %}kpi--alerta{% endif %}" href="{% url 'equipos:listado' %}?estado_operativo=NOLOC">
+    <span class="kpi__etiqueta">No localizados</span>
+    <span class="kpi__valor">{{ nolocalizados }}</span>
+    <span class="kpi__pie">En la ubicación «Sin ubicar»</span>
+  </a>
+  <a class="panel kpi {% if d.resguardos_por_emitir %}kpi--alerta{% endif %}" href="{% url 'movimientos:resguardos' %}?vista=pendientes">
+    <span class="kpi__etiqueta">Resguardos por emitir</span>
+    <span class="kpi__valor">{{ d.resguardos_por_emitir }}</span>
+    <span class="kpi__pie">Asignaciones sin documentar</span>
+  </a>
+</div>
+
+<div class="dash-grid dash-grid--2">
+  <section class="panel">
+    <h2 class="panel__titulo">Por estado operativo</h2>
+    <ul class="reparto">
+      {% for e in estado_operativo %}
+      <li class="reparto__fila">
+        <a class="reparto__nombre" href="{% url 'equipos:listado' %}?estado_operativo={{ e.codigo }}">{{ e.nombre }}</a>
+        <span class="reparto__pista"><span class="reparto__barra reparto__barra--{{ e.tono }} {% if not e.total %}reparto__barra--cero{% endif %}" style="width: {{ e.ancho }}%"></span></span>
+        <span class="reparto__total">{{ e.total }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section class="panel">
+    <h2 class="panel__titulo">Por estado de registro</h2>
+    <ul class="reparto">
+      {% for e in estado_registro %}
+      <li class="reparto__fila">
+        <a class="reparto__nombre" href="{% url 'equipos:listado' %}?estado_registro={{ e.codigo }}">{{ e.nombre }}</a>
+        <span class="reparto__pista"><span class="reparto__barra reparto__barra--{{ e.tono }} {% if not e.total %}reparto__barra--cero{% endif %}" style="width: {{ e.ancho }}%"></span></span>
+        <span class="reparto__total">{{ e.total }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<div class="dash-grid dash-grid--2">
+  <section class="panel">
+    <h2 class="panel__titulo">Por ubicación <a href="{% url 'reportes:listado' %}">Reportes</a></h2>
+    {% if ubicaciones %}
+    <ul class="reparto">
+      {% for u in ubicaciones %}
+      <li class="reparto__fila">
+        <a class="reparto__nombre" href="{% url 'equipos:listado' %}?ubicacion={{ u.codigo }}" title="{{ u.nombre }}">{{ u.nombre }}</a>
+        <span class="reparto__pista"><span class="reparto__barra {% if not u.total %}reparto__barra--cero{% endif %}" style="width: {{ u.ancho }}%"></span></span>
+        <span class="reparto__total">{{ u.total }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if otras_ubicaciones.cuantas %}
+    <p class="panel__nota" style="margin: 10px 0 0">Y {{ otras_ubicaciones.cuantas }} ubicaci{{ otras_ubicaciones.cuantas|pluralize:"ón,ones" }} más con {{ otras_ubicaciones.total }} artículo{{ otras_ubicaciones.total|pluralize }}.</p>
+    {% endif %}
+    {% else %}
+    <p class="panel__nota">No hay ubicaciones activas.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel panel--tabla">
+    <h2 class="panel__titulo">Pendientes de datos
+      {% if pendientes.total > pendientes.articulos|length %}<a href="{% url 'equipos:listado' %}?estado_registro=PEND">Ver los {{ pendientes.total }}</a>{% endif %}
+    </h2>
+    {% if pendientes.articulos %}
+    <div class="tabla-scroll">
+      <table class="tabla-panel">
+        <thead><tr><th>Artículo</th><th>Le falta</th></tr></thead>
+        <tbody>
+          {% for a in pendientes.articulos %}
+          <tr>
+            <td data-label="Artículo">
+              <a class="celda-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a>
+              <span class="celda-secundaria">{{ a.nombre }} · {{ a.ubicacion.nombre }}</span>
+            </td>
+            <td data-label="Le falta">{{ a.faltantes|join:" y "|capfirst|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="panel__vacio">No hay artículos pendientes de datos.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="panel panel--tabla">
+  <h2 class="panel__titulo">Últimos movimientos <a href="{% url 'movimientos:listado' %}">Ver todos</a></h2>
+  {% if d.ultimos_movimientos %}
+  <div class="tabla-scroll">
+    <table class="tabla-panel">
+      <thead><tr><th>Folio</th><th>Fecha</th><th>Tipo</th><th>Artículo</th><th>Ubicación</th><th>Resguardante</th></tr></thead>
+      <tbody>
+        {% for m in d.ultimos_movimientos %}
+        <tr>
+          <td data-label="Folio"><span class="celda-id">{{ m.folio }}</span></td>
+          <td data-label="Fecha"><span class="celda-fuerte">{{ m.fecha_dia }}</span><span class="celda-secundaria">{{ m.fecha_hora }}</span></td>
+          <td data-label="Tipo">{{ m.tipo.nombre }}</td>
+          <td data-label="Artículo">
+            <a class="celda-id" href="{% url 'equipos:detalle' m.articulo.num %}">{{ m.articulo.identificador }}</a>
+            <span class="celda-secundaria">{{ m.articulo.descripcion }}</span>
+          </td>
+          <td data-label="Ubicación">{{ m.ubicacion_llegada.nombre }}</td>
+          <td data-label="Resguardante">{{ m.personal_asigna.nombre|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="panel__vacio">Todavía no hay movimientos.</p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock app_content %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}

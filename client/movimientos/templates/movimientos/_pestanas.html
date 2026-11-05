@@ -1,0 +1,9 @@
+{# Pestañas de Movimientos: el listado y los resguardos que documentan las asignaciones. #}
+<nav class="cat-tabs" aria-label="Movimientos y resguardos">
+  <a class="cat-tabs__tab {% if pestana == 'movimientos' %}is-active{% endif %}" href="{% url 'movimientos:listado' %}"
+     {% if pestana == 'movimientos' %}aria-current="page"{% endif %}>Movimientos</a>
+  <a class="cat-tabs__tab {% if pestana == 'pendientes' %}is-active{% endif %}" href="{% url 'movimientos:resguardos' %}?vista=pendientes"
+     {% if pestana == 'pendientes' %}aria-current="page"{% endif %}>Resguardos por emitir{% if total_pendientes %}<span class="cat-tabs__contador">{{ total_pendientes }}</span>{% endif %}</a>
+  <a class="cat-tabs__tab {% if pestana == 'emitidos' %}is-active{% endif %}" href="{% url 'movimientos:resguardos' %}?vista=emitidos"
+     {% if pestana == 'emitidos' %}aria-current="page"{% endif %}>Resguardos emitidos</a>
+</nav>

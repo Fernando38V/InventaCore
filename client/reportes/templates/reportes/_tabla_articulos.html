@@ -1,0 +1,37 @@
+{# Artículos de un reporte. Recibe total, articulos (ya recortados), recortado y max_filas. #}
+{% if articulos %}
+<section class="panel panel--tabla">
+  <h2 class="panel__titulo">{{ total }} artículo{{ total|pluralize }}</h2>
+  <div class="tabla-scroll">
+    <table class="tabla-panel">
+      <thead>
+        <tr><th>Identificador</th><th>Artículo</th><th>Ubicación</th><th>Resguardante</th><th>Estado</th><th class="celda-num">Costo</th></tr>
+      </thead>
+      <tbody>
+        {% for a in articulos %}
+        <tr>
+          <td data-label="Identificador"><a class="celda-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a><span class="celda-secundaria">{{ a.origen.nombre }}</span></td>
+          <td data-label="Artículo"><span class="celda-fuerte">{{ a.nombre }}</span><span class="celda-secundaria">{% if a.nombre != a.tipo_articulo.nombre %}{{ a.tipo_articulo.nombre }}{% else %}{{ a.categoria.nombre }}{% endif %}{% if a.num_serie %} · Serie {{ a.num_serie }}{% endif %}</span></td>
+          <td data-label="Ubicación">{{ a.ubicacion.nombre }}</td>
+          <td data-label="Resguardante">{{ a.resguardante.nombre|default:"—" }}</td>
+          <td data-label="Estado">
+            <span class="badge-estado badge-estado--{{ a.estado_operativo.tono }}">{{ a.estado_operativo.nombre }}</span>
+            <span class="badge-estado badge-estado--{{ a.estado_registro.tono }}">{{ a.estado_registro.nombre }}</span>
+          </td>
+          <td data-label="Costo" class="celda-num">{% if a.costo_adquisicion %}${{ a.costo_adquisicion }}{% else %}<span class="celda-secundaria">Sin costo</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if recortado %}
+  <p class="reporte-pie">En pantalla se muestran los primeros {{ max_filas }} de {{ total }}. El Excel incluye todos.</p>
+  {% endif %}
+</section>
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-list"/></svg></div>
+  <h2 class="vacio__titulo">No hay artículos con estos filtros</h2>
+  <p class="vacio__texto">Prueba con otros filtros.</p>
+</div>
+{% endif %}

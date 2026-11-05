@@ -1,0 +1,217 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Reportes · InventaCore{% endblock %}
+{% block nav_reportes %}active{% endblock %}
+{% block page_title %}Reportes{% endblock %}
+{% block page_subtitle %}Inventario, bienes por resguardante e historial de un artículo{% endblock %}
+
+{% block app_content %}
+
+<nav class="cat-tabs" aria-label="Reportes">
+  <a class="cat-tabs__tab {% if vista == 'inventario' %}is-active{% endif %}" href="{% url 'reportes:listado' %}">Inventario</a>
+  <a class="cat-tabs__tab {% if vista == 'resguardante' %}is-active{% endif %}" href="{% url 'reportes:listado' %}?vista=resguardante">Por resguardante</a>
+  <a class="cat-tabs__tab {% if vista == 'historial' %}is-active{% endif %}" href="{% url 'reportes:listado' %}?vista=historial">Historial de un artículo</a>
+</nav>
+
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
+</div>
+{% endif %}
+
+{% if vista == 'inventario' %}
+{# ------------------------------------------------------------ inventario #}
+<form class="filtros" method="get" action="{% url 'reportes:listado' %}">
+  <div class="filtros__selects">
+    <select class="filtros__select" name="ubicacion" aria-label="Ubicación">
+      <option value="">Todas las ubicaciones</option>
+      {% for u in ubicaciones %}<option value="{{ u.codigo }}" {% if f.ubicacion == u.codigo %}selected{% endif %}>{{ u.nombre }}</option>{% endfor %}
+    </select>
+    <select class="filtros__select" name="resguardante" aria-label="Resguardante">
+      <option value="">Cualquier resguardante</option>
+      {% for p in personal %}<option value="{{ p.valor }}" {% if f.resguardante == p.valor %}selected{% endif %}>{{ p.texto }}</option>{% endfor %}
+    </select>
+    <select class="filtros__select" name="estado_operativo" aria-label="Estado operativo">
+      <option value="">Cualquier estado operativo</option>
+      {% for e in estados_operativos %}<option value="{{ e.codigo }}" {% if f.estado_operativo == e.codigo %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
+    </select>
+    <select class="filtros__select" name="estado_registro" aria-label="Estado de registro">
+      <option value="">Cualquier estado de registro</option>
+      {% for e in estados_registro %}<option value="{{ e.codigo }}" {% if f.estado_registro == e.codigo %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="reporte-acciones" style="margin-top: 10px">
+    <button class="btn btn-primary btn-sm" type="submit" name="ver" value="1">Ver reporte</button>
+    <button class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" type="submit"
+            formaction="{% url 'reportes:excel_inventario' %}" id="btnExcel">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+      Descargar Excel
+    </button>
+    {% if generado %}<a class="filtros__limpiar" href="{% url 'reportes:listado' %}">Limpiar</a>{% endif %}
+  </div>
+</form>
+
+{% if generado %}
+  {% include "reportes/_tabla_articulos.html" %}
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-list"/></svg></div>
+  <h2 class="vacio__titulo">Elige los filtros y pulsa «Ver reporte»</h2>
+  <p class="vacio__texto">Sin filtros, el reporte incluye todo el inventario. «Descargar Excel» baja el mismo reporte con las columnas institucionales.</p>
+</div>
+{% endif %}
+
+{% elif vista == 'resguardante' %}
+{# -------------------------------------------------------- por resguardante #}
+<form class="filtros" method="get" action="{% url 'reportes:listado' %}">
+  <input type="hidden" name="vista" value="resguardante">
+  <div class="filtros__selects">
+    <select class="filtros__select" name="persona" aria-label="Resguardante" data-autosubmit>
+      <option value="">Elige un resguardante</option>
+      {% for p in personal %}<option value="{{ p.valor }}" {% if persona == p.valor %}selected{% endif %}>{{ p.texto }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-primary btn-sm" type="submit">Ver reporte</button>
+    {% if resguardante %}
+    <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" href="{% url 'reportes:excel_resguardante' resguardante.num %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+      Descargar Excel
+    </a>
+    {% endif %}
+  </div>
+</form>
+
+{% if resguardante %}
+  <p class="panel__nota">Bienes que hoy están a cargo de <strong>{{ resguardante.nombre }}</strong> (núm. de empleado {{ resguardante.numero_empleado|default:"—" }}).</p>
+  {% include "reportes/_tabla_articulos.html" %}
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-list"/></svg></div>
+  <h2 class="vacio__titulo">Elige a una persona</h2>
+  <p class="vacio__texto">Verás los artículos que tiene a su cargo hoy y podrás descargarlos en Excel.</p>
+</div>
+{% endif %}
+
+{% else %}
+{# --------------------------------------------------------------- historial #}
+<form class="filtros" method="get" action="{% url 'reportes:listado' %}">
+  <input type="hidden" name="vista" value="historial">
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+      <input class="filtros__input" type="search" name="q" value="{{ q }}" placeholder="Marbete, folio, serie, marca o descripción" aria-label="Buscar artículo">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+  </div>
+</form>
+
+{% if historial %}
+  {% with a=historial.articulo %}
+  <section class="panel" style="margin-bottom: 14px">
+    <h2 class="panel__titulo">{{ a.identificador }} · {{ a.nombre }} <a href="{% url 'equipos:detalle' a.num %}">Ver ficha</a></h2>
+    <dl class="ficha-mini">
+      <div><dt>Tipo</dt><dd>{{ a.tipo_articulo.nombre }}</dd></div>
+      <div><dt>Ubicación</dt><dd>{{ a.ubicacion.nombre }}</dd></div>
+      <div><dt>Resguardante</dt><dd>{{ a.resguardante.nombre|default:"—" }}</dd></div>
+      <div><dt>Estado</dt><dd><span class="badge-estado badge-estado--{{ a.estado_operativo.tono }}">{{ a.estado_operativo.nombre }}</span> <span class="badge-estado badge-estado--{{ a.estado_registro.tono }}">{{ a.estado_registro.nombre }}</span></dd></div>
+    </dl>
+  </section>
+  {% endwith %}
+
+  <section class="panel panel--tabla" style="margin-bottom: 14px">
+    <h2 class="panel__titulo">Movimientos ({{ historial.movimientos|length }})</h2>
+    <div class="tabla-scroll">
+      <table class="tabla-panel">
+        <thead><tr><th>Folio</th><th>Fecha</th><th>Tipo</th><th>Ubicación</th><th>Resguardante</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {% for m in historial.movimientos %}
+          <tr>
+            <td data-label="Folio"><span class="celda-id">{{ m.folio }}</span>{% if m.resguardo %}<span class="celda-secundaria">Resguardo {{ m.resguardo }}</span>{% endif %}</td>
+            <td data-label="Fecha"><span class="celda-fuerte">{{ m.fecha_dia }}</span><span class="celda-secundaria">{{ m.fecha_hora }}</span></td>
+            <td data-label="Tipo">{{ m.tipo.nombre }}</td>
+            <td data-label="Ubicación">{% if m.ubicacion_origen and m.ubicacion_origen.codigo != m.ubicacion_llegada.codigo %}{{ m.ubicacion_origen.nombre }} → {% endif %}{{ m.ubicacion_llegada.nombre }}</td>
+            <td data-label="Resguardante">{% if m.personal_entrega %}{{ m.personal_entrega.nombre }} → {% endif %}{{ m.personal_asigna.nombre|default:"—" }}</td>
+            <td data-label="Motivo">{{ m.nota|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel panel--tabla">
+    <h2 class="panel__titulo">Resguardos ({{ historial.resguardos|length }})</h2>
+    {% if historial.resguardos %}
+    <div class="tabla-scroll">
+      <table class="tabla-panel">
+        <thead><tr><th>Folio</th><th>Emisión</th><th>Resguardante</th><th><span class="visually-hidden">PDF</span></th></tr></thead>
+        <tbody>
+          {% for r in historial.resguardos %}
+          <tr>
+            <td data-label="Folio"><span class="celda-id">{{ r.folio }}</span></td>
+            <td data-label="Emisión">{{ r.fecha_emision }}</td>
+            <td data-label="Resguardante">{{ r.resguardante.nombre }}</td>
+            <td><div class="acciones-pdf"><a href="{% url 'movimientos:pdf_resguardo' r.folio %}" target="_blank" rel="noopener">Ver PDF</a><a href="{% url 'movimientos:pdf_resguardo' r.folio %}?descargar=1">Descargar</a></div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="panel__vacio">Este artículo todavía no aparece en ningún resguardo.</p>
+    {% endif %}
+  </section>
+
+{% elif coincidencias %}
+  <section class="panel panel--tabla">
+    <h2 class="panel__titulo">{{ total_coincidencias }} artículo{{ total_coincidencias|pluralize }} coincide{{ total_coincidencias|pluralize:",n" }}{% if total_coincidencias > coincidencias|length %} · se muestran los primeros {{ coincidencias|length }}{% endif %}</h2>
+    <div class="tabla-scroll">
+      <table class="tabla-panel">
+        <thead><tr><th>Artículo</th><th>Ubicación</th><th>Resguardante</th><th></th></tr></thead>
+        <tbody>
+          {% for a in coincidencias %}
+          <tr>
+            <td data-label="Artículo"><span class="celda-id">{{ a.identificador }}</span><span class="celda-secundaria">{{ a.nombre }}</span></td>
+            <td data-label="Ubicación">{{ a.ubicacion.nombre }}</td>
+            <td data-label="Resguardante">{{ a.resguardante.nombre|default:"—" }}</td>
+            <td><div class="acciones-pdf"><a href="{% url 'reportes:listado' %}?vista=historial&amp;q={{ q|urlencode }}&amp;articulo={{ a.num }}">Ver historial</a></div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% elif q %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-list"/></svg></div>
+  <h2 class="vacio__titulo">Ningún artículo coincide</h2>
+  <p class="vacio__texto">Prueba con el marbete, el folio o el número de serie.</p>
+</div>
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-list"/></svg></div>
+  <h2 class="vacio__titulo">Busca un artículo</h2>
+  <p class="vacio__texto">Verás todos sus movimientos y los resguardos en los que aparece.</p>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.querySelectorAll('[data-autosubmit]').forEach(function (s) {
+  s.addEventListener('change', function () { if (s.value) { s.form.submit(); } });
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}

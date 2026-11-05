@@ -8,6 +8,7 @@
 
 {% block app_content %}
 
+{% include "movimientos/_pestanas.html" with pestana='movimientos' %}
 {% include "base/_avisos.html" %}
 
 {% if error_api %}
@@ -98,8 +99,10 @@
       <tr>
         <td data-label="Folio">
           <span class="celda-id">{{ m.folio }}</span>
-          {% if m.requiere_resguardo %}
-          <span class="celda-secundaria">Requiere resguardo</span>
+          {% if m.resguardo %}
+          <a class="celda-secundaria celda-resguardo" href="{% url 'movimientos:pdf_resguardo' m.resguardo %}" target="_blank" rel="noopener">Resguardo {{ m.resguardo }}</a>
+          {% elif m.requiere_resguardo %}
+          <a class="celda-secundaria celda-resguardo celda-resguardo--pendiente" href="{% url 'movimientos:resguardos' %}?vista=pendientes">Resguardo pendiente</a>
           {% endif %}
         </td>
         <td data-label="Fecha" class="celda-fecha">
@@ -212,7 +215,11 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
 <style>
+  .celda-resguardo { color: var(--ic-primary-hover); font-weight: 600; text-decoration: none; }
+  .celda-resguardo:hover { text-decoration: underline; }
+  .celda-resguardo--pendiente { color: #B54708; }
   .filtros__chip {
     display: inline-flex; align-items: center; gap: 8px; margin-top: 9px;
     padding: 5px 6px 5px 11px; font-size: 12.5px; color: var(--ic-text);

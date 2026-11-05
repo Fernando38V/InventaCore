@@ -1,0 +1,253 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Resguardos · InventaCore{% endblock %}
+{% block nav_movimientos %}active{% endblock %}
+{% block page_title %}Resguardos{% endblock %}
+{% block page_subtitle %}Documentos de entrega de bienes con firma del resguardante{% endblock %}
+
+{% block app_content %}
+
+{% include "movimientos/_pestanas.html" with pestana=vista %}
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
+</div>
+{% endif %}
+
+{% if vista == 'pendientes' %}
+{# ------------------------------------------------ asignaciones por emitir #}
+
+<p class="panel__nota">
+  Asignaciones que cambiaron de resguardante y aún no tienen resguardo. Un resguardo junta varias
+  asignaciones de la misma persona en un solo documento, con la firma de la Contadora y la del resguardante.
+  {% if usuario.rol != 'ADMIN' %}Solo el Administrador emite resguardos.{% endif %}
+</p>
+
+{% for g in grupos %}
+<section class="panel panel--tabla resg-grupo">
+  <form method="post" action="{% url 'movimientos:emitir_resguardo' %}" class="form-resguardo"
+        data-nombre="{{ g.persona.nombre }}">
+    {% csrf_token %}
+    <input type="hidden" name="resguardante" value="{{ g.persona.num }}">
+    <div class="resg-grupo__cabeza">
+      <div class="resg-grupo__persona">
+        <span class="resg-grupo__avatar" aria-hidden="true">{{ g.persona.nombre|slice:":1" }}</span>
+        <div>
+          <span class="resg-grupo__nombre">{{ g.persona.nombre }}</span>
+          <span class="resg-grupo__dato">Núm. de empleado {{ g.persona.numero_empleado|default:"—" }} · {{ g.movimientos|length }} asignaci{{ g.movimientos|length|pluralize:"ón,ones" }} sin resguardo</span>
+        </div>
+      </div>
+      {% if usuario.rol == 'ADMIN' %}
+      <div class="resg-grupo__acciones">
+        <span class="resg-grupo__contador" data-contador>{{ g.movimientos|length }} seleccionad{{ g.movimientos|length|pluralize:"a,as" }}</span>
+        <button type="button" class="btn btn-primary btn-sm" data-emitir>Emitir resguardo</button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="tabla-scroll">
+      <table class="tabla-panel">
+        <thead>
+          <tr>
+            {% if usuario.rol == 'ADMIN' %}
+            <th class="resg-col-check"><input type="checkbox" class="resg-check" data-todos checked aria-label="Seleccionar todas las asignaciones de {{ g.persona.nombre }}"></th>
+            {% endif %}
+            <th>Movimiento</th>
+            <th>Fecha</th>
+            <th>Artículo</th>
+            <th>Ubicación</th>
+            <th>Recibe de</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in g.movimientos %}
+          <tr>
+            {% if usuario.rol == 'ADMIN' %}
+            <td class="resg-col-check"><input type="checkbox" class="resg-check" name="movimientos" value="{{ m.folio }}" checked aria-label="Incluir {{ m.folio }}"></td>
+            {% endif %}
+            <td data-label="Movimiento"><span class="celda-id">{{ m.folio }}</span><span class="celda-secundaria">{{ m.tipo.nombre }}</span></td>
+            <td data-label="Fecha"><span class="celda-fuerte">{{ m.fecha_dia }}</span><span class="celda-secundaria">{{ m.fecha_hora }}</span></td>
+            <td data-label="Artículo">
+              <a class="celda-id" href="{% url 'equipos:detalle' m.articulo.num %}">{{ m.articulo.identificador }}</a>
+              <span class="celda-secundaria">{{ m.articulo.descripcion }}</span>
+            </td>
+            <td data-label="Ubicación">{{ m.ubicacion_llegada.nombre }}</td>
+            <td data-label="Recibe de">{% if m.personal_entrega %}{{ m.personal_entrega.nombre }}{% else %}<span class="celda-secundaria">Primera asignación</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+</section>
+{% empty %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-clipboard"/></svg></div>
+  <h2 class="vacio__titulo">No hay resguardos por emitir</h2>
+  <p class="vacio__texto">Cuando una reubicación cambie el resguardante de un artículo, la asignación aparecerá aquí para documentarla.</p>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientos:resguardos' %}?vista=emitidos">Ver resguardos emitidos</a>
+</div>
+{% endfor %}
+
+{% if usuario.rol == 'ADMIN' and grupos %}
+<div class="modal fade" id="modalResguardo" tabindex="-1" aria-labelledby="modalResguardoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="confirmar-modal__icon"><svg width="22" height="22"><use href="#icon-clipboard"/></svg></div>
+        <h2 class="confirmar-modal__title" id="modalResguardoLabel">¿Emitir el resguardo?</h2>
+        <p class="confirmar-modal__aviso" id="modalResguardoTexto"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnConfirmarResguardo">
+          <span class="spinner-border spinner-border-sm me-1 d-none" id="spinResguardo" aria-hidden="true"></span>
+          Sí, emitir
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+{# ------------------------------------------------------ resguardos emitidos #}
+
+<form class="filtros" method="get" action="{% url 'movimientos:resguardos' %}">
+  <input type="hidden" name="vista" value="emitidos">
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q" value="{{ q }}"
+             placeholder="Folio, nombre o número de empleado" aria-label="Buscar resguardo">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+    {% if q %}<a class="filtros__limpiar" href="{% url 'movimientos:resguardos' %}?vista=emitidos">Limpiar</a>{% endif %}
+  </div>
+</form>
+
+{% if emitidos %}
+<div class="panel panel--tabla">
+  <div class="tabla-scroll">
+    <table class="tabla-panel">
+      <thead>
+        <tr>
+          <th>Folio</th>
+          <th>Emisión</th>
+          <th>Resguardante</th>
+          <th>Bienes</th>
+          <th>Emitió</th>
+          <th><span class="visually-hidden">PDF</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in emitidos %}
+        <tr class="{% if r.folio == resguardo_nuevo %}fila-nueva{% endif %}">
+          <td data-label="Folio"><span class="celda-id">{{ r.folio }}</span></td>
+          <td data-label="Emisión">{{ r.fecha_emision }}</td>
+          <td data-label="Resguardante">
+            <span class="celda-fuerte">{{ r.resguardante.nombre }}</span>
+            <span class="celda-secundaria">Núm. de empleado {{ r.resguardante.numero_empleado|default:"—" }}</span>
+          </td>
+          <td data-label="Bienes">
+            <span class="celda-fuerte">{{ r.numero_bienes }}</span>
+            <span class="celda-secundaria">{% for a in r.articulos|slice:":3" %}{{ a.identificador }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if r.numero_bienes > 3 %} y {{ r.numero_bienes|add:"-3" }} más{% endif %}</span>
+          </td>
+          <td data-label="Emitió">{{ r.usuario_emisor.username }}</td>
+          <td>
+            <div class="acciones-pdf">
+              <a href="{% url 'movimientos:pdf_resguardo' r.folio %}" target="_blank" rel="noopener">Ver PDF</a>
+              <a href="{% url 'movimientos:pdf_resguardo' r.folio %}?descargar=1">Descargar</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "base/_paginacion.html" %}
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-clipboard"/></svg></div>
+  {% if q %}
+  <h2 class="vacio__titulo">Ningún resguardo coincide</h2>
+  <p class="vacio__texto">Prueba con otro folio, nombre o número de empleado.</p>
+  {% else %}
+  <h2 class="vacio__titulo">Todavía no hay resguardos emitidos</h2>
+  <p class="vacio__texto">Los resguardos se emiten desde «Resguardos por emitir».</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  var forms = document.querySelectorAll('.form-resguardo');
+  if (!forms.length) { return; }
+  var modalEl = document.getElementById('modalResguardo');
+  var modal = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+  var texto = document.getElementById('modalResguardoTexto');
+  var actual = null;
+
+  forms.forEach(function (form) {
+    var marcas = form.querySelectorAll('input[name="movimientos"]');
+    var todos = form.querySelector('[data-todos]');
+    var contador = form.querySelector('[data-contador]');
+    var boton = form.querySelector('[data-emitir]');
+    var contar = function () {
+      var n = Array.prototype.filter.call(marcas, function (c) { return c.checked; }).length;
+      if (contador) { contador.textContent = n + (n === 1 ? ' seleccionada' : ' seleccionadas'); }
+      if (boton) { boton.disabled = n === 0; }
+      if (todos) { todos.checked = n === marcas.length; todos.indeterminate = n > 0 && n < marcas.length; }
+      return n;
+    };
+    marcas.forEach(function (c) { c.addEventListener('change', contar); });
+    if (todos) {
+      todos.addEventListener('change', function () {
+        marcas.forEach(function (c) { c.checked = todos.checked; });
+        contar();
+      });
+    }
+    if (boton) {
+      boton.addEventListener('click', function () {
+        var n = contar();
+        if (!n || !modal) { return; }
+        actual = form;
+        texto.textContent = 'Se generará un resguardo para ' + form.dataset.nombre + ' con ' + n +
+          (n === 1 ? ' bien' : ' bienes') + '. Llevará folio propio y las firmas de la Contadora y del ' +
+          'resguardante. Un resguardo emitido no se puede modificar; las asignaciones que dejes sin ' +
+          'marcar quedan pendientes.';
+        modal.show();
+      });
+    }
+    contar();
+  });
+
+  var confirmar = document.getElementById('btnConfirmarResguardo');
+  if (confirmar) {
+    confirmar.addEventListener('click', function () {
+      if (!actual) { return; }
+      confirmar.disabled = true;
+      document.getElementById('spinResguardo').classList.remove('d-none');
+      actual.submit();
+    });
+  }
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}

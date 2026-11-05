@@ -289,7 +289,6 @@
     rResguardante.textContent = textoDe('resguardante') || 'Sin capturar';
   }
 
-  // Activo: marbete. Comodato y Enser: folio interno que genera el sistema.
   function sincronizarIdentificador() {
     var esActivo = origen.value === 'ACT';
     cMarbete.hidden = !esActivo;
@@ -300,7 +299,6 @@
   origen.addEventListener('change', sincronizarIdentificador);
   sincronizarIdentificador();
 
-  // Categoría -> tipos de esa categoría (el tipo es lo que se guarda).
   function filtrarTipos() {
     var cat = categoria.value;
     Array.prototype.forEach.call(tipo.options, function (op) {
@@ -322,7 +320,6 @@
   });
   filtrarTipos();
 
-  // DEC-012: No localizado y la ubicación «Sin ubicar» se sincronizan en ambos sentidos.
   function sincronizarNoLocalizado(origenDelCambio) {
     if (origenDelCambio === 'ubicacion') {
       if (ubicacion.value === UBI_NOLOC) {
@@ -349,8 +346,6 @@
   estado.addEventListener('change', function () { sincronizarNoLocalizado('estado'); sincronizarResumen(); });
   sincronizarNoLocalizado('');
 
-  // DEC-008: Donado manda; con fecha y costo es Registrado; si falta alguno, Pendiente.
-  // En un bien donado el costo no se bloquea (DEC-021).
   function sincronizarEstado() {
     if (donado.checked) {
       badge.textContent = 'Donado';

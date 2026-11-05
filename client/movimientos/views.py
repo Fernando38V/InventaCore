@@ -65,7 +65,15 @@ def listado_movimientos(request):
             articulo_filtro = {'num': f['articulo'], 'identificador': 'Artículo %s' % f['articulo'],
                                'nombre': ''}
 
+    try:        # solo para el contador de la pestaña; si falla no se muestra
+        total_pendientes = llamar(request, 'GET', 'resguardos/pendientes/?page=1')['count']
+    except SesionVencida:
+        raise
+    except ApiError:
+        total_pendientes = 0
+
     contexto = {
+        'total_pendientes': total_pendientes,
         'movimientos': datos['results'],
         'hay_filtros': bool(params),
         'f': f,

@@ -273,6 +273,13 @@ class ConsultaTests(BaseCliente):
         self.assertEqual(self.api.llamadas, [])
 
     def test_consulta_sigue_entrando_a_sus_pantallas(self):
+        # Dashboard y reportes ya llaman a la API: se simula para no depender de ella.
+        patch('reportes.views.llamar', self.api).start()
+        self.addCleanup(patch.stopall)
+        self.api.respuestas[('GET', 'dashboard/')] = {
+            'total_articulos': 0, 'por_estado_operativo': [], 'por_estado_registro': [],
+            'por_ubicacion': [], 'pendientes_de_datos': {'total': 0, 'articulos': []},
+            'ultimos_movimientos': [], 'resguardos_por_emitir': 0}
         self.entrar('CONSULTA')
         for url in ('/reportes/dashboard/', '/reportes/'):
             self.assertEqual(self.client.get(url).status_code, 200, url)
