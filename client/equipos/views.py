@@ -70,8 +70,8 @@ def _url_equipo(request, num):
 def qr_equipo(request, num):
     """RF-19 — genera el codigo QR del equipo al vuelo, sin guardarlo en disco.
 
-    GET /equipos/detalle/<num>/qr/             -> muestra el PNG
-    GET /equipos/detalle/<num>/qr/?descargar=1 -> lo fuerza como descarga
+    GET /articulos/detalle/<num>/qr/             -> muestra el PNG
+    GET /articulos/detalle/<num>/qr/?descargar=1 -> lo fuerza como descarga
     """
     url = _url_equipo(request, num)
     imagen = qrcode.make(url, box_size=8, border=2)

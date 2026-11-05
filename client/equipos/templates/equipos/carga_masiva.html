@@ -1,0 +1,416 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Carga masiva · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Carga masiva{% endblock %}
+{% block page_subtitle %}Registrar varios artículos desde la plantilla de Excel{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'equipos:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver a artículos
+</a>
+
+<ol class="carga-pasos" aria-label="Pasos de la carga masiva">
+  <li class="{% if paso == 'subir' %}is-actual{% else %}is-hecho{% endif %}"><span>1</span>Plantilla y archivo</li>
+  <li class="{% if paso == 'previa' %}is-actual{% elif paso == 'resultado' %}is-hecho{% endif %}"><span>2</span>Vista previa</li>
+  <li class="{% if paso == 'resultado' %}is-actual{% endif %}"><span>3</span>Resultado</li>
+</ol>
+
+{% include "base/_avisos.html" %}
+
+{% if paso == 'subir' %}
+{# ------------------------------------------------------------- paso 1 #}
+
+{% if error %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error }}</span>
+</div>
+{% endif %}
+
+<div class="carga-grid">
+  <section class="carga-card">
+    <h3 class="carga-card__title">Descarga la plantilla</h3>
+    <p class="carga-card__texto">
+      La plantilla trae las listas de categorías, tipos, ubicaciones y personal tal como están hoy
+      en el sistema. Descárgala de nuevo si cambiaste algún catálogo.
+    </p>
+    <ul class="carga-reglas">
+      <li>Una hoja por origen: <strong>Activos</strong>, <strong>Comodatos</strong> y <strong>Enseres</strong>.</li>
+      <li>Obligatorios: categoría, tipo, color, descripción, ubicación y resguardante. En Activos, también el marbete.</li>
+      <li>Comodatos y Enseres sin folio: el sistema les asigna uno.</li>
+      <li>Marbete, folio o serie que ya existan se rechazan como duplicados.</li>
+      <li>Hasta 2000 filas y 5 MB por archivo. Carga primero el inventario más reciente.</li>
+    </ul>
+    <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" href="{% url 'equipos:plantilla_carga' %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+      Descargar plantilla (.xlsx)
+    </a>
+  </section>
+
+  <section class="carga-card">
+    <h3 class="carga-card__title">Sube el archivo lleno</h3>
+    <form method="post" enctype="multipart/form-data" id="formSubir" novalidate>
+      {% csrf_token %}
+      <label class="carga-drop" for="archivo" id="cargaDrop">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+        <span class="carga-drop__titulo" id="cargaNombre">Elige el archivo o arrástralo aquí</span>
+        <span class="carga-drop__ayuda">Excel (.xlsx), máximo 5 MB</span>
+        <input type="file" name="archivo" id="archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+      </label>
+      <p class="carga-card__texto carga-card__texto--nota">
+        Revisar el archivo no guarda nada: primero verás qué filas son válidas y cuáles tienen error.
+      </p>
+      <button class="btn btn-primary btn-sm" type="submit" id="btnRevisar" disabled>
+        <span class="spinner-border spinner-border-sm me-1 d-none" id="spinRevisar" aria-hidden="true"></span>
+        Revisar archivo
+      </button>
+    </form>
+  </section>
+</div>
+
+{% elif paso == 'previa' %}
+{# ------------------------------------------------------------- paso 2 #}
+
+<div class="carga-archivo">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+  <strong>{{ previa.archivo }}</strong>
+  <a href="{% url 'equipos:carga_masiva' %}">Subir otro archivo</a>
+</div>
+
+{% if previa.ya_cargado %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>Este mismo archivo ya se cargó el {{ previa.ya_cargado.fecha }} (usuario {{ previa.ya_cargado.usuario }}). No se puede cargar otra vez; para agregar filas nuevas usa un archivo distinto.</span>
+</div>
+{% endif %}
+
+{% if previa.hojas_ignoradas %}
+<div class="aviso aviso--ambar" role="status">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>Se ignoraron estas hojas porque no son Activos, Comodatos ni Enseres: {{ previa.hojas_ignoradas|join:", " }}.</span>
+</div>
+{% endif %}
+
+<div class="carga-resumen">
+  <div class="carga-stat">
+    <span class="carga-stat__valor">{{ previa.total }}</span>
+    <span class="carga-stat__etiqueta">Fila{{ previa.total|pluralize }} con datos</span>
+  </div>
+  <div class="carga-stat carga-stat--verde">
+    <span class="carga-stat__valor">{{ previa.validas }}</span>
+    <span class="carga-stat__etiqueta">Válida{{ previa.validas|pluralize }}{% if puede_confirmar %}: se cargarán{% endif %}</span>
+  </div>
+  <div class="carga-stat {% if previa.con_error %}carga-stat--rojo{% endif %}">
+    <span class="carga-stat__valor">{{ previa.con_error }}</span>
+    <span class="carga-stat__etiqueta">Con error: no se cargarán</span>
+  </div>
+  <div class="carga-hojas">
+    {% for h in previa.hojas %}
+    <span class="carga-hoja"><strong>{{ h.hoja }}</strong> {{ h.filas }} fila{{ h.filas|pluralize }}{% if h.con_error %} · <span class="carga-hoja__error">{{ h.con_error }} con error</span>{% endif %}</span>
+    {% endfor %}
+  </div>
+</div>
+
+{% if previa.con_error and previa.validas and not previa.ya_cargado %}
+<p class="carga-nota">
+  Puedes corregir las filas con error en el Excel y subirlo otra vez, o confirmar ahora y cargar solo las válidas.
+  Si cargas solo las válidas, después sube un archivo con las filas corregidas.
+</p>
+{% endif %}
+
+<div class="carga-filtro" role="tablist" aria-label="Filtrar filas">
+  {% if previa.con_error %}
+  <button type="button" class="carga-filtro__btn is-activo" data-filtro="error">Con error ({{ previa.con_error }})</button>
+  {% endif %}
+  <button type="button" class="carga-filtro__btn {% if not previa.con_error %}is-activo{% endif %}" data-filtro="valida">Válidas ({{ previa.validas }})</button>
+  <button type="button" class="carga-filtro__btn" data-filtro="todas">Todas ({{ previa.total }})</button>
+</div>
+
+{% include "equipos/_tabla_carga.html" with filas=filas %}
+<p class="carga-sin-filas" id="cargaSinFilas" hidden>No hay filas en este filtro.</p>
+
+<div class="carga-acciones">
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'equipos:carga_masiva' %}">Subir otro archivo</a>
+  {% if puede_confirmar %}
+  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCarga">
+    Cargar {{ previa.validas }} artículo{{ previa.validas|pluralize }}
+  </button>
+  {% else %}
+  <button type="button" class="btn btn-primary btn-sm" disabled>
+    {% if previa.ya_cargado %}Archivo ya cargado{% else %}No hay filas válidas{% endif %}
+  </button>
+  {% endif %}
+</div>
+
+{% if puede_confirmar %}
+<div class="modal fade" id="modalCarga" tabindex="-1" aria-labelledby="modalCargaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{% url 'equipos:confirmar_carga' %}" id="formConfirmar">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="confirmar-modal__icon">
+            <svg width="22" height="22"><use href="#icon-clipboard"/></svg>
+          </div>
+          <h2 class="confirmar-modal__title" id="modalCargaLabel">¿Cargar {{ previa.validas }} artículo{{ previa.validas|pluralize }}?</h2>
+          <p class="confirmar-modal__aviso">
+            Cada artículo se registra con su movimiento de ALTA «Carga masiva» y no genera resguardo pendiente.
+            {% if previa.con_error %}Las {{ previa.con_error }} fila{{ previa.con_error|pluralize }} con error no se cargarán.{% endif %}
+            Los artículos cargados no se pueden borrar desde aquí.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary" id="btnConfirmar">
+            <span class="spinner-border spinner-border-sm me-1 d-none" id="spinConfirmar" aria-hidden="true"></span>
+            Sí, cargar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+{# ------------------------------------------------------------- paso 3 #}
+
+<div class="aviso aviso--verde" role="status">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  <span>Se cargaron <strong>{{ resultado.cargados }}</strong> artículo{{ resultado.cargados|pluralize }} de {{ resultado.archivo }}.
+    {% if resultado.rechazados %}{{ resultado.rechazados }} fila{{ resultado.rechazados|pluralize }} con error no se cargaron.{% endif %}</span>
+</div>
+
+<div class="carga-resumen">
+  <div class="carga-stat carga-stat--verde">
+    <span class="carga-stat__valor">{{ resultado.cargados }}</span>
+    <span class="carga-stat__etiqueta">Cargado{{ resultado.cargados|pluralize }}</span>
+  </div>
+  <div class="carga-stat {% if resultado.rechazados %}carga-stat--rojo{% endif %}">
+    <span class="carga-stat__valor">{{ resultado.rechazados }}</span>
+    <span class="carga-stat__etiqueta">Sin cargar</span>
+  </div>
+</div>
+
+{% if rechazadas %}
+<h3 class="carga-subtitulo">Filas que no se cargaron</h3>
+<p class="carga-nota">Corrígelas en el Excel y súbelas en un archivo nuevo (con solo estas filas, para no repetir las que ya entraron).</p>
+{% include "equipos/_tabla_carga.html" with filas=rechazadas %}
+{% endif %}
+
+{% if resultado.articulos %}
+<h3 class="carga-subtitulo">Artículos cargados</h3>
+<div class="carga-tabla-wrap">
+  <table class="carga-tabla carga-tabla--compacta">
+    <thead><tr><th>Fila</th><th>Identificador</th><th></th></tr></thead>
+    <tbody>
+      {% for a in resultado.articulos %}
+      <tr>
+        <td data-label="Fila">{{ a.hoja }} · {{ a.fila }}</td>
+        <td data-label="Identificador"><a class="carga-id" href="{% url 'equipos:detalle' a.num %}">{{ a.identificador }}</a></td>
+        <td><a class="carga-ver" href="{% url 'equipos:detalle' a.num %}">Ver ficha</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="carga-acciones">
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'equipos:carga_masiva' %}">Cargar otro archivo</a>
+  <a class="btn btn-primary btn-sm" href="{% url 'equipos:listado' %}">Ir a artículos</a>
+</div>
+
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+  // Paso 1: nombre del archivo elegido, arrastrar y soltar, y aviso de espera.
+  var input = document.getElementById('archivo');
+  if (input) {
+    var drop = document.getElementById('cargaDrop');
+    var nombre = document.getElementById('cargaNombre');
+    var boton = document.getElementById('btnRevisar');
+    var pintar = function () {
+      var f = input.files && input.files[0];
+      nombre.textContent = f ? f.name : 'Elige el archivo o arrástralo aquí';
+      drop.classList.toggle('is-lleno', !!f);
+      boton.disabled = !f;
+    };
+    input.addEventListener('change', pintar);
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-encima'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      drop.addEventListener(ev, function () { drop.classList.remove('is-encima'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; pintar(); }
+    });
+    document.getElementById('formSubir').addEventListener('submit', function () {
+      boton.disabled = true;
+      document.getElementById('spinRevisar').classList.remove('d-none');
+    });
+  }
+
+  // Paso 2: filtro de filas.
+  var botones = document.querySelectorAll('.carga-filtro__btn');
+  if (botones.length) {
+    var filas = document.querySelectorAll('.carga-tabla tbody tr[data-estado]');
+    var vacio = document.getElementById('cargaSinFilas');
+    var aplicar = function (filtro) {
+      var visibles = 0;
+      filas.forEach(function (tr) {
+        var ver = filtro === 'todas' || tr.dataset.estado === filtro;
+        tr.hidden = !ver;
+        if (ver) { visibles++; }
+      });
+      vacio.hidden = visibles > 0;
+      botones.forEach(function (b) { b.classList.toggle('is-activo', b.dataset.filtro === filtro); });
+    };
+    botones.forEach(function (b) {
+      b.addEventListener('click', function () { aplicar(b.dataset.filtro); });
+    });
+    aplicar(document.querySelector('.carga-filtro__btn.is-activo').dataset.filtro);
+  }
+
+  var formConfirmar = document.getElementById('formConfirmar');
+  if (formConfirmar) {
+    formConfirmar.addEventListener('submit', function () {
+      document.getElementById('btnConfirmar').disabled = true;
+      document.getElementById('spinConfirmar').classList.remove('d-none');
+    });
+  }
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<style>
+  .ic-back {
+    display: inline-flex; align-items: center; gap: 7px;
+    margin-bottom: 16px; padding: 7px 13px 7px 11px;
+    font-size: 13px; font-weight: 600; color: var(--ic-text);
+    background: #FFFFFF; border: 1px solid var(--ic-border); border-radius: 8px;
+    text-decoration: none;
+  }
+  .ic-back:hover { color: var(--ic-primary); background: var(--ic-primary-soft); border-color: var(--ic-primary); }
+
+  .carga-pasos {
+    display: flex; flex-wrap: wrap; gap: 8px 22px;
+    margin: 0 0 16px; padding: 0; list-style: none;
+    font-size: 13px; font-weight: 600; color: var(--ic-muted);
+  }
+  .carga-pasos li { display: flex; align-items: center; gap: 8px; }
+  .carga-pasos span {
+    display: grid; place-items: center; width: 22px; height: 22px;
+    font-size: 11.5px; border-radius: 50%; border: 1px solid var(--ic-border); background: #FFFFFF;
+  }
+  .carga-pasos .is-actual { color: var(--ic-ink); }
+  .carga-pasos .is-actual span { color: #FFFFFF; background: var(--ic-primary); border-color: var(--ic-primary); }
+  .carga-pasos .is-hecho span { color: var(--ic-primary); border-color: var(--ic-primary); }
+
+  .carga-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 1100px; }
+  .carga-card {
+    padding: 20px 22px; background: #FFFFFF;
+    border: 1px solid var(--ic-border); border-radius: 12px;
+  }
+  .carga-card__title { margin-bottom: 8px; font-size: 13.5px; font-weight: 700; color: var(--ic-ink); }
+  .carga-card__texto { margin-bottom: 12px; font-size: 13px; color: var(--ic-text); line-height: 1.5; }
+  .carga-card__texto--nota { margin-top: 12px; font-size: 12px; color: var(--ic-muted); }
+  .carga-reglas { margin: 0 0 16px; padding-left: 18px; font-size: 12.5px; color: var(--ic-text); line-height: 1.6; }
+
+  .carga-drop {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 26px 16px; text-align: center; cursor: pointer;
+    color: var(--ic-muted); background: #FBFCFC;
+    border: 1.5px dashed var(--ic-border); border-radius: 10px;
+  }
+  .carga-drop:hover, .carga-drop.is-encima { color: var(--ic-primary); border-color: var(--ic-primary); background: var(--ic-primary-soft); }
+  .carga-drop.is-lleno { color: var(--ic-primary); border-style: solid; border-color: var(--ic-primary); }
+  .carga-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .carga-drop__titulo { font-size: 13.5px; font-weight: 600; color: var(--ic-ink); word-break: break-all; }
+  .carga-drop__ayuda { font-size: 12px; }
+
+  .carga-archivo {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 14px; font-size: 13.5px; color: var(--ic-ink);
+  }
+  .carga-archivo svg { color: var(--ic-muted); }
+  .carga-archivo a { margin-left: 6px; font-size: 12.5px; font-weight: 600; color: var(--ic-primary); }
+
+  .carga-resumen { display: flex; flex-wrap: wrap; align-items: stretch; gap: 12px; margin-bottom: 14px; }
+  .carga-stat {
+    min-width: 150px; padding: 12px 16px; background: #FFFFFF;
+    border: 1px solid var(--ic-border); border-radius: 12px;
+  }
+  .carga-stat__valor { display: block; font-size: 22px; font-weight: 700; color: var(--ic-ink); font-variant-numeric: tabular-nums; }
+  .carga-stat__etiqueta { font-size: 12px; color: var(--ic-muted); }
+  .carga-stat--verde .carga-stat__valor { color: #067647; }
+  .carga-stat--rojo .carga-stat__valor { color: #B42318; }
+  .carga-hojas { display: flex; flex-direction: column; justify-content: center; gap: 4px; font-size: 12.5px; color: var(--ic-text); }
+  .carga-hoja__error { color: #B42318; font-weight: 600; }
+
+  .carga-nota { max-width: 860px; margin-bottom: 14px; font-size: 12.5px; color: var(--ic-muted); line-height: 1.5; }
+  .carga-subtitulo { margin: 22px 0 8px; font-size: 14px; font-weight: 700; color: var(--ic-ink); }
+
+  .carga-filtro { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .carga-filtro__btn {
+    padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--ic-text);
+    background: #FFFFFF; border: 1px solid var(--ic-border); border-radius: 999px;
+  }
+  .carga-filtro__btn.is-activo { color: #FFFFFF; background: var(--ic-primary); border-color: var(--ic-primary); }
+
+  .carga-tabla-wrap {
+    overflow-x: auto; background: #FFFFFF;
+    border: 1px solid var(--ic-border); border-radius: 12px;
+  }
+  .carga-tabla { width: 100%; border-collapse: collapse; }
+  .carga-tabla th {
+    padding: 9px 14px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; text-align: left; white-space: nowrap;
+    color: var(--ic-muted); background: #FBFCFC; border-bottom: 1px solid var(--ic-border);
+  }
+  .carga-tabla td {
+    padding: 9px 14px; font-size: 13px; color: var(--ic-text);
+    vertical-align: top; border-bottom: 1px solid var(--ic-border);
+  }
+  .carga-tabla tbody tr:last-child td { border-bottom: none; }
+  .carga-fila--error { background: #FFFBFA; }
+  .celda-error { box-shadow: inset 3px 0 0 #F04438; background: #FEF3F2; }
+  .celda-fuerte { display: block; font-weight: 600; color: var(--ic-ink); }
+  .celda-secundaria { display: block; margin-top: 1px; font-size: 11.5px; color: var(--ic-subtle); }
+  .celda-vacia { color: var(--ic-muted); }
+  .carga-id { font-weight: 700; color: var(--ic-primary-hover); font-variant-numeric: tabular-nums; text-decoration: none; }
+  a.carga-id:hover { text-decoration: underline; }
+  .carga-ver { font-size: 12.5px; font-weight: 600; color: var(--ic-primary); }
+  .carga-errores { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: #B42318; line-height: 1.45; min-width: 220px; }
+  .carga-errores strong { font-weight: 700; }
+  .carga-serie { white-space: nowrap; }
+  .carga-sin-filas { padding: 16px; font-size: 13px; color: var(--ic-muted); }
+
+  .carga-acciones { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+  @media (max-width: 860px) {
+    .carga-grid { grid-template-columns: 1fr; }
+    .carga-tabla thead { display: none; }
+    .carga-tabla, .carga-tabla tbody, .carga-tabla tr, .carga-tabla td { display: block; width: 100%; }
+    .carga-tabla tr { padding: 8px 0; border-bottom: 1px solid var(--ic-border); }
+    .carga-tabla td { padding: 5px 14px; border-bottom: none; }
+    .carga-tabla td[data-label]::before {
+      content: attr(data-label); display: block;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ic-muted);
+    }
+  }
+</style>
+{% endblock %}

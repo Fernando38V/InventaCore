@@ -1,0 +1,66 @@
+{% comment %}
+Tabla de filas de la carga masiva (vista previa y filas rechazadas).
+Recibe `filas` (preparadas en views_carga._filas). Cada <tr> lleva
+data-estado="valida|error" para el filtro de la vista previa.
+{% endcomment %}
+<div class="carga-tabla-wrap">
+  <table class="carga-tabla">
+    <thead>
+      <tr>
+        <th>Fila</th>
+        <th>Marbete o folio</th>
+        <th>Artículo</th>
+        <th>Serie</th>
+        <th>Ubicación</th>
+        <th>Resguardante</th>
+        <th>Adquisición</th>
+        <th>Resultado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+      <tr data-estado="{{ f.valida|yesno:'valida,error' }}" class="{% if not f.valida %}carga-fila--error{% endif %}">
+        <td data-label="Fila">
+          <span class="celda-fuerte">{{ f.hoja }} · {{ f.fila }}</span>
+          <span class="celda-secundaria">{{ f.origen }}</span>
+        </td>
+        <td data-label="Marbete o folio" class="{% if 'identificador' in f.marcadas %}celda-error{% endif %}">
+          {% if f.identificador %}<span class="carga-id">{{ f.identificador }}</span>
+          {% elif f.origen == 'Activo' %}<span class="celda-vacia">Falta</span>
+          {% else %}<span class="celda-secundaria">Lo asigna el sistema</span>{% endif %}
+        </td>
+        <td data-label="Artículo" class="{% if 'articulo' in f.marcadas %}celda-error{% endif %}">
+          <span class="celda-fuerte">{{ f.tipo|default:"Sin tipo" }}</span>
+          <span class="celda-secundaria">{{ f.categoria|default:"Sin categoría" }}{% if f.marca_modelo %} · {{ f.marca_modelo }}{% endif %}</span>
+        </td>
+        <td data-label="Serie" class="carga-serie {% if 'num_serie' in f.marcadas %}celda-error{% endif %}">
+          {% if f.num_serie %}{{ f.num_serie }}{% else %}<span class="celda-vacia">—</span>{% endif %}
+        </td>
+        <td data-label="Ubicación" class="{% if 'ubicacion' in f.marcadas %}celda-error{% endif %}">
+          {% if f.ubicacion %}{{ f.ubicacion }}{% else %}<span class="celda-vacia">—</span>{% endif %}
+          {% if f.estado_operativo %}<span class="celda-secundaria">{{ f.estado_operativo }}</span>{% endif %}
+        </td>
+        <td data-label="Resguardante" class="{% if 'resguardante' in f.marcadas %}celda-error{% endif %}">
+          {% if f.resguardante %}{{ f.resguardante }}{% else %}<span class="celda-vacia">—</span>{% endif %}
+        </td>
+        <td data-label="Adquisición" class="{% if 'adquisicion' in f.marcadas %}celda-error{% endif %}">
+          {% if f.donado %}<span class="badge-estado badge-estado--violeta">Donado</span>{% endif %}
+          {% if f.fecha or f.costo %}
+            <span class="celda-secundaria">{{ f.fecha|default:"Sin fecha" }} · {% if f.costo %}{{ f.costo }}{% else %}Sin costo{% endif %}</span>
+          {% elif not f.donado %}<span class="celda-secundaria">Sin fecha ni costo</span>{% endif %}
+        </td>
+        <td data-label="Resultado">
+          {% if f.valida %}
+            <span class="badge-estado badge-estado--verde">Válida</span>
+          {% else %}
+            <span class="badge-estado badge-estado--rojo">Con error</span>
+            <ul class="carga-errores">
+              {% for campo, mensaje in f.errores %}<li><strong>{{ campo }}:</strong> {{ mensaje }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

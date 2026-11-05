@@ -77,7 +77,7 @@ class ListadoTests(BaseEquipos):
     def test_pide_a_la_api_la_pagina_y_los_filtros(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()], total=25)
-        r = self.client.get('/equipos/?q=dell&ubicacion=UBI-LAB1&estado_operativo=UTIL&page=2')
+        r = self.client.get('/articulos/?q=dell&ubicacion=UBI-LAB1&estado_operativo=UTIL&page=2')
         self.assertEqual(r.status_code, 200)
         metodo, ruta, _ = self.api.llamadas[0]
         self.assertEqual(metodo, 'GET')
@@ -89,7 +89,7 @@ class ListadoTests(BaseEquipos):
     def test_el_modulo_se_llama_articulos(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
-        r = self.client.get('/equipos/')
+        r = self.client.get('/articulos/')
         self.assertContains(r, '<span>Artículos</span>')
         self.assertContains(r, '<title>Artículos · InventaCore</title>')
         self.assertNotContains(r, '<span>Equipos</span>')
@@ -98,28 +98,28 @@ class ListadoTests(BaseEquipos):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina(
             [articulo(marca=None, modelo=None, descripcion='Silla de oficina en buen estado')])
-        r = self.client.get('/equipos/')
+        r = self.client.get('/articulos/')
         self.assertContains(r, 'Sin especificar')
         self.assertNotContains(r, 'Silla de oficina en buen estado')
 
     def test_muestra_el_error_de_la_api(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = ApiError(500, {'detalle': 'Falla'})
-        r = self.client.get('/equipos/')
+        r = self.client.get('/articulos/')
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Falla')
 
     def test_solo_el_administrador_ve_registrar(self):
         self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
         self.entrar('ADMIN')
-        self.assertContains(self.client.get('/equipos/'), 'Registrar artículo')
+        self.assertContains(self.client.get('/articulos/'), 'Registrar artículo')
         self.entrar('CONSULTA')
-        self.assertNotContains(self.client.get('/equipos/'), 'Registrar artículo')
+        self.assertNotContains(self.client.get('/articulos/'), 'Registrar artículo')
 
     def test_sesion_vencida_redirige_al_login(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = SesionVencida(401)
-        r = self.client.get('/equipos/')
+        r = self.client.get('/articulos/')
         self.assertEqual(r.status_code, 302)
         self.assertIn('login', r['Location'])
 
@@ -132,19 +132,19 @@ class FichaTests(BaseEquipos):
     def test_inexistente_da_404(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/7/')] = ApiError(404, {'detail': 'No encontrado'})
-        self.assertEqual(self.client.get('/equipos/detalle/7/').status_code, 404)
+        self.assertEqual(self.client.get('/articulos/detalle/7/').status_code, 404)
 
     def test_campos_vacios_dicen_sin_especificar_y_no_hay_folio_ic(self):
         self.entrar()
         self.preparar(marca=None, modelo=None, num_serie=None, costo_adquisicion=None)
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         self.assertContains(r, 'Sin especificar')
         self.assertNotContains(r, 'IC-')
 
     def test_el_titulo_sin_marca_ni_modelo_es_el_tipo_no_la_descripcion(self):
         self.entrar()
         self.preparar(marca=None, modelo=None, descripcion='Texto libre largo de la descripción')
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         self.assertContains(r, '<h2 class="equipo-header__title">Laptop</h2>')
         # la descripción sigue apareciendo, pero en su propia tarjeta
         self.assertContains(r, 'Texto libre largo de la descripción')
@@ -152,43 +152,43 @@ class FichaTests(BaseEquipos):
     def test_admin_ve_acciones_y_consulta_no(self):
         self.preparar()
         self.entrar('ADMIN')
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         for texto in ('Mover artículo', 'Corregir datos', 'Marcar como Obsoleto'):
             self.assertContains(r, texto)
         self.entrar('CONSULTA')
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         for texto in ('Mover artículo', 'Corregir datos', 'Marcar como Obsoleto'):
             self.assertNotContains(r, texto)
 
     def test_no_localizado_no_ofrece_obsoleto(self):
         self.entrar()
         self.preparar(estado_operativo=NOLOC, ubicacion={'codigo': 'UBI-NOLOC', 'nombre': 'Sin ubicar'})
-        self.assertNotContains(self.client.get('/equipos/detalle/7/'), 'Marcar como Obsoleto')
+        self.assertNotContains(self.client.get('/articulos/detalle/7/'), 'Marcar como Obsoleto')
 
 
 class CambiarEstadoTests(BaseEquipos):
     def test_manda_obsoleto_con_motivo(self):
         self.entrar()
         self.api.respuestas[('PATCH', 'articulos/7/')] = articulo(estado_operativo=OBS)
-        r = self.client.post('/equipos/detalle/7/estado/', {'motivo': 'Ya no enciende'})
-        self.assertRedirects(r, '/equipos/detalle/7/', fetch_redirect_response=False)
+        r = self.client.post('/articulos/detalle/7/estado/', {'motivo': 'Ya no enciende'})
+        self.assertRedirects(r, '/articulos/detalle/7/', fetch_redirect_response=False)
         self.assertEqual(self.api.escrituras(), [
             ('PATCH', 'articulos/7/', {'estado_operativo': 'OBS', 'motivo': 'Ya no enciende'})])
 
     def test_regresar_a_util(self):
         self.entrar()
         self.api.respuestas[('PATCH', 'articulos/7/')] = articulo()
-        self.client.post('/equipos/detalle/7/estado/', {'activar': '1', 'motivo': 'Se reparó'})
+        self.client.post('/articulos/detalle/7/estado/', {'activar': '1', 'motivo': 'Se reparó'})
         self.assertEqual(self.api.escrituras()[0][2]['estado_operativo'], 'UTIL')
 
     def test_sin_motivo_no_llama_a_la_api(self):
         self.entrar()
-        self.client.post('/equipos/detalle/7/estado/', {'motivo': '  '})
+        self.client.post('/articulos/detalle/7/estado/', {'motivo': '  '})
         self.assertEqual(self.api.escrituras(), [])
 
     def test_consulta_no_escribe(self):
         self.entrar('CONSULTA')
-        self.client.post('/equipos/detalle/7/estado/', {'motivo': 'x'})
+        self.client.post('/articulos/detalle/7/estado/', {'motivo': 'x'})
         self.assertEqual(self.api.escrituras(), [])
 
     def test_error_de_la_api_se_muestra_en_la_ficha(self):
@@ -196,7 +196,7 @@ class CambiarEstadoTests(BaseEquipos):
         self.api.respuestas[('PATCH', 'articulos/7/')] = ApiError(400, {'estado_operativo': 'Un artículo No localizado no puede pasar a Obsoleto.'})
         self.api.respuestas[('GET', 'articulos/7/')] = articulo()
         self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
-        r = self.client.post('/equipos/detalle/7/estado/', {'motivo': 'x'}, follow=True)
+        r = self.client.post('/articulos/detalle/7/estado/', {'motivo': 'x'}, follow=True)
         self.assertContains(r, 'No localizado no puede pasar a Obsoleto')
 
 
@@ -208,7 +208,7 @@ VALIDO = {'origen': 'ACT', 'marbete_oficial': 'M-200', 'tipo_articulo': 'TIP-001
 class AltaTests(BaseEquipos):
     def test_formulario_sin_folio_ic_ni_campo_de_folio(self):
         self.entrar()
-        r = self.client.get('/equipos/registrar/')
+        r = self.client.get('/articulos/registrar/')
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, 'IC-')
         self.assertNotContains(r, 'name="folio"')
@@ -217,8 +217,8 @@ class AltaTests(BaseEquipos):
     def test_alta_valida_manda_el_cuerpo_y_marca_modelo_quedan_nulos(self):
         self.entrar()
         self.api.respuestas[('POST', 'articulos/')] = articulo(num=9, identificador='M-200')
-        r = self.client.post('/equipos/registrar/', VALIDO)
-        self.assertRedirects(r, '/equipos/detalle/9/', fetch_redirect_response=False)
+        r = self.client.post('/articulos/registrar/', VALIDO)
+        self.assertRedirects(r, '/articulos/detalle/9/', fetch_redirect_response=False)
         cuerpo = self.api.escrituras()[0][2]
         self.assertEqual(cuerpo['marbete_oficial'], 'M-200')
         self.assertEqual(cuerpo['resguardante'], 3)
@@ -231,21 +231,21 @@ class AltaTests(BaseEquipos):
 
     def test_color_y_descripcion_son_obligatorios(self):
         self.entrar()
-        r = self.client.post('/equipos/registrar/', dict(VALIDO, color='', descripcion=''))
+        r = self.client.post('/articulos/registrar/', dict(VALIDO, color='', descripcion=''))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Escribe el color.')
         self.assertContains(r, 'Escribe la descripción.')
 
     def test_activo_exige_marbete(self):
         self.entrar()
-        r = self.client.post('/equipos/registrar/', dict(VALIDO, marbete_oficial=''))
+        r = self.client.post('/articulos/registrar/', dict(VALIDO, marbete_oficial=''))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Los activos llevan marbete oficial.')
 
     def test_comodato_no_manda_marbete_ni_folio(self):
         self.entrar()
         self.api.respuestas[('POST', 'articulos/')] = articulo(num=9, identificador='021432611-001')
-        self.client.post('/equipos/registrar/', dict(VALIDO, origen='COM', marbete_oficial='X'))
+        self.client.post('/articulos/registrar/', dict(VALIDO, origen='COM', marbete_oficial='X'))
         cuerpo = self.api.escrituras()[0][2]
         self.assertNotIn('marbete_oficial', cuerpo)
         self.assertNotIn('folio_interno', cuerpo)
@@ -253,30 +253,30 @@ class AltaTests(BaseEquipos):
     def test_donado_con_costo_guarda_el_costo(self):
         self.entrar()
         self.api.respuestas[('POST', 'articulos/')] = articulo(num=9)
-        self.client.post('/equipos/registrar/', dict(VALIDO, donado='on', costo_adquisicion='1,500.50'))
+        self.client.post('/articulos/registrar/', dict(VALIDO, donado='on', costo_adquisicion='1,500.50'))
         cuerpo = self.api.escrituras()[0][2]
         self.assertTrue(cuerpo['donado'])
         self.assertEqual(cuerpo['costo_adquisicion'], '1500.50')
 
     def test_el_formulario_no_bloquea_el_costo_en_donados(self):
         self.entrar()
-        r = self.client.get('/equipos/registrar/')
+        r = self.client.get('/articulos/registrar/')
         self.assertNotContains(r, 'costo.disabled')
         self.assertNotContains(r, 'readOnly')
 
     def test_noloc_y_ubicacion_sin_ubicar_van_juntos(self):
         self.entrar()
-        r = self.client.post('/equipos/registrar/', dict(VALIDO, ubicacion='UBI-NOLOC'))
+        r = self.client.post('/articulos/registrar/', dict(VALIDO, ubicacion='UBI-NOLOC'))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'estado No localizado')
-        r = self.client.post('/equipos/registrar/', dict(VALIDO, estado_operativo='NOLOC'))
+        r = self.client.post('/articulos/registrar/', dict(VALIDO, estado_operativo='NOLOC'))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Sin ubicar')
 
     def test_sin_ubicar_con_noloc_se_acepta(self):
         self.entrar()
         self.api.respuestas[('POST', 'articulos/')] = articulo(num=9)
-        self.client.post('/equipos/registrar/',
+        self.client.post('/articulos/registrar/',
                          dict(VALIDO, ubicacion='UBI-NOLOC', estado_operativo='NOLOC'))
         cuerpo = self.api.escrituras()[0][2]
         self.assertEqual((cuerpo['ubicacion'], cuerpo['estado_operativo']), ('UBI-NOLOC', 'NOLOC'))
@@ -285,7 +285,7 @@ class AltaTests(BaseEquipos):
         self.entrar()
         self.api.respuestas[('POST', 'articulos/')] = ApiError(
             400, {'marbete_oficial': 'Ya existe un artículo con ese marbete.'})
-        r = self.client.post('/equipos/registrar/', VALIDO)
+        r = self.client.post('/articulos/registrar/', VALIDO)
         self.assertContains(r, 'Ya existe un artículo con ese marbete.')
         self.assertContains(r, 'value="M-200"')            # conserva lo capturado
 
@@ -296,13 +296,13 @@ class AltaTests(BaseEquipos):
             faltantes=['el costo de adquisición'])
         self.api.respuestas[('GET', 'articulos/9/')] = articulo(num=9)
         self.api.respuestas[('GET', 'articulos/9/movimientos/')] = pagina([])
-        r = self.client.post('/equipos/registrar/', VALIDO, follow=True)
+        r = self.client.post('/articulos/registrar/', VALIDO, follow=True)
         self.assertContains(r, 'Pendiente')
         self.assertContains(r, 'el costo de adquisición')
 
     def test_consulta_no_puede_registrar(self):
         self.entrar('CONSULTA')
-        r = self.client.post('/equipos/registrar/', VALIDO)
+        r = self.client.post('/articulos/registrar/', VALIDO)
         self.assertEqual(self.api.escrituras(), [])
         self.assertEqual(r.status_code, 302)
 
@@ -323,46 +323,46 @@ class CorregirTests(BaseEquipos):
     def test_solo_manda_lo_que_cambio_y_el_motivo(self):
         self.entrar()
         self.api.respuestas[('PATCH', 'articulos/7/')] = articulo(color='Gris')
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos(color='Gris'))
-        self.assertRedirects(r, '/equipos/detalle/7/', fetch_redirect_response=False)
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(color='Gris'))
+        self.assertRedirects(r, '/articulos/detalle/7/', fetch_redirect_response=False)
         self.assertEqual(self.api.escrituras(), [
             ('PATCH', 'articulos/7/', {'color': 'Gris', 'motivo': 'Error de captura'})])
 
     def test_vaciar_marca_manda_null(self):
         self.entrar()
         self.api.respuestas[('PATCH', 'articulos/7/')] = articulo()
-        self.client.post('/equipos/detalle/7/corregir/', self.datos(marca=''))
+        self.client.post('/articulos/detalle/7/corregir/', self.datos(marca=''))
         self.assertEqual(self.api.escrituras()[0][2], {'marca': None, 'motivo': 'Error de captura'})
 
     def test_sin_cambios_no_llama_a_la_api(self):
         self.entrar()
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos())
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos())
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'No hiciste ningún cambio')
 
     def test_sin_motivo_no_llama_a_la_api(self):
         self.entrar()
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos(color='Gris', motivo=''))
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(color='Gris', motivo=''))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Indica el motivo del cambio.')
 
     def test_color_y_descripcion_no_pueden_quedar_vacios(self):
         self.entrar()
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos(color='', descripcion=''))
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(color='', descripcion=''))
         self.assertEqual(self.api.escrituras(), [])
         self.assertContains(r, 'Este campo es obligatorio.')
 
     def test_marbete_solo_se_corrige_en_activos(self):
         self.entrar()
-        self.assertContains(self.client.get('/equipos/detalle/7/corregir/'), 'name="marbete_oficial"')
+        self.assertContains(self.client.get('/articulos/detalle/7/corregir/'), 'name="marbete_oficial"')
         self.api.respuestas[('GET', 'articulos/7/')] = articulo(
             origen={'codigo': 'COM', 'nombre': 'Comodato'}, marbete_oficial=None,
             folio_interno='021432611-001', identificador='021432611-001')
-        self.assertNotContains(self.client.get('/equipos/detalle/7/corregir/'), 'name="marbete_oficial"')
+        self.assertNotContains(self.client.get('/articulos/detalle/7/corregir/'), 'name="marbete_oficial"')
 
     def test_no_se_ofrece_corregir_ubicacion_ni_resguardante_ni_costo(self):
         self.entrar()
-        r = self.client.get('/equipos/detalle/7/corregir/')
+        r = self.client.get('/articulos/detalle/7/corregir/')
         for nombre in ('name="ubicacion"', 'name="resguardante"', 'name="costo_adquisicion"',
                        'name="estado_operativo"'):
             self.assertNotContains(r, nombre)
@@ -371,11 +371,11 @@ class CorregirTests(BaseEquipos):
         self.entrar()
         self.api.respuestas[('PATCH', 'articulos/7/')] = ApiError(
             400, {'marbete_oficial': 'Ya existe un artículo con ese marbete.'})
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos(marbete_oficial='M-999'))
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(marbete_oficial='M-999'))
         self.assertContains(r, 'Ya existe un artículo con ese marbete.')
 
     def test_consulta_no_puede_corregir(self):
         self.entrar('CONSULTA')
-        r = self.client.post('/equipos/detalle/7/corregir/', self.datos(color='Gris'))
+        r = self.client.post('/articulos/detalle/7/corregir/', self.datos(color='Gris'))
         self.assertEqual(self.api.escrituras(), [])
         self.assertEqual(r.status_code, 302)

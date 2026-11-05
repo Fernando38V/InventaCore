@@ -279,7 +279,7 @@ class AtajosTests(BaseMov):
     def test_ficha_ofrece_marcar_como_no_localizado(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         self.assertContains(r, 'Marcar como No localizado')
         self.assertContains(r, '/movimientos/nuevo/?articulo=7&amp;tipo=REUB&amp;ubicacion=UBI-NOLOC')
 
@@ -288,14 +288,14 @@ class AtajosTests(BaseMov):
         self.api.respuestas[('GET', 'articulos/7/')] = articulo(
             estado_operativo=NOLOC, ubicacion=SIN_UBICAR)
         self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         self.assertContains(r, 'Recuperar artículo')
         self.assertNotContains(r, 'Marcar como No localizado')
 
     def test_consulta_no_ve_los_atajos(self):
         self.entrar('CONSULTA')
         self.api.respuestas[('GET', 'articulos/7/movimientos/')] = pagina([])
-        r = self.client.get('/equipos/detalle/7/')
+        r = self.client.get('/articulos/detalle/7/')
         self.assertNotContains(r, 'Marcar como No localizado')
 
 
