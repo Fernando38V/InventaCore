@@ -350,7 +350,7 @@
   sincronizarNoLocalizado('');
 
   // DEC-008: Donado manda; con fecha y costo es Registrado; si falta alguno, Pendiente.
-  // En un bien donado el costo no se bloquea (PEND-004).
+  // En un bien donado el costo no se bloquea (DEC-021).
   function sincronizarEstado() {
     if (donado.checked) {
       badge.textContent = 'Donado';

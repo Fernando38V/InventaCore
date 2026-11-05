@@ -80,24 +80,29 @@ def _olvidar(request):
             pass
 
 
-def _guardar(request, nombre, contenido, huella):
+def _guardar(request, nombre, contenido, huella, sin_folio=()):
     _olvidar(request)
     carpeta = _carpeta()
     _limpiar_viejos(carpeta)
     ruta = os.path.join(carpeta, uuid.uuid4().hex + '.xlsx')
     with open(ruta, 'wb') as f:
         f.write(contenido)
-    request.session[SESION] = {'ruta': ruta, 'nombre': nombre, 'hash': huella}
+    # `sin_folio`: filas válidas de Comodatos o Enseres que no traen folio; el
+    # sistema les asignará uno (DEC-017). Se guardan para exigir la casilla al
+    # confirmar y para listar los folios en el resultado.
+    request.session[SESION] = {'ruta': ruta, 'nombre': nombre, 'hash': huella,
+                               'sin_folio': [list(c) for c in sin_folio]}
 
 
 def _recuperar(request):
-    """(nombre, contenido, hash) del archivo revisado, o None."""
+    """(nombre, contenido, hash, sin_folio) del archivo revisado, o None."""
     datos = request.session.get(SESION)
     if not datos:
         return None
     try:
         with open(datos['ruta'], 'rb') as f:
-            return datos['nombre'], f.read(), datos['hash']
+            return (datos['nombre'], f.read(), datos['hash'],
+                    [tuple(c) for c in datos.get('sin_folio', [])])
     except OSError:
         request.session.pop(SESION, None)
         return None
@@ -126,6 +131,7 @@ def _filas(filas, columnas):
     for f in filas:
         d = f.get('datos') or {}
         errores = f.get('errores') or {}
+        avisos = f.get('avisos') or {}      # no bloquean la fila (PEND-021)
         marcadas = {col for col, claves in COLUMNAS_TABLA if any(c in errores for c in claves)}
         resultado.append({
             'hoja': f['hoja'], 'fila': f['fila'], 'valida': f['estado'] == 'valida',
@@ -140,9 +146,18 @@ def _filas(filas, columnas):
             'donado': (d.get('donado') or '').strip().lower() in ('sí', 'si', 's', 'x'),
             'errores': [(columnas.get(c, c.replace('_', ' ').capitalize()), m)
                         for c, m in errores.items()],
+            'avisos': [(columnas.get(c, c.replace('_', ' ').capitalize()), m)
+                       for c, m in avisos.items()],
             'marcadas': marcadas,
         })
     return resultado
+
+
+def _sin_folio(filas):
+    """(hoja, fila) de las filas válidas de Comodatos o Enseres sin folio."""
+    return [(f['hoja'], f['fila']) for f in filas
+            if f['estado'] == 'valida' and f['hoja'] in ('Comodatos', 'Enseres')
+            and not (f.get('datos') or {}).get('identificador')]
 
 
 # --- vistas --------------------------------------------------------------
@@ -170,11 +185,14 @@ def carga_masiva(request):
             except ApiError as e:
                 error = _mensaje(e)
             else:
-                _guardar(request, archivo.name, contenido, previa['hash'])
-                columnas = previa.get('columnas') or {}
-                filas = _filas(previa.get('filas') or [], columnas)
+                crudas = previa.get('filas') or []
+                sin_folio = _sin_folio(crudas)
+                _guardar(request, archivo.name, contenido, previa['hash'], sin_folio)
+                filas = _filas(crudas, previa.get('columnas') or {})
                 return render(request, 'equipos/carga_masiva.html', {
                     'paso': 'previa', 'previa': previa, 'filas': filas,
+                    'folios_nuevos': len(sin_folio),
+                    'con_avisos': sum(1 for f in filas if f['avisos']),
                     'puede_confirmar': previa['validas'] > 0 and not previa.get('ya_cargado'),
                 })
 
@@ -206,7 +224,13 @@ def confirmar_carga(request):
     if guardado is None:
         messages.warning(request, 'La vista previa ya no está disponible. Sube el archivo de nuevo.')
         return redirect('equipos:carga_masiva')
-    nombre, contenido, huella = guardado
+    nombre, contenido, huella, sin_folio = guardado
+    if sin_folio and request.POST.get('acepto_folios') != 'on':
+        # Se vuelve a pedir la vista previa: el archivo sigue guardado.
+        messages.error(request, 'Marca la casilla que confirma la asignación de %d folio%s nuevo%s '
+                       'antes de cargar. Sube el archivo de nuevo para verlo.' % (len(sin_folio), '' if len(sin_folio) == 1 else 's',
+                                             '' if len(sin_folio) == 1 else 's'))
+        return redirect('equipos:carga_masiva')
     try:
         resultado = enviar_archivo(request, 'carga-masiva/confirmar/', nombre, contenido,
                                    {'hash': huella})
@@ -222,6 +246,10 @@ def confirmar_carga(request):
         return redirect('equipos:carga_masiva')
     _olvidar(request)
     rechazadas = _filas(resultado.get('filas_rechazadas') or [], {})
+    asignados = set(sin_folio)
+    articulos = [dict(a, folio_nuevo=(a['hoja'], a['fila']) in asignados)
+                 for a in resultado.get('articulos') or []]
     return render(request, 'equipos/carga_masiva.html', {
         'paso': 'resultado', 'resultado': resultado, 'rechazadas': rechazadas,
+        'articulos': articulos, 'folios_asignados': [a for a in articulos if a['folio_nuevo']],
     })

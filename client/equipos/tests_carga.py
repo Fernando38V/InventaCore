@@ -15,7 +15,7 @@ from client.api import ApiError
 XLSX = b'PK\x03\x04 contenido de prueba'
 
 
-def fila(hoja='Activos', numero=2, estado='valida', errores=None, **datos):
+def fila(hoja='Activos', numero=2, estado='valida', errores=None, avisos=None, **datos):
     base = {'identificador': 'M-1', 'categoria': 'Equipo de cómputo', 'tipo_articulo': 'Laptop',
             'marca': 'Dell', 'modelo': 'Latitude', 'num_serie': 'SN-1', 'color': 'Negro',
             'descripcion': 'Laptop', 'ubicacion': 'UBI-LAB1 · Laboratorio 1',
@@ -24,7 +24,7 @@ def fila(hoja='Activos', numero=2, estado='valida', errores=None, **datos):
             'origen': 'Activo'}
     base.update(datos)
     return {'hoja': hoja, 'fila': numero, 'estado': estado, 'errores': errores or {},
-            'datos': base}
+            'avisos': avisos or {}, 'datos': base}
 
 
 def previa(**cambios):
@@ -228,6 +228,162 @@ class ConfirmarTests(BaseCarga):
         self.enviar.side_effect = ApiError(0, {'detalle': 'El servidor tardó demasiado en responder.'})
         r = self.client.post('/articulos/carga-masiva/confirmar/', follow=True)
         self.assertContains(r, 'Revisa en el listado si los artículos se cargaron')
+
+
+def previa_con_folios(**cambios):
+    """Dos Comodatos/Enseres sin folio y uno con folio propio."""
+    datos = dict(
+        total=3, validas=3, con_error=0,
+        hojas=[{'hoja': 'Comodatos', 'origen': 'Comodato', 'filas': 2, 'validas': 2, 'con_error': 0},
+               {'hoja': 'Enseres', 'origen': 'Enser', 'filas': 1, 'validas': 1, 'con_error': 0}],
+        filas=[fila(hoja='Comodatos', numero=2, identificador=None, origen='Comodato'),
+               fila(hoja='Comodatos', numero=3, identificador='COM-HIST-77', origen='Comodato'),
+               fila(hoja='Enseres', numero=2, identificador=None, origen='Enser')])
+    datos.update(cambios)
+    return previa(**datos)
+
+
+class FoliosNuevosTests(BaseCarga):
+    def test_la_vista_previa_avisa_cuantos_folios_se_asignaran(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios()
+        r = self.subir()
+        self.assertContains(r, 'Se asignarán 2 folios nuevos')
+        self.assertContains(r, 'id="aceptoFolios"')
+        self.assertContains(r, 'name="acepto_folios"')
+        # El botón que abre la confirmación nace deshabilitado hasta marcar la casilla.
+        self.assertRegex(r.content.decode(), r'id="btnAbrirCarga"[^>]*\bdisabled\b')
+        self.assertEqual(self.client.session['carga_masiva']['sin_folio'],
+                         [['Comodatos', 2], ['Enseres', 2]])
+
+    def test_un_solo_folio_va_en_singular(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios(
+            filas=[fila(hoja='Comodatos', identificador=None, origen='Comodato')],
+            total=1, validas=1)
+        r = self.subir()
+        self.assertContains(r, 'Se asignarán 1 folio nuevo')
+
+    def test_sin_filas_sin_folio_no_hay_casilla_y_el_boton_esta_activo(self):
+        self.entrar()
+        self.enviar.return_value = previa()
+        r = self.subir()
+        self.assertNotContains(r, 'id="aceptoFolios"')
+        self.assertNotRegex(r.content.decode(), r'id="btnAbrirCarga"[^>]*\bdisabled\b')
+
+    def test_filas_con_error_sin_folio_no_cuentan(self):
+        self.entrar()
+        malo = fila(hoja='Enseres', numero=5, estado='error', identificador=None, origen='Enser',
+                    errores={'color': 'Este dato es obligatorio.'})
+        self.enviar.return_value = previa_con_folios(filas=[malo], total=1, validas=0, con_error=1)
+        self.assertNotContains(self.subir(), 'Se asignarán')
+
+    def test_activos_nunca_cuentan_como_sin_folio(self):
+        self.entrar()
+        self.enviar.return_value = previa(filas=[fila(identificador=None)], total=1, validas=1, con_error=0)
+        self.assertNotContains(self.subir(), 'Se asignarán')
+
+    def test_el_servidor_rechaza_confirmar_sin_la_casilla(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios()
+        self.subir()
+        self.enviar.reset_mock()
+        r = self.client.post('/articulos/carga-masiva/confirmar/', follow=True)
+        self.assertContains(r, 'Marca la casilla que confirma la asignación de 2 folios nuevos')
+        self.enviar.assert_not_called()
+
+    def test_casilla_con_otro_valor_tampoco_cuenta(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios()
+        self.subir()
+        self.enviar.reset_mock()
+        self.client.post('/articulos/carga-masiva/confirmar/', {'acepto_folios': 'no'})
+        self.enviar.assert_not_called()
+
+    def test_con_la_casilla_marcada_se_carga_y_el_resultado_lista_los_folios(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios()
+        self.subir()
+        self.enviar.return_value = {
+            'archivo': 'inventario.xlsx', 'hash': 'abc123', 'total': 3, 'cargados': 3, 'rechazados': 0,
+            'hojas': [], 'filas_rechazadas': [],
+            'articulos': [
+                {'hoja': 'Comodatos', 'fila': 2, 'num': 21, 'identificador': '021431126-001'},
+                {'hoja': 'Comodatos', 'fila': 3, 'num': 22, 'identificador': 'COM-HIST-77'},
+                {'hoja': 'Enseres', 'fila': 2, 'num': 23, 'identificador': '021431126-002'}]}
+        self.enviar.reset_mock()
+        r = self.client.post('/articulos/carga-masiva/confirmar/', {'acepto_folios': 'on'})
+        self.enviar.assert_called_once()
+        html = r.content.decode()
+        self.assertContains(r, 'Folios asignados (2)')
+        bloque = html[html.index('id="cargaFoliosAsignados"'):]
+        bloque = bloque[:bloque.index('</table>')]
+        self.assertIn('021431126-001', bloque)
+        self.assertIn('021431126-002', bloque)
+        self.assertNotIn('COM-HIST-77', bloque)               # ya traía su folio
+        self.assertContains(r, 'badge-estado--azul">Folio asignado', count=2)
+
+    def test_sin_folios_nuevos_el_resultado_no_tiene_la_seccion(self):
+        self.entrar()
+        self.enviar.return_value = previa()
+        self.subir()
+        self.enviar.return_value = {
+            'archivo': 'x.xlsx', 'hash': 'abc123', 'total': 1, 'cargados': 1, 'rechazados': 0,
+            'hojas': [], 'filas_rechazadas': [],
+            'articulos': [{'hoja': 'Activos', 'fila': 2, 'num': 15, 'identificador': 'M-1'}]}
+        r = self.client.post('/articulos/carga-masiva/confirmar/')
+        self.assertNotContains(r, 'Folios asignados')
+
+    def test_si_la_api_falla_se_olvida_la_copia(self):
+        self.entrar()
+        self.enviar.return_value = previa_con_folios()
+        self.subir()
+        self.enviar.side_effect = ApiError(400, {'archivo': 'No hay filas válidas que cargar.'})
+        self.client.post('/articulos/carga-masiva/confirmar/', {'acepto_folios': 'on'})
+        self.assertEqual(self.copias(), [])
+
+
+class AvisosTests(BaseCarga):
+    def con_avisos(self):
+        return previa(
+            total=2, validas=2, con_error=0,
+            filas=[fila(avisos={'marca': 'S/M se tomó como vacío.'}),
+                   fila(numero=3, num_serie=None,
+                        avisos={'identificador': 'Posible duplicado: coincide con la fila 2.'}),
+                   ])
+
+    def test_avisos_en_columna_aparte_de_los_errores(self):
+        self.entrar()
+        datos = self.con_avisos()
+        datos['filas'][1]['estado'] = 'error'
+        datos['filas'][1]['errores'] = {'color': 'Este dato es obligatorio.'}
+        self.enviar.return_value = datos
+        r = self.subir()
+        html = r.content.decode()
+        self.assertIn('<th>Avisos</th>', html)
+        # El aviso está en su propia celda, no dentro de la lista de errores.
+        self.assertContains(r, '<td data-label="Avisos">', count=2)
+        self.assertContains(r, 'class="carga-avisos"', count=2)
+        self.assertContains(r, 'Marca:</strong> S/M se tomó como vacío.')
+        self.assertContains(r, 'Marbete o folio:</strong> Posible duplicado')
+        errores = html[html.index('class="carga-errores"'):]
+        errores = errores[:errores.index('</ul>')]
+        self.assertNotIn('Posible duplicado', errores)
+
+    def test_cuenta_las_filas_con_avisos_y_no_bloquea(self):
+        self.entrar()
+        self.enviar.return_value = self.con_avisos()
+        r = self.subir()
+        self.assertContains(r, 'Con avisos (no bloquean)')
+        self.assertEqual(r.context['con_avisos'], 2)
+        self.assertContains(r, 'Cargar 2 artículos')
+
+    def test_sin_avisos_la_celda_va_vacia(self):
+        self.entrar()
+        self.enviar.return_value = previa()
+        r = self.subir()
+        self.assertEqual(r.context['con_avisos'], 0)
+        self.assertNotContains(r, 'class="carga-avisos"')
 
 
 class RedireccionTests(BaseCliente):

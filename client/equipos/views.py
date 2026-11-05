@@ -32,9 +32,8 @@ CAMPOS_ALTA = ('origen', 'tipo_articulo', 'ubicacion', 'resguardante', 'estado_o
                'fecha_adquisicion', 'costo_adquisicion')
 
 # Campos de la corrección desde la ficha (DEC-013, ArticuloCorregirSerializer).
-# Para permitir corregir el costo, cuando la API lo acepte en PATCH, basta
-# agregar aquí {'nombre': 'costo_adquisicion', 'etiqueta': 'Costo de adquisición (MXN)',
-# 'tipo': 'number', 'nulo': True}.
+# El costo es opcional también en un bien Donado (DEC-021): vacío se guarda
+# como vacío (null), nunca como 0.
 CAMPOS_CORRECCION = [
     {'nombre': 'marca', 'etiqueta': 'Marca', 'nulo': True, 'max': 50},
     {'nombre': 'modelo', 'etiqueta': 'Modelo', 'nulo': True, 'max': 60},
@@ -42,6 +41,8 @@ CAMPOS_CORRECCION = [
     {'nombre': 'color', 'etiqueta': 'Color', 'requerido': True, 'max': 25},
     {'nombre': 'fecha_adquisicion', 'etiqueta': 'Fecha de adquisición', 'tipo': 'date',
      'nulo': True},
+    {'nombre': 'costo_adquisicion', 'etiqueta': 'Costo de adquisición (MXN)', 'tipo': 'costo',
+     'nulo': True, 'ayuda': 'Opcional. Déjalo vacío si no se conoce; no se guarda como 0.'},
     {'nombre': 'descripcion', 'etiqueta': 'Descripción', 'tipo': 'textarea',
      'requerido': True, 'max': 150, 'completo': True},
 ]
@@ -107,6 +108,27 @@ def _obtener_articulo(request, num):
 
 def _norm(valor):
     return '' if valor is None else str(valor)
+
+
+def _costo_texto(valor):
+    """Costo para el formulario: sin ceros de más ('12000.00' → '12000')."""
+    if valor in (None, ''):
+        return ''
+    try:
+        d = Decimal(str(valor))
+    except InvalidOperation:
+        return str(valor)
+    return format(d.normalize(), 'f')
+
+
+def _costo_valido(texto):
+    """'' si el costo es un número igual o mayor a cero; si no, el mensaje."""
+    try:
+        if Decimal(texto.replace(',', '')) < 0:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        return 'El costo debe ser un número igual o mayor a cero.'
+    return ''
 
 
 def _fecha_valida(texto):
@@ -283,7 +305,7 @@ def _cuerpo_alta(v):
         'color': v['color'],
         'descripcion': v['descripcion'],
         'fecha_adquisicion': v['fecha_adquisicion'] or None,
-        # Donado: el costo ni se exige ni se bloquea (PEND-004); lo que se capture se guarda.
+        # Donado: el costo ni se exige ni se bloquea (DEC-021); lo que se capture se guarda.
         'costo_adquisicion': v['costo_adquisicion'].replace(',', '') or None,
         'donado': v['donado'],
     }
@@ -368,12 +390,18 @@ def corregir_equipo(request, num):
     if equipo['origen']['codigo'] == 'ACT':
         campos.insert(0, CAMPO_MARBETE)
 
-    valores = {c['nombre']: _norm(equipo.get(c['nombre'])) for c in campos}
+    def actual(c):
+        v = equipo.get(c['nombre'])
+        return _costo_texto(v) if c['nombre'] == 'costo_adquisicion' else _norm(v)
+
+    valores = {c['nombre']: actual(c) for c in campos}
     errores, general, motivo = {}, '', ''
 
     if request.method == 'POST':
         valores = {c['nombre']: request.POST.get(c['nombre'], '').strip() for c in campos}
         motivo = request.POST.get('motivo', '').strip()
+        if valores.get('costo_adquisicion'):
+            valores['costo_adquisicion'] = valores['costo_adquisicion'].replace(',', '')
 
         for c in campos:
             if c.get('requerido') and not valores[c['nombre']]:
@@ -382,12 +410,18 @@ def corregir_equipo(request, num):
             mensaje = _fecha_valida(valores['fecha_adquisicion'])
             if mensaje:
                 errores['fecha_adquisicion'] = mensaje
+        if valores.get('costo_adquisicion'):
+            mensaje = _costo_valido(valores['costo_adquisicion'])
+            if mensaje:
+                errores['costo_adquisicion'] = mensaje
+            else:       # '1500.50' y '1500.5' son lo mismo: no cuenta como cambio
+                valores['costo_adquisicion'] = _costo_texto(valores['costo_adquisicion'])
 
         # Solo se mandan los campos que cambiaron (la bitácora guarda esos).
         cambios = {}
         for c in campos:
             nuevo = valores[c['nombre']]
-            if nuevo != _norm(equipo.get(c['nombre'])):
+            if nuevo != actual(c):
                 cambios[c['nombre']] = None if (nuevo == '' and c.get('nulo')) else nuevo
         if not errores and not cambios:
             general = 'No hiciste ningún cambio.'
