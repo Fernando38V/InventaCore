@@ -18,17 +18,18 @@ Universidad Tecnológica de Tijuana
 Dos proyectos Django separados y desacoplados:
 
 - **`api/`** — Backend DRF puro, puerto **8000**  
-  Apps: `usuarios`, `personal`, `catalogos`, `equipos`, `movimientos`, `reportes`, `auditoria`
+  Apps: `usuarios`, `personal`, `catalogos`, `articulos`, `movimientos`, `reportes`, `auditoria`
 
 - **`client/`** — Frontend con templates Django, puerto **8001**  
-  Consume la API vía librería `requests` (wrapper propio en `usuarios/wrappers.py`).  
-  Apps: `client/` (configuración raíz), `usuarios`, `equipos`, `personal`, `catalogos`, `movimientos`, `reportes`, `auditoria`
+  Consume la API vía librería `requests` (wrapper propio en `client/client/api.py`).  
+  Apps: `client/` (configuración raíz), `usuarios`, `equipos` (módulo Artículos, ruta `/articulos/`), `personal`, `catalogos`, `movimientos`, `reportes`, `auditoria`
 
 **Stack:**
 - Python 3.11, Django 4.2, Django REST Framework
 - MySQL (base de datos)
 - HTML5/CSS3/JavaScript (sin framework SPA)
-- Chart.js (para gráficas de reportes)
+- Bootstrap 5.3 y CSS propio (el dashboard usa barras con CSS, sin librería de gráficas)
+- openpyxl (carga masiva y exportación a Excel), qrcode y Pillow (QR)
 - reportlab (generación de PDF de resguardos)
 
 ---
@@ -104,24 +105,28 @@ Acceder a `http://localhost:8001` en el navegador.
 
 | Rol | Clave BD | Responsabilidad |
 |---|---|---|
-| Administrador | `ADMIN` | Control total: altas, bajas, movimientos, catálogos, usuarios, bitácora de auditoría |
-| Contadora | `CONT` | Rol de consulta: consulta el inventario y edita puntualmente algún dato. No da de alta equipo ni ejecuta bajas |
+| Administrador | `ADMIN` | Control total: altas, correcciones, movimientos, resguardos, carga masiva, catálogos, personal, usuarios y bitácora. Lo usan la Contadora y los jefes |
+| Consulta | `CONSULTA` | Solo lectura: Dashboard, Artículos, Movimientos (con resguardos en PDF) y Reportes con Excel. No ve catálogos, personal, bitácora ni usuarios |
 
 ---
 
 ## Documentación
 
 - **Requerimientos Funcionales (23 RF) y No Funcionales (11 RNF):** `RF y RNF Proyecto Conalep.pdf`
-- **Diagrama Entidad-Relación y Modelo Relacional:** `CONALEP_DER_final_16-10-2026.md`
-- **Diccionario de Datos:** `CONALEP_Diccionario_de_Datos_v2.xlsx`
-- **Script SQL inicial:** `InventaCore_db.sql`
+- **Decisiones confirmadas:** `DECISIONES.md`; **dudas y pendientes:** `PENDIENTES.md`
+- **Contrato de la API:** `CONTRATO_API_articulos_movimientos.md`
+- **Requerimientos actualizados:** `RF_RNF_actualizados.md`
+- **Estado del sistema:** `INVENTARIO_ESTADO_ACTUAL.md`
+- **Diagrama Entidad-Relación y Modelo Relacional:** `InventaCore_DER_final.md`
+- **Script SQL:** `InventaCore_db.sql`
+- **Diccionario de Datos:** `Diccionario de datos Conalep.xlsx`
 
 ---
 
 ## Estado del proyecto
 
-**Versión:** Provisional — 16/10/2026  
-**Pendiente:** Modelo de datos terminado, estructura de repositorio y aplicaciones Django creada. Backend y frontend en desarrollo.
+**Actualizado:** 06/11/2026  
+**Estado:** API y cliente conectados para catálogos, personal, artículos, movimientos, resguardos en PDF, dashboard, reportes con Excel y carga masiva. Pendientes: Usuarios y Roles, Perfil y escáner de QR. Detalle en `INVENTARIO_ESTADO_ACTUAL.md` y `PENDIENTES.md`.
 
 ---
 

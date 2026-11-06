@@ -1,6 +1,6 @@
 # DECISIONES — InventaCore
 
-Última actualización: 04/11/2026
+Última actualización: 06/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
 Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
@@ -53,7 +53,7 @@ Decisión: Los resguardos se generan bajo demanda para uno o varios artículos d
 Firmas: dos, la de la Contadora (responsable de seguimiento) y la del resguardante o nuevo resguardante, para los tres orígenes (Activo, Comodato y Enser). Se elimina "Monto revalúo". No hay segundo formato: el sistema propone un diseño propio, más limpio que el actual, con el listado de artículos resguardados. El contenido sigue la estructura del formato institucional (encabezado, nombre del resguardante, tabla de artículos con número de inventario, descripción, marca, modelo, serie y costo, número de bienes, leyenda de responsabilidad y las dos firmas), sin la columna "Monto revalúo". El nombre completo de la Contadora que firma como responsable de seguimiento es un dato del sistema (configuración), no una tabla. Diseño relacional en DEC-016.
 El cambio de resguardante (incluido cuando alguien deja la institución) se hace con REUB y se documenta con este mismo resguardo.
 No se genera comprobante en altas históricas de bienes no localizados ni en la carga masiva.
-Pendiente técnico: PEND-001.
+Implementación: resguardos emitidos, consultados y descargados en PDF desde la API de Adad y el cliente (05/11/2026, ver DEC-016 y PEND-022).
 
 ## DEC-008 — Estados de registro
 
@@ -112,7 +112,7 @@ Decisión: Los usuarios autorizados amplían categorías, tipos de artículo y u
 
 ## DEC-016 — Resguardo: PK y atributo requiere_resguardo
 
-Estado: CONFIRMADA (requiere_resguardo implementado por Adad; diseño de RESGUARDO aceptado por Fernando el 03/11/2026, pendiente de validar con Adad)
+Estado: CONFIRMADA (diseño aceptado por Fernando el 03/11/2026; implementado en API y cliente el 05/11/2026)
 Decisión: RESGUARDO usa folio como PK. MOVIMIENTO.requiere_resguardo (booleano, lo fija el sistema al crear el movimiento) indica qué asignaciones deben documentarse. No existe TIPO_MOVIMIENTO.genera_resguardo.
 Diseño mínimo: RESGUARDO (folio PK, fecha de emisión, resguardante, usuario emisor, ruta del PDF única, hash del PDF) y RESGUARDO_DETALLE (num PK, resguardo, movimiento único, para que una asignación no se documente dos veces). Se elimina la relación 1:1 entre MOVIMIENTO y RESGUARDO. El PDF se genera con reportlab, se guarda en una carpeta del servidor sin sobrescribir y la reimpresión entrega el archivo original.
 
@@ -141,7 +141,7 @@ Decisión: El sistema exporta el inventario a Excel para que la Contadora lo env
 ## DEC-019 — Módulos visibles por rol
 
 Estado: CONFIRMADA (01/11/2026)
-Decisión: El rol CONSULTA solo accede a Dashboard, Equipos (artículos), Movimientos y Reportes, y a su perfil. Personal, Catálogos, Bitácora y Usuarios y Roles son solo del ADMINISTRADOR: Consulta no los ve en el menú ni los abre escribiendo la URL.
+Decisión: El rol CONSULTA solo accede a Dashboard, Artículos, Movimientos y Reportes, y a su perfil. Personal, Catálogos, Bitácora y Usuarios y Roles son solo del ADMINISTRADOR: Consulta no los ve en el menú ni los abre escribiendo la URL.
 
 - Precisa DEC-001: la consulta de ubicaciones y empleados (RF-13 y RF-15) es solo para el Administrador.
 - Cliente: el menú se arma según el rol y `usuarios/middleware.py` redirige a Consulta al dashboard si intenta entrar a una sección de administración.
@@ -156,7 +156,7 @@ Decisión: Alcance mínimo para construir.
 
 - Dashboard: totales por estado operativo, estado de registro y ubicación; artículos Pendientes de datos; últimos movimientos.
 - Reportes: inventario filtrable (por ubicación, resguardante y estado), artículos de un resguardante, historial de un artículo y la exportación a Excel (DEC-018).
-- Implementación: API de Adad (endpoint de conteos) y cliente; PENDIENTE.
+- Implementación: API de Adad (`/dashboard/` y `/reportes/`, con `?formato=xlsx`) y cliente conectado y probado contra la API real (05/11/2026).
 
 ## DEC-021 — Costo en bienes donados
 
@@ -164,6 +164,6 @@ Estado: CONFIRMADA (04/11/2026, a partir de lo que indicó la Contadora)
 Decisión: El costo de adquisición de un bien Donado es opcional: ni se exige ni se bloquea. La Contadora lo captura cuando se lo piden y lo determina ella. Si se deja en blanco queda vacío (NULL), no 0; si se captura, se guarda. El estado de registro de un Donado sigue siendo Donado (DEC-008) tenga o no costo.
 
 - Se aplica en el alta manual, en la corrección desde la ficha (DEC-013, con motivo y BITACORA) y en la carga masiva.
-- El backend y el SQL ya lo permiten; el cliente debe quitar el bloqueo del costo en bienes Donados.
+- Implementado: la API lo acepta (04/11/2026) y el cliente ya no lo bloquea en el alta ni en la corrección. Probado: un Donado con costo 850.00 se guardó y siguió como Donado.
 - Se descarta un valor 0 por defecto: un 0 afirma que el bien costó cero, que no es lo mismo que no tener el dato, y entra en sumas y reportes.
   Impacto: RF de alta y de corrección; frontend (quitar el bloqueo); pruebas.
