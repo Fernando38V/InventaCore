@@ -83,6 +83,10 @@ sesión · InventaCore{% endblock %} {% block extra_css %}
         Ingresa con la cuenta que te asignó el Administrador.
       </p>
 
+      {% for m in messages %}
+      <div class="alert alert-success" role="status">{{ m }}</div>
+      {% endfor %}
+
       {% if error %}
       <div class="alert alert-danger d-flex gap-2" role="alert">
         <svg

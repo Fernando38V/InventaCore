@@ -1,6 +1,6 @@
 # PENDIENTES — InventaCore
 
-Última actualización: 06/11/2026
+Última actualización: 08/11/2026
 Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No implementar como definitivo nada de aquí.
 
 ## Cerrados el 29/10 y 01/11/2026 (pasaron a DECISIONES.md)
@@ -92,6 +92,24 @@ Prioridad: BAJA
 - Solo el Administrador emite (DEC-001); el cliente oculta las casillas y el botón a Consulta, y rechaza el envío en el servidor.
 - Observación: las altas manuales también generan una asignación pendiente de resguardo (primera entrega al resguardante). Lo decide la API.
 
+PEND-024 — Endpoint de lectura de la bitácora (para Adad)
+Estado: SOLICITADO a Adad (08/11/2026)
+Prioridad: ALTA
+
+- La API escribe la bitácora pero no la publica: `api/auditoria` no tiene vistas ni rutas. Se pidió `GET /bitacora/`, solo Administrador, solo lectura, paginado (más reciente primero), con filtros q, usuario, modulo, accion, fecha_desde, fecha_hasta, y tabla_afectada con registro_id; cada fila con fecha_hora, usuario, módulo, acción, tabla, registro, motivo y valores anterior y nuevo como JSON. Los nombres de filtros y campos son propuesta del cliente; el contrato final es el de Adad.
+- Cliente: la pantalla /auditoria/ sigue como placeholder hasta que exista el endpoint.
+
+PEND-025 — Escáner de QR y búsqueda rápida (RF-19, RF-20, RF-23)
+Estado: objetivo y diseño confirmados por Fernando el 08/11/2026; sin construir
+Prioridad: ALTA
+
+- Objetivo (confirmado): consulta rápida de un artículo, abriendo su ficha completa desde el celular. No incluye toma de inventario por escaneo.
+- El QR debe codificar solo un identificador técnico, sin URL (DEC-005). Hoy el cliente genera el QR con la URL completa del artículo (`equipos/views.py`, `_url_equipo`), lo que contradice DEC-005 y RF-19: hay que cambiarlo. Formato propuesto: texto corto con prefijo, por ejemplo `IC:<num>`; falta confirmarlo.
+- Escáner dentro de InventaCore con sesión iniciada: librería de JavaScript (propuesta `html5-qrcode`) guardada en `client/static/vendor`, sin CDN. Fernando aprobó usar una librería para el escáner.
+- El navegador solo permite la cámara en `localhost` o con HTTPS: para probar en celular y para la demostración hace falta HTTPS (túnel o certificado). Decisión pendiente.
+- Los QR ya impresos con URL (si los hay) dejarían de coincidir con el formato nuevo: confirmar que todavía no se imprimieron etiquetas.
+- Buscador único en el Dashboard (RF-23): pendiente.
+
 PEND-023 — Carga masiva: folio obligatorio
 Estado: SIN DECIDIR
 Prioridad: MEDIA
@@ -115,7 +133,7 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Siguen pendientes solo Usuarios y Roles y Perfil (PEND-019).
+- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Siguen pendientes la bitácora (PEND-024) y el escáner de QR (PEND-025).
 - Nombre de la Contadora en settings.py: confirmado como Lic. Jania Elizabeth Cardenas Vela (04/11/2026); moverlo a variable de entorno es opcional (repositorio privado).
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
@@ -135,10 +153,12 @@ PEND-018 — Cotejo de la transcripción de la reunión con la Contadora
 - 01/11/2026: publicados categorias, tipos-articulo, ubicaciones, departamentos y personal (CRUD sin DELETE, baja lógica con `activo`, motivo obligatorio, código automático) y, de solo lectura, origenes, estados-operativos, estados-registro y tipos-movimiento. También existen usuarios, auth/yo y auth/cambiar-password. Sin publicar: artículos, movimientos, resguardos, lectura de bitácora y reportes.
 
 PEND-019 — Pantallas del cliente con API ya publicada
-Prioridad: MEDIA
+Estado: CERRADO el 08/11/2026 en el cliente (pruebas automáticas y recorrido contra la API real).
 
-- Usuarios y Roles (/cuentas/): placeholder. La API ya tiene `usuarios` (registro de usuarios, RF-02).
-- Perfil (/cuentas/perfil/): hoy reutiliza el login. La API tiene auth/yo y auth/cambiar-password. Confirmar qué incluye (propuesta: datos del usuario y cambio de contraseña); no hay un RF explícito de perfil.
+- Usuarios y Roles (/cuentas/): listado con búsqueda y filtros por rol y estado, alta de cuenta (empleado activo sin cuenta, usuario, rol y contraseña inicial), cambio de rol con motivo, activar y desactivar con motivo, y restablecer la contraseña de otra persona con motivo (RF-02). Solo Administrador.
+- Regla propia del cliente (no viene de un RF): una cuenta no se cambia el rol, no se desactiva ni se restablece la contraseña a sí misma desde esta pantalla, porque la API cierra las sesiones de la cuenta que cambia. Su contraseña la cambia desde Perfil.
+- Perfil (/cuentas/perfil/), para cualquier rol: nombre, usuario y rol, y cambio de contraseña. Al cambiarla la API cierra todas las sesiones y se vuelve a iniciar sesión. No hay un RF explícito de perfil: el contenido es el que publica la API.
+- Cambios de API necesarios: ninguno.
 
 PEND-020 — Deuda técnica menor del cliente
 Prioridad: BAJA

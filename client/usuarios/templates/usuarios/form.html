@@ -1,0 +1,135 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}{% if editando %}Cambiar rol{% else %}Nueva cuenta{% endif %} · InventaCore{% endblock %}
+{% block nav_usuarios %}active{% endblock %}
+{% block page_title %}{% if editando %}Cambiar rol{% else %}Nueva cuenta{% endif %}{% endblock %}
+{% block page_subtitle %}{% if editando %}Solo se cambia el rol; el resto de la cuenta no se modifica{% else %}Cuenta con acceso al sistema para un empleado del plantel{% endif %}{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'usuarios:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver al listado
+</a>
+
+{% if not editando %}
+{# Buscador de empleados: recarga la página con ?q= y el formulario de abajo lo conserva. #}
+<form class="filtros" method="get" action="{% url 'usuarios:nuevo' %}">
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q" value="{{ buscar }}"
+             placeholder="Buscar empleado sin cuenta por nombre o número" aria-label="Buscar empleado">
+    </div>
+    <button class="btn btn-outline-secondary btn-sm filtros__btn" type="submit">Buscar</button>
+  </div>
+</form>
+{% endif %}
+
+<form method="post" novalidate class="form-catalogo" autocomplete="off"
+      action="{% if editando %}{% url 'usuarios:editar' cuenta.num %}{% else %}{% url 'usuarios:nuevo' %}{% if buscar %}?q={{ buscar|urlencode }}{% endif %}{% endif %}">
+  {% csrf_token %}
+
+  {% if general %}
+  <div class="aviso aviso--rojo" role="alert">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>{{ general }}</span>
+  </div>
+  {% endif %}
+
+  <section class="form-card">
+    <h2 class="form-card__title">{% if editando %}Cuenta de {{ cuenta.empleado }}{% else %}Datos de la cuenta{% endif %}</h2>
+
+    <div class="campo-grid">
+      {% if editando %}
+      <div class="campo">
+        <span class="campo__label">Usuario</span>
+        <p class="codigo-fijo" style="margin:0"><strong>{{ cuenta.username }}</strong> · Núm. {{ cuenta.numero_empleado }}</p>
+      </div>
+      {% else %}
+      <div class="campo campo--completo">
+        <label class="campo__label" for="id_personal">Empleado <span class="campo__req">*</span></label>
+        <select class="campo__control" name="personal" id="id_personal">
+          <option value="">Selecciona…</option>
+          {% for e in empleados %}
+          <option value="{{ e.num }}" {% if e.num|stringformat:"s" == valores.personal %}selected{% endif %}>{{ e.numero_empleado }} — {{ e.nombre_completo }} ({{ e.puesto }})</option>
+          {% endfor %}
+        </select>
+        <p class="campo__ayuda">
+          {% if empleados %}Solo aparecen empleados activos que todavía no tienen cuenta.
+          {% else %}No hay empleados activos sin cuenta{% if buscar %} que coincidan con la búsqueda{% endif %}. Si falta alguien, primero se da de alta en Personal.{% endif %}
+          {% if hay_mas_empleados %} Se muestran los primeros 50: usa el buscador para acotar.{% endif %}
+        </p>
+        {% if errores.personal %}<p class="campo__error">{{ errores.personal }}</p>{% endif %}
+      </div>
+
+      <div class="campo">
+        <label class="campo__label" for="id_username">Usuario <span class="campo__req">*</span></label>
+        <input class="campo__control" type="text" name="username" id="id_username"
+               value="{{ valores.username }}" maxlength="150" autocomplete="off">
+        <p class="campo__ayuda">Letras, números, punto, guion y guion bajo; sin espacios. Mínimo 3 caracteres.</p>
+        {% if errores.username %}<p class="campo__error">{{ errores.username }}</p>{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="campo">
+        <label class="campo__label" for="id_rol">Rol <span class="campo__req">*</span></label>
+        <select class="campo__control" name="rol" id="id_rol">
+          <option value="">Selecciona…</option>
+          {% for r in roles %}
+          <option value="{{ r.clave }}" {% if r.clave == valores.rol %}selected{% endif %}>{{ r.nombre }}</option>
+          {% endfor %}
+        </select>
+        {% if errores.rol %}<p class="campo__error">{{ errores.rol }}</p>{% endif %}
+      </div>
+
+      {% if not editando %}
+      <div class="campo">
+        <label class="campo__label" for="id_password">Contraseña inicial <span class="campo__req">*</span></label>
+        <input class="campo__control" type="password" name="password" id="id_password" autocomplete="new-password">
+        <p class="campo__ayuda">Se la entregas a la persona; ella puede cambiarla desde su Perfil.</p>
+        {% if errores.password %}<p class="campo__error">{{ errores.password }}</p>{% endif %}
+      </div>
+      <div class="campo">
+        <label class="campo__label" for="id_confirmar">Confirmar contraseña <span class="campo__req">*</span></label>
+        <input class="campo__control" type="password" name="confirmar" id="id_confirmar" autocomplete="new-password">
+        {% if errores.confirmar %}<p class="campo__error">{{ errores.confirmar }}</p>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if roles %}
+    <dl class="ficha-mini" style="margin-top:14px">
+      {% for r in roles %}<div><dt>{{ r.nombre }}</dt><dd style="font-size:12.5px;color:var(--ic-muted)">{{ r.descripcion }}</dd></div>{% endfor %}
+    </dl>
+    {% endif %}
+  </section>
+
+  {% if editando %}
+  <section class="form-card">
+    <h2 class="form-card__title">Motivo del cambio</h2>
+    <div class="campo">
+      <label class="campo__label" for="id_motivo">Motivo <span class="campo__req">*</span></label>
+      <textarea class="campo__control" name="motivo" id="id_motivo" rows="2" maxlength="255"
+                placeholder="Describe brevemente por qué cambia el rol">{{ motivo }}</textarea>
+      <p class="campo__ayuda">Queda en la bitácora. Al cambiar el rol se cierran las sesiones abiertas de la cuenta.</p>
+      {% if errores.motivo %}<p class="campo__error">{{ errores.motivo }}</p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="form-acciones">
+    <a class="btn btn-outline-secondary" href="{% url 'usuarios:listado' %}">Cancelar</a>
+    <button class="btn btn-primary" type="submit">{% if editando %}Guardar cambios{% else %}Crear cuenta{% endif %}</button>
+  </div>
+</form>
+
+{% endblock app_content %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}

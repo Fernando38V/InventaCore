@@ -1,6 +1,6 @@
 # INVENTARIO DEL ESTADO ACTUAL — InventaCore
 
-Actualizado: 06/11/2026
+Actualizado: 08/11/2026
 Separa lo que cubre la tesina (alcance aprobado: inventario de equipo electrónico del Departamento de Informática, CONALEP Tijuana II) de lo que el software hace además (ampliaciones, DEC-009). Las decisiones están en DECISIONES.md y las dudas en PENDIENTES.md.
 
 Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta a punta contra la API real), **Pendiente** (aún no se construye).
@@ -20,17 +20,18 @@ Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta 
 | Exportación a Excel (DEC-018) | No | Sí | Implementado y probado |
 | Carga masiva desde plantilla de Excel (DEC-017) | No | Sí | Implementado y probado en el cliente y la API; falta probar la plantilla en Excel real |
 | Bitácora de auditoría (escritura) (DEC-004) | Sí | — | Implementado |
-| Lectura de la bitácora en el cliente | Sí | — | Pendiente |
-| Usuarios y Roles, Perfil (PEND-019) | Sí | — | Pendiente |
-| Escáner de QR dentro del sistema | Sí | — | Pendiente |
+| Lectura de la bitácora en el cliente (RF-21) | Sí | — | Pendiente: falta el endpoint de lectura en la API (PEND-024) |
+| Usuarios y Roles y Perfil (RF-02, PEND-019) | Sí | — | Implementado y probado (08/11/2026) |
+| QR: código sin URL, escáner dentro del sistema y búsqueda rápida (DEC-005, RF-19, RF-20, RF-23) | Sí | — | Pendiente: el QR actual lleva URL y debe cambiarse; escáner sin construir (PEND-025) |
 
 ## Pruebas
 
-- Cliente: 180 pruebas automáticas, todas OK (05/11/2026), con la API encendida y apagada.
+- Cliente: 224 pruebas automáticas, todas OK (08/11/2026); 180 al 05/11/2026, con la API encendida y apagada.
+- Usuarios y Roles y Perfil (08/11/2026): 44 pruebas automáticas y recorrido contra la API real (alta, contraseña débil rechazada, cambio de contraseña propia, cambio de rol, baja y alta, restablecer contraseña, Consulta sin acceso a Usuarios y Roles).
 - Prueba de punta a punta (05/11/2026): altas, reubicaciones con cambio de resguardante, resguardo RES-0001 con 3 de 4 asignaciones, PDF con las dos firmas, Excel del inventario, y Consulta sin poder emitir.
 - Sin prueba automática de interfaz: la ventana de confirmación y las pantallas se probaron a mano o con navegador automatizado.
 - Falta: prueba manual de Fernando en navegador, prueba de carga con volumen real y prueba de la plantilla en Excel.
 
 ## Pendientes principales
 
-Ver PENDIENTES.md: Usuarios y Roles y Perfil (PEND-019), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).
+Ver PENDIENTES.md: bitácora (PEND-024), escáner de QR (PEND-025), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).

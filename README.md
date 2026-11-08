@@ -125,8 +125,8 @@ Acceder a `http://localhost:8001` en el navegador.
 
 ## Estado del proyecto
 
-**Actualizado:** 06/11/2026  
-**Estado:** API y cliente conectados para catálogos, personal, artículos, movimientos, resguardos en PDF, dashboard, reportes con Excel y carga masiva. Pendientes: Usuarios y Roles, Perfil y escáner de QR. Detalle en `INVENTARIO_ESTADO_ACTUAL.md` y `PENDIENTES.md`.
+**Actualizado:** 08/11/2026  
+**Estado:** API y cliente conectados para catálogos, personal, artículos, movimientos, resguardos en PDF, dashboard, reportes con Excel, carga masiva, usuarios y roles, y perfil. Pendientes: bitácora (falta el endpoint de lectura en la API) y escáner de QR. Detalle en `INVENTARIO_ESTADO_ACTUAL.md` y `PENDIENTES.md`.
 
 ---
 

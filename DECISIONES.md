@@ -1,6 +1,6 @@
 # DECISIONES — InventaCore
 
-Última actualización: 06/11/2026
+Última actualización: 08/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
 Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
@@ -34,7 +34,7 @@ Implementación: iniciada por Adad (BitacoraMixin, servicio registrar).
 ## DEC-005 — QR con identificador permanente
 
 Estado: CONFIRMADA
-Decisión: El QR contiene un identificador técnico basado en la PK de ARTICULO, sin URL ni dominio. No hay entidad QR ni se guarda la imagen. Todo artículo tiene QR, sin importar si entró por alta manual o por carga masiva. La lectura se hace con un escáner dentro de InventaCore (usuario autenticado). Imprimir y pegar las etiquetas corresponde a la institución, no al proyecto.
+Decisión: El QR contiene un identificador técnico basado en la PK de ARTICULO, sin URL ni dominio (reconfirmado por Fernando el 08/11/2026: un QR pegado en un bien, leído con una cámara cualquiera, no debe llevar al sistema ni mostrar su dirección; solo el escáner de InventaCore, con sesión iniciada, lo interpreta). No hay entidad QR ni se guarda la imagen. Todo artículo tiene QR, sin importar si entró por alta manual o por carga masiva. La lectura se hace con un escáner dentro de InventaCore (usuario autenticado). Imprimir y pegar las etiquetas corresponde a la institución, no al proyecto.
 Impacto: RF-19, 20, 23; frontend; API.
 
 ## DEC-006 — Movimientos del inventario

@@ -5,8 +5,9 @@ from client.api import SesionVencida
 RUTAS_LIBRES = ('/cuentas/login/', '/static/')
 # Secciones solo para el Administrador. El rol Consulta no las abre ni
 # escribiendo la URL (los enlaces ya están ocultos en el menú).
-# '/cuentas/' exacto es "Usuarios y Roles"; login, logout y perfil siguen libres.
-RUTAS_ADMIN = ('/catalogos/', '/personal/', '/auditoria/')
+# '/cuentas/' exacto y '/cuentas/usuarios/...' son "Usuarios y Roles"; login, logout
+# y perfil siguen libres para cualquier rol.
+RUTAS_ADMIN = ('/catalogos/', '/personal/', '/auditoria/', '/cuentas/usuarios/')
 RUTAS_ADMIN_EXACTAS = ('/cuentas/',)
 
 class RequiereSesion:

@@ -244,6 +244,8 @@
   font-size: 11.5px;
   color: var(--ic-subtle);
 }
+/* Segundo renglón dentro de una celda (Usuarios y Roles). */
+.celda-bloque { display: block; }
 
 /* --- acciones por fila (nuevo) --- */
 .celda-acciones {

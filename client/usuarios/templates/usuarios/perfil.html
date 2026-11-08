@@ -1,0 +1,63 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Perfil · InventaCore{% endblock %}
+{% block page_title %}Perfil{% endblock %}
+{% block page_subtitle %}Tu cuenta y tu contraseña{% endblock %}
+
+{% block app_content %}
+
+{% include "base/_avisos.html" %}
+
+<section class="panel" style="margin-bottom:14px">
+  <h2 class="panel__titulo">Mi cuenta</h2>
+  <dl class="ficha-mini">
+    <div><dt>Nombre</dt><dd>{{ yo.empleado }}</dd></div>
+    <div><dt>Usuario</dt><dd>{{ yo.username }}</dd></div>
+    <div><dt>Rol</dt><dd>{{ yo.rol_nombre }}</dd></div>
+  </dl>
+</section>
+
+<form method="post" novalidate class="form-catalogo" autocomplete="off" action="{% url 'usuarios:perfil' %}">
+  {% csrf_token %}
+
+  {% if general %}
+  <div class="aviso aviso--rojo" role="alert">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>{{ general }}</span>
+  </div>
+  {% endif %}
+
+  <section class="form-card">
+    <h2 class="form-card__title">Cambiar mi contraseña</h2>
+    <div class="campo-grid">
+      <div class="campo campo--completo">
+        <label class="campo__label" for="id_password_actual">Contraseña actual <span class="campo__req">*</span></label>
+        <input class="campo__control" type="password" name="password_actual" id="id_password_actual" autocomplete="current-password">
+        {% if errores.password_actual %}<p class="campo__error">{{ errores.password_actual }}</p>{% endif %}
+      </div>
+      <div class="campo">
+        <label class="campo__label" for="id_password">Contraseña nueva <span class="campo__req">*</span></label>
+        <input class="campo__control" type="password" name="password" id="id_password" autocomplete="new-password">
+        {% if errores.password %}<p class="campo__error">{{ errores.password }}</p>{% endif %}
+      </div>
+      <div class="campo">
+        <label class="campo__label" for="id_confirmar">Confirmar contraseña nueva <span class="campo__req">*</span></label>
+        <input class="campo__control" type="password" name="confirmar" id="id_confirmar" autocomplete="new-password">
+        {% if errores.confirmar %}<p class="campo__error">{{ errores.confirmar }}</p>{% endif %}
+      </div>
+    </div>
+    <p class="campo__ayuda" style="margin-top:10px">Al cambiarla se cierra tu sesión y tendrás que entrar con la contraseña nueva.</p>
+  </section>
+
+  <div class="form-acciones">
+    <button class="btn btn-primary" type="submit">Cambiar contraseña</button>
+  </div>
+</form>
+
+{% endblock app_content %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}
