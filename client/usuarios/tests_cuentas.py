@@ -394,3 +394,20 @@ class PermisosTests(BaseCuentas):
     def test_sin_sesion_pide_login(self):
         r = self.client.get('/cuentas/')
         self.assertRedirects(r, '/cuentas/login/', fetch_redirect_response=False)
+
+
+class OjitoTests(BaseCuentas):
+    """Todos los campos de contraseña llevan el ojito para ver lo escrito."""
+
+    def test_cada_campo_de_contrasena_lleva_el_ojito(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'usuarios/empleados-disponibles/')] = [EMPLEADO]
+        self.api.respuestas[('GET', 'usuarios/2/')] = cuenta()
+        self.api.respuestas[('GET', 'auth/yo/')] = {
+            'num': 1, 'username': 'admin', 'empleado': 'Fernando Estrada',
+            'rol': 'ADMIN', 'rol_nombre': 'Administrador'}
+        for ruta, campos in (('/cuentas/usuarios/nuevo/', 2), ('/cuentas/usuarios/2/password/', 2),
+                             ('/cuentas/perfil/', 3)):
+            r = self.client.get(ruta)
+            self.assertContains(r, 'type="password" data-ver-contrasena', count=campos, msg_prefix=ruta)
+            self.assertContains(r, 'js/ver-contrasena.js', msg_prefix=ruta)

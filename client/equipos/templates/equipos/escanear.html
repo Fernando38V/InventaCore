@@ -1,0 +1,135 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Escanear QR · InventaCore{% endblock %}
+{% block nav_equipos %}active{% endblock %}
+{% block page_title %}Escanear QR{% endblock %}
+{% block page_subtitle %}Abre la ficha de un artículo con el código de su etiqueta{% endblock %}
+
+{% block app_content %}
+
+<a class="ic-back" href="{% url 'equipos:listado' %}">
+  <svg width="16" height="16"><use href="#icon-arrow-left"/></svg>
+  Volver a Artículos
+</a>
+
+{% include "base/_avisos.html" %}
+
+<div class="escaner">
+  <section class="panel">
+    <h2 class="panel__titulo">Con la cámara</h2>
+    <div id="lector" class="escaner__lector" aria-label="Vista de la cámara"></div>
+    <p id="escanerVacio" class="escaner__vacio">La cámara se activa al pulsar «Iniciar cámara».</p>
+    <p id="escanerEstado" class="escaner__estado" role="status" aria-live="polite"></p>
+    <div class="escaner__acciones">
+      <button type="button" class="btn btn-primary btn-sm" id="btnIniciar">Iniciar cámara</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="btnDetener" hidden>Detener cámara</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__titulo">Con una foto del QR</h2>
+    <p class="panel__nota">Toma la foto con la cámara del celular o elige una imagen. Funciona aunque la cámara en vivo no esté disponible.</p>
+    <label class="btn btn-outline-secondary btn-sm escaner__archivo" for="archivoQr">Elegir o tomar foto</label>
+    <input type="file" id="archivoQr" accept="image/*" hidden>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__titulo">Buscar por código</h2>
+    <p class="panel__nota">Marbete, folio, número de serie, marca o modelo.</p>
+    <form method="get" action="{% url 'equipos:listado' %}" class="escaner__busqueda" role="search">
+      <input class="filtros__input" type="search" name="q" placeholder="Por ejemplo: 02-520-00103" aria-label="Buscar artículo">
+      <button class="btn btn-primary btn-sm" type="submit">Buscar</button>
+    </form>
+  </section>
+</div>
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'vendor/html5-qrcode/html5-qrcode.min.js' %}"></script>
+<script>
+  (function () {
+    var RESOLVER = "{% url 'equipos:resolver_qr' %}";
+    var estado = document.getElementById('escanerEstado');
+    var vacio = document.getElementById('escanerVacio');
+    var btnIniciar = document.getElementById('btnIniciar');
+    var btnDetener = document.getElementById('btnDetener');
+    var archivo = document.getElementById('archivoQr');
+    var lector = null, activo = false;
+
+    function aviso(texto, error) {
+      estado.textContent = texto || '';
+      estado.className = 'escaner__estado' + (error ? ' escaner__estado--error' : '');
+    }
+    function abrir(texto) {
+      window.location.href = RESOLVER + '?codigo=' + encodeURIComponent(texto);
+    }
+    function crear() {
+      if (!lector) lector = new Html5Qrcode('lector', { verbose: false });
+      return lector;
+    }
+    function ponerBotones(enMarcha) {
+      activo = enMarcha;
+      btnIniciar.hidden = enMarcha;
+      btnDetener.hidden = !enMarcha;
+      vacio.hidden = enMarcha;
+    }
+    function detener() {
+      if (!lector || !activo) return Promise.resolve();
+      return lector.stop().catch(function () {}).then(function () { ponerBotones(false); });
+    }
+
+    if (typeof Html5Qrcode === 'undefined') {
+      aviso('No se pudo cargar el lector de QR. Usa la foto o la búsqueda por código.', true);
+      btnIniciar.disabled = true;
+      return;
+    }
+    if (!window.isSecureContext) {
+      aviso('La cámara en vivo solo funciona con HTTPS o desde localhost. Usa «Elegir o tomar foto» o la búsqueda por código.', true);
+      btnIniciar.disabled = true;
+    }
+
+    btnIniciar.addEventListener('click', function () {
+      aviso('Pidiendo acceso a la cámara…');
+      crear().start({ facingMode: 'environment' },
+        { fps: 10, qrbox: function (ancho, alto) { var lado = Math.floor(Math.min(ancho, alto) * 0.8); return { width: lado, height: lado }; } },
+        function (texto) { detener().then(function () { abrir(texto); }); },
+        function () { /* sin código en este cuadro: se sigue buscando */ })
+        .then(function () { ponerBotones(true); aviso('Apunta al código QR de la etiqueta.'); })
+        .catch(function (e) {
+          var nombre = (e && e.name) || '';
+          var msg = String(e || '');
+          if (nombre === 'NotAllowedError' || /Permission/i.test(msg)) {
+            aviso('No se dio permiso para usar la cámara. Permítelo en el navegador o usa la foto del QR.', true);
+          } else if (nombre === 'NotFoundError' || /Requested device not found|camera/i.test(msg)) {
+            aviso('No se encontró una cámara en este equipo. Usa la foto del QR o la búsqueda por código.', true);
+          } else {
+            aviso('No se pudo iniciar la cámara. Usa la foto del QR o la búsqueda por código.', true);
+          }
+          ponerBotones(false);
+        });
+    });
+
+    btnDetener.addEventListener('click', function () { detener().then(function () { aviso(''); }); });
+
+    archivo.addEventListener('change', function () {
+      var f = archivo.files && archivo.files[0];
+      if (!f) return;
+      aviso('Leyendo la imagen…');
+      detener().then(function () { return crear().scanFile(f, false); })
+        .then(abrir)
+        .catch(function () { aviso('No se encontró un código QR en la imagen. Prueba con otra foto, más cerca y bien enfocada.', true); })
+        .then(function () { archivo.value = ''; });
+    });
+
+    window.addEventListener('pagehide', function () { detener(); });
+  })();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+<link rel="stylesheet" href="{% static 'css/paneles.css' %}">
+{% endblock %}

@@ -11,7 +11,6 @@ from io import BytesIO
 from urllib.parse import urlencode
 
 import qrcode
-from django.conf import settings
 from django.contrib import messages
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render, reverse
@@ -23,6 +22,8 @@ from client.inventario import (
     ESTADO_NOLOC, UBICACION_NOLOC, marca_modelo, nombre_articulo, opciones_catalogo,
     opciones_personal, opciones_tipos, resumen_movimiento)
 from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
+
+from . import qr as codigo_qr
 
 FILTROS = ('categoria', 'ubicacion', 'estado_operativo', 'estado_registro', 'origen')
 
@@ -51,31 +52,17 @@ CAMPO_MARBETE = {'nombre': 'marbete_oficial', 'etiqueta': 'Marbete oficial',
                  'ayuda': 'Solo los activos llevan marbete. Corregirlo no cambia el QR.'}
 
 
-# --- QR (sin cambios) ---------------------------------------------------
-
-def _url_equipo(request, num):
-    """Arma la URL completa del equipo para codificarla en el QR.
-
-    Si existe BASE_URL_SISTEMA en settings.py se usa esa (util para la
-    etiqueta imprimible, porque esa direccion queda fija en papel y no
-    debe cambiar aunque el servidor se mueva de maquina). Si no esta
-    definida, se usa el host real de la peticion, que ya es correcto
-    para ver el QR dentro del navegador.
-    """
-    base = getattr(settings, 'BASE_URL_SISTEMA', None)
-    if not base:
-        base = '{}://{}'.format(request.scheme, request.get_host())
-    return '{}{}'.format(base, reverse('equipos:detalle', args=[num]))
-
+# --- QR -------------------------------------------------------------------
 
 def qr_equipo(request, num):
-    """RF-19 — genera el codigo QR del equipo al vuelo, sin guardarlo en disco.
+    """RF-19 — genera el código QR del artículo al vuelo, sin guardarlo en disco.
+
+    El QR codifica solo `IC:<num>` (equipos/qr.py), sin URL (DEC-005).
 
     GET /articulos/detalle/<num>/qr/             -> muestra el PNG
     GET /articulos/detalle/<num>/qr/?descargar=1 -> lo fuerza como descarga
     """
-    url = _url_equipo(request, num)
-    imagen = qrcode.make(url, box_size=8, border=2)
+    imagen = qrcode.make(codigo_qr.contenido(num), box_size=8, border=2)
 
     buffer = BytesIO()
     imagen.save(buffer, format='PNG')
@@ -84,7 +71,7 @@ def qr_equipo(request, num):
     respuesta = HttpResponse(buffer.getvalue(), content_type='image/png')
     if request.GET.get('descargar'):
         respuesta['Content-Disposition'] = (
-            'attachment; filename="QR-equipo-{}.png"'.format(num))
+            'attachment; filename="QR-articulo-{}.png"'.format(num))
     return respuesta
 
 

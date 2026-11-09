@@ -654,3 +654,14 @@ textarea.campo__control { min-height: 64px; resize: vertical; }
     justify-content: center;
   }
 }
+
+/* Campo de contraseña con "ojito" (static/js/ver-contrasena.js). */
+.campo-password { position: relative; }
+.campo-password .campo__control { padding-right: 44px; }
+.campo-password__ver {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  color: var(--ic-muted); background: transparent; border: 0; border-radius: 6px; cursor: pointer;
+}
+.campo-password__ver:hover { color: var(--ic-ink); background: var(--ic-bg); }
+.campo-password__ver:focus-visible { outline: 2px solid var(--ic-primary); outline-offset: 1px; }

@@ -17,6 +17,24 @@
 </div>
 {% else %}
 
+{# Búsqueda rápida (RF-23): lleva al listado de Artículos ya filtrado. #}
+<form class="filtros" method="get" action="{% url 'equipos:listado' %}" role="search">
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q"
+             placeholder="Buscar un artículo por marbete, folio, serie, marca, modelo o resguardante" aria-label="Buscar artículo">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+    <a class="btn btn-outline-secondary btn-sm filtros__btn d-flex align-items-center gap-2" href="{% url 'equipos:escanear' %}">
+      <svg width="15" height="15"><use href="#icon-qr"/></svg>
+      Escanear QR
+    </a>
+  </div>
+</form>
+
 <div class="dash-grid dash-grid--kpis">
   <a class="panel kpi" href="{% url 'equipos:listado' %}">
     <span class="kpi__etiqueta">Artículos registrados</span>

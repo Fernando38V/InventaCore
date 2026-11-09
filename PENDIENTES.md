@@ -100,15 +100,17 @@ Prioridad: ALTA
 - Cliente: la pantalla /auditoria/ sigue como placeholder hasta que exista el endpoint.
 
 PEND-025 — Escáner de QR y búsqueda rápida (RF-19, RF-20, RF-23)
-Estado: objetivo y diseño confirmados por Fernando el 08/11/2026; sin construir
-Prioridad: ALTA
+Estado: IMPLEMENTADO Y PROBADO en el cliente (08/11/2026); falta la prueba con un celular real y la decisión de HTTPS
+Prioridad: MEDIA
 
 - Objetivo (confirmado): consulta rápida de un artículo, abriendo su ficha completa desde el celular. No incluye toma de inventario por escaneo.
-- El QR debe codificar solo un identificador técnico, sin URL (DEC-005). Hoy el cliente genera el QR con la URL completa del artículo (`equipos/views.py`, `_url_equipo`), lo que contradice DEC-005 y RF-19: hay que cambiarlo. Formato propuesto: texto corto con prefijo, por ejemplo `IC:<num>`; falta confirmarlo.
-- Escáner dentro de InventaCore con sesión iniciada: librería de JavaScript (propuesta `html5-qrcode`) guardada en `client/static/vendor`, sin CDN. Fernando aprobó usar una librería para el escáner.
-- El navegador solo permite la cámara en `localhost` o con HTTPS: para probar en celular y para la demostración hace falta HTTPS (túnel o certificado). Decisión pendiente.
-- Los QR ya impresos con URL (si los hay) dejarían de coincidir con el formato nuevo: confirmar que todavía no se imprimieron etiquetas.
-- Buscador único en el Dashboard (RF-23): pendiente.
+- Hecho: el QR codifica solo `IC:<num>` (num = clave primaria del artículo), sin URL ni dominio (DEC-005). Código en `client/equipos/qr.py`; la imagen se genera en `qr_equipo` (`equipos/views.py`).
+- Hecho: escáner en `/articulos/escanear/` (cámara, foto del QR o búsqueda por código) con la librería `html5-qrcode` 2.3.8 guardada en `client/static/vendor/html5-qrcode/` (sin CDN). El navegador envía el texto leído a `/articulos/escanear/resolver/`, que valida el formato, confirma el artículo con la API y redirige a la ficha. Un código ajeno o con URL se rechaza sin consultar la API. Disponible para Administrador y Consulta.
+- Hecho: buscador rápido en el Dashboard (RF-23) y botón "Escanear QR" en el Dashboard y en el listado de artículos.
+- Probado: pruebas automáticas del cliente (244 OK) y recorrido en navegador real contra la API (Chromium): foto de QR válido abre la ficha; QR con URL, texto ajeno y artículo inexistente muestran mensaje claro; cámara simulada lee el QR y abre la ficha; sin cámara muestra mensaje y deja la foto y la búsqueda; pantalla sin desborde en tamaño de celular.
+- NO probado: cámara de un celular real y navegadores de celular (iOS Safari, Chrome Android). La cámara en vivo exige HTTPS o localhost; sin HTTPS el botón de cámara se desactiva y queda la foto del QR (funciona por HTTP).
+- Pendiente de decisión: cómo dar HTTPS en el despliegue (túnel para demostración, certificado local o certificado real del servidor de la institución). HTTPS también protege las contraseñas en tránsito: consultarlo con el asesor y el área de Informática.
+- Si en el futuro se imprimen etiquetas, usar solo el formato `IC:<num>`. Hasta el 08/11/2026 no se han impreso etiquetas.
 
 PEND-023 — Carga masiva: folio obligatorio
 Estado: SIN DECIDIR
@@ -133,7 +135,7 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Siguen pendientes la bitácora (PEND-024) y el escáner de QR (PEND-025).
+- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Escáner de QR y buscador rápido implementados el 08/11/2026 (PEND-025, sin prueba en celular real); sigue pendiente la bitácora (PEND-024), que espera el endpoint de Adad.
 - Nombre de la Contadora en settings.py: confirmado como Lic. Jania Elizabeth Cardenas Vela (04/11/2026); moverlo a variable de entorno es opcional (repositorio privado).
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.

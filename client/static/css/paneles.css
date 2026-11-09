@@ -126,3 +126,18 @@ a.reparto__nombre:hover { color: var(--ic-primary); text-decoration: underline; 
 @media (max-width: 520px) {
   .dash-grid--kpis { grid-template-columns: 1fr; }
 }
+
+/* --- escáner de QR --------------------------------------------------------- */
+.escaner { display: grid; gap: 14px; max-width: 560px; }
+.escaner__lector { width: 100%; overflow: hidden; border-radius: 10px; }
+.escaner__vacio {
+  display: grid; place-items: center; min-height: 140px; margin: 0 0 10px; padding: 16px;
+  font-size: 13px; text-align: center; color: var(--ic-muted);
+  background: #FBFCFC; border: 1px dashed var(--ic-border); border-radius: 10px;
+}
+.escaner__estado { min-height: 20px; margin: 10px 0; font-size: 13px; color: var(--ic-muted); }
+.escaner__estado--error { color: #B42318; }
+.escaner__acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.escaner__archivo { cursor: pointer; }
+.escaner__busqueda { display: flex; gap: 8px; }
+.escaner__busqueda .filtros__input { flex: 1; min-width: 0; padding-left: 12px; }

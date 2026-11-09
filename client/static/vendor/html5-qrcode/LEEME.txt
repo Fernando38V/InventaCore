@@ -1,0 +1,1 @@
+html5-qrcode 2.3.8 (Apache-2.0), tomado de npm sin modificar. Lee el QR con la cámara o desde una imagen, sin enviar nada a servidores externos.

@@ -14,7 +14,6 @@
 </a>
 
 {% if not editando %}
-{# Buscador de empleados: recarga la página con ?q= y el formulario de abajo lo conserva. #}
 <form class="filtros" method="get" action="{% url 'usuarios:nuevo' %}">
   <div class="filtros__busqueda">
     <div class="filtros__campo">
@@ -89,13 +88,13 @@
       {% if not editando %}
       <div class="campo">
         <label class="campo__label" for="id_password">Contraseña inicial <span class="campo__req">*</span></label>
-        <input class="campo__control" type="password" name="password" id="id_password" autocomplete="new-password">
+        <input class="campo__control" type="password" data-ver-contrasena name="password" id="id_password" autocomplete="new-password">
         <p class="campo__ayuda">Se la entregas a la persona; ella puede cambiarla desde su Perfil.</p>
         {% if errores.password %}<p class="campo__error">{{ errores.password }}</p>{% endif %}
       </div>
       <div class="campo">
         <label class="campo__label" for="id_confirmar">Confirmar contraseña <span class="campo__req">*</span></label>
-        <input class="campo__control" type="password" name="confirmar" id="id_confirmar" autocomplete="new-password">
+        <input class="campo__control" type="password" data-ver-contrasena name="confirmar" id="id_confirmar" autocomplete="new-password">
         {% if errores.confirmar %}<p class="campo__error">{{ errores.confirmar }}</p>{% endif %}
       </div>
       {% endif %}
@@ -128,6 +127,11 @@
 </form>
 
 {% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/ver-contrasena.js' %}"></script>
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/catalogos.css' %}">

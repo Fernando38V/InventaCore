@@ -86,6 +86,21 @@ class ListadoTests(BaseEquipos):
         self.assertContains(r, 'M-100')
         self.assertContains(r, 'Dell Latitude')
 
+    def test_todos_los_roles_ven_el_acceso_al_escaner(self):
+        self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
+        for rol in ('ADMIN', 'CONSULTA'):
+            self.entrar(rol)
+            r = self.client.get('/articulos/')
+            self.assertContains(r, '/articulos/escanear/', msg_prefix=rol)
+
+    def test_consulta_no_ve_carga_masiva_ni_registrar_pero_si_escanear(self):
+        self.entrar('CONSULTA')
+        self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])
+        r = self.client.get('/articulos/')
+        self.assertNotContains(r, 'Carga masiva')
+        self.assertNotContains(r, 'Registrar artículo')
+        self.assertContains(r, 'Escanear QR')
+
     def test_el_modulo_se_llama_articulos(self):
         self.entrar()
         self.api.respuestas[('GET', 'articulos/')] = pagina([articulo()])

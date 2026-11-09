@@ -54,6 +54,15 @@ class BaseReportes(BaseCliente):
 
 
 class DashboardTests(BaseReportes):
+    def test_buscador_rapido_y_escaner_en_el_tablero(self):
+        for rol in ('ADMIN', 'CONSULTA'):
+            self.entrar(rol)
+            self.api.respuestas[('GET', 'dashboard/')] = tablero()
+            r = self.client.get('/reportes/dashboard/')
+            self.assertContains(r, 'action="/articulos/"', msg_prefix=rol)
+            self.assertContains(r, 'name="q"', msg_prefix=rol)
+            self.assertContains(r, '/articulos/escanear/', msg_prefix=rol)
+
     def test_muestra_totales_reparto_y_listas(self):
         self.entrar('CONSULTA')
         self.api.respuestas[('GET', 'dashboard/')] = tablero()
