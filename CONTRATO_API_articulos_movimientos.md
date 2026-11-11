@@ -1,4 +1,4 @@
-# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva (v13)
+# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva y Bitácora (v14)
 
 Backend: `http://127.0.0.1:8000/api/`. Todas las peticiones (menos el login) llevan
 `Authorization: Token <token>`. El rol CONSULTA solo puede hacer GET; ADMIN puede todo.
@@ -26,6 +26,8 @@ Los ejemplos son respuestas reales del backend. Refleja DECISIONES.md al 03/11/2
 | GET | `/carga-masiva/plantilla/` | Plantilla .xlsx con listas desplegables (solo Administrador) |
 | POST | `/carga-masiva/validar/` | Sube el Excel y devuelve la vista previa; no guarda nada (solo Administrador) |
 | POST | `/carga-masiva/confirmar/` | Guarda solo las filas válidas (solo Administrador) |
+| GET | `/bitacora/` | Bitácora de auditoría, paginada, más reciente primero (solo Administrador) |
+| GET | `/bitacora/<num>/` | Un registro de la bitácora (solo Administrador) |
 | GET | `/dashboard/` | Totales para el tablero (DEC-020) |
 | GET | `/reportes/inventario/` | Inventario filtrable sin paginar; `?formato=xlsx` lo descarga |
 | GET | `/reportes/resguardante/<num>/` | Artículos que tiene hoy un resguardante; `?formato=xlsx` |
@@ -424,6 +426,49 @@ Reglas:
   que no aparece en los más recientes (lo garantiza el rechazo de duplicados).
 - Los desplegables (incluido el del tipo dependiente de la categoría) se probaron en LibreOffice; falta
   probarlos en Excel real.
+
+## Bitácora de auditoría — `GET /bitacora/` (RF-21, PEND-024)
+
+Solo el Administrador (Consulta recibe 403). Solo lectura: no hay POST, PATCH ni DELETE (405).
+Paginada de 10 en 10 (`?page=2`), la más reciente primero.
+
+| Filtro | Qué hace |
+|---|---|
+| `q` | Busca palabras en usuario, módulo, acción, tabla, registro, motivo y valores |
+| `usuario` | Número o nombre de usuario (exacto) |
+| `modulo` | Exacto, sin distinguir mayúsculas: `articulos`, `movimientos`, `resguardos`, `carga_masiva`, `usuarios`, etc. |
+| `accion` | `INSERT`, `UPDATE` o `DELETE` (baja lógica) |
+| `fecha_desde`, `fecha_hasta` | `AAAA-MM-DD`; ambos días se incluyen (hora de Tijuana) |
+| `tabla_afectada` + `registro_id` | Historial de un registro concreto, por ejemplo `articulo` y `12` |
+
+Los filtros se pueden combinar. Un filtro inválido responde 400 con `{campo: mensaje}`.
+
+```json
+{
+  "count": 1, "next": null, "previous": null,
+  "results": [{
+    "num": 3,
+    "fecha_hora": "2026-11-11T10:18:52.530987-08:00",
+    "usuario": {"num": 1, "username": "admin", "nombre": "Admin Prueba"},
+    "modulo": "articulos",
+    "accion": "UPDATE",
+    "accion_nombre": "Modificación",
+    "tabla_afectada": "articulo",
+    "registro_id": "1",
+    "motivo": "Marca mal capturada",
+    "valor_anterior": {"marca": "Dell"},
+    "valor_nuevo": {"marca": "HP"}
+  }]
+}
+```
+
+- `valor_anterior` y `valor_nuevo` llegan ya como JSON (objeto), o `null`. En un UPDATE solo traen los
+  campos que cambiaron; en un INSERT, `valor_anterior` es `null`. Si algún registro viejo no fuera JSON
+  válido se devuelve el texto tal cual.
+- `motivo` puede ser `null` (las altas no lo llevan; las correcciones sí).
+- `accion_nombre` es el texto para mostrar: Alta, Modificación o Baja lógica.
+- `registro_id` es texto (puede ser `12`, `MOV-0001` o `lote-<huella>` en una carga masiva).
+- Nunca se incluyen contraseñas.
 
 ## Errores
 
