@@ -1,6 +1,6 @@
 # PENDIENTES — InventaCore
 
-Última actualización: 08/11/2026
+Última actualización: 12/11/2026
 Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No implementar como definitivo nada de aquí.
 
 ## Cerrados el 29/10 y 01/11/2026 (pasaron a DECISIONES.md)
@@ -119,6 +119,53 @@ Estado: SIN DECIDIR
 Prioridad: MEDIA
 
 - Propuesta de Fernando: que la Contadora deba traer folio en toda fila. Hoy los folios faltantes se asignan con confirmación (DEC-010, DEC-017). Forzarlo cambiaría esas decisiones; en el Excel de referencia faltan 420 de 12,464 filas de Enseres. Decisión de negocio, a consultar con la Contadora.
+
+PEND-026 — Levantamiento de inventario (verificación física)
+Estado: PROPUESTA (sugerida por el asesor empresarial el 11/11/2026; falta validar con la Contadora y con Adad)
+Prioridad: ALTA (ampliación del software; no es parte del alcance académico aprobado)
+
+Objetivo: poder buscar y contar cada bien físicamente y dejar constancia de que ya se inventarió, con fecha, por levantamiento (anual, mensual o por área). Un solo módulo sirve para cualquier periodo; cada levantamiento tiene nombre y fechas.
+
+Diseño mínimo propuesto (esquema nuevo, no es decisión):
+
+- LEVANTAMIENTO: id, nombre (por ejemplo "Inventario 2026"), fecha_inicio, fecha_cierre (vacía mientras está abierto), estado (ABIERTO o CERRADO), usuario creador. Solo uno abierto a la vez.
+- VERIFICACION: id, levantamiento (FK), artículo (FK), fecha y hora, usuario (FK), observación opcional. Única por levantamiento y artículo. Un artículo pendiente es el que no tiene verificación en el levantamiento abierto.
+- Verificar un bien no es un movimiento: no cambia ubicación ni resguardante (DEC-006). Se registra en BITACORA, también al crear o cerrar el levantamiento y al desmarcar una verificación mientras el levantamiento siga abierto.
+- Los pendientes no pasan solos a No localizado. Al cerrar, el Administrador decide y usa el REUB existente (DEC-012). Un bien hallado en otro lugar se corrige con REUB y luego se verifica.
+- Fuera de la primera versión: registrar en el momento un bien sobrante (no existe en el sistema), varias personas verificando con asignación de áreas, y "marcar todo" (riesgoso con unos 15 mil artículos).
+
+Endpoints propuestos (por confirmar con Adad; el contrato final va en CONTRATO_API):
+
+- GET y POST /levantamientos/ (listar y abrir uno; solo Administrador abre).
+- GET /levantamientos/<id>/ con resumen: total, verificados, pendientes y avance por ubicación.
+- POST /levantamientos/<id>/cerrar/.
+- POST /levantamientos/<id>/verificar/ con el artículo (por id) o varios (lista); respuesta con cuántos se marcaron y cuáles ya estaban.
+- DELETE /levantamientos/<id>/verificaciones/<articulo>/ para desmarcar (mientras esté abierto).
+- GET /articulos/ acepta ?inventariado=si|no y ?levantamiento=<id>; y cada artículo devuelve la fecha de su verificación en el levantamiento abierto (o el último cerrado, a decidir).
+- Exportar el avance o los pendientes a Excel (se reutiliza excel.py).
+
+Cliente propuesto:
+
+- Menú Operación: "Inventario físico" (solo Administrador), con levantamientos y la pantalla de verificación; marcar por escáner de QR (ya existe, PEND-025) o por casillas.
+- Lista de Artículos: columna con la fecha de verificación y filtro Todos, Inventariados y Pendientes, combinable con ubicación y resguardante.
+- Consulta (DEC-019) ve la columna y el avance en Artículos, Dashboard o Reportes, pero no abre la pantalla de levantamiento.
+- Dashboard: porcentaje inventariado del levantamiento abierto.
+
+Preguntas para la Contadora: ¿cada cuánto hacen el levantamiento y cómo lo hacen hoy (por salón)? ¿Qué hacen con un bien hallado en otro lugar, con uno que no aparece y con uno sin etiqueta? ¿Un bien Obsoleto también se verifica? ¿Quieren registrar bienes sobrantes en el momento?
+Impacto si se aprueba: DER, diccionario, SQL y migraciones, RF nuevos (ampliación), tesina (DER y anexos), pruebas.
+
+PEND-027 — Fotografía en la ficha del artículo
+Estado: PROPUESTA (sugerida por el asesor empresarial el 11/11/2026; falta validar con Adad)
+Prioridad: MEDIA (ampliación del software)
+
+- Una foto por artículo, opcional. Se puede adjuntar al dar de alta manualmente y después desde la ficha. En la carga masiva no hay foto: se agrega luego desde la ficha. Cambiarla queda en BITACORA.
+- Formatos JPG, PNG y WebP; tamaño máximo (propuesta: 5 MB); reducir a unos 1200 px al subirla (Pillow ya está instalado por el QR).
+- Almacenamiento: carpeta del servidor fuera del repositorio (`media/` ya está en .gitignore; el repositorio es público desde el 11/11/2026, ninguna foto debe subirse a GitHub). Incluir la carpeta en los respaldos, porque no está en la base de datos.
+- Entrega de la imagen: el navegador no puede mandar el token de la API en una etiqueta de imagen. Propuesta: el cliente pide la imagen a la API con el token y se la entrega al navegador (vista proxy), para que no quede abierta sin sesión.
+- Subida con formulario multipart; en el celular el formulario puede abrir la cámara directamente.
+- Permisos: el Administrador adjunta y cambia; Consulta solo ve.
+- Primera versión: una foto por artículo; varias fotos quedan fuera.
+  Impacto si se aprueba: modelo y migración (campo de imagen), API de subida y lectura, cliente (alta, ficha), pruebas, DER y diccionario.
 
 ## Para la Contadora o la institución
 
