@@ -125,8 +125,8 @@ Acceder a `http://localhost:8001` en el navegador.
 
 ## Estado del proyecto
 
-**Actualizado:** 08/11/2026  
-**Estado:** API y cliente conectados para catálogos, personal, artículos, movimientos, resguardos en PDF, dashboard, reportes con Excel, carga masiva, usuarios y roles, perfil y escáner de QR. Escáner de QR y buscador rápido implementados (falta probar en celular real y definir HTTPS). Pendiente: bitácora (falta el endpoint de lectura en la API). Detalle en `INVENTARIO_ESTADO_ACTUAL.md` y `PENDIENTES.md`.
+**Actualizado:** 11/11/2026  
+**Estado:** API y cliente conectados para catálogos, personal, artículos, movimientos, resguardos en PDF, dashboard, reportes con Excel, carga masiva, usuarios y roles, perfil, escáner de QR y bitácora. Del escáner falta probarlo en un celular real y definir HTTPS. Detalle en `INVENTARIO_ESTADO_ACTUAL.md` y `PENDIENTES.md`.
 
 ---
 

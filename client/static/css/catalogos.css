@@ -665,3 +665,32 @@ textarea.campo__control { min-height: 64px; resize: vertical; }
 }
 .campo-password__ver:hover { color: var(--ic-ink); background: var(--ic-bg); }
 .campo-password__ver:focus-visible { outline: 2px solid var(--ic-primary); outline-offset: 1px; }
+
+/* Bitácora (auditoria/listado.html) */
+.aviso--azul { color: #1D4E89; background: #EEF4FB; border: 1px solid #C9DCF2; }
+.bitacora-historial { align-items: center; flex-wrap: wrap; }
+.bitacora-historial .filtros__limpiar { margin-left: auto; padding: 0; }
+.bitacora-fecha { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ic-muted); }
+.bitacora-fecha .filtros__select { flex: 0 1 160px; min-width: 140px; padding-right: 11px; background-image: none; }
+.bitacora-enlaces { font-size: 12px; margin-top: 2px; }
+.bitacora-enlaces a { color: var(--ic-primary-hover); font-weight: 600; text-decoration: none; }
+.bitacora-enlaces a:hover { text-decoration: underline; }
+.bitacora-cambios summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--ic-primary-hover); white-space: nowrap; }
+.bitacora-detalle { margin-top: 8px; font-size: 12px; border-collapse: collapse; min-width: 240px; }
+.bitacora-detalle th, .bitacora-detalle td { padding: 4px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--ic-border); word-break: break-word; }
+.bitacora-detalle th { font-weight: 600; color: var(--ic-muted); }
+.bitacora-detalle__antes { color: #B42318; text-decoration: line-through; text-decoration-color: rgba(180, 35, 24, .45); }
+.tabla-bitacora td { vertical-align: top; }
+.bitacora-registro { white-space: nowrap; }
+.bitacora-cambios[open] { width: 100%; }
+
+/* En celular la tabla grande se vuelve tarjetas; la tabla de cambios sigue siendo tabla. */
+@media (max-width: 760px) {
+  .tabla-catalogo .bitacora-detalle { display: table; width: 100%; }
+  .tabla-catalogo .bitacora-detalle thead { display: table-header-group; }
+  .tabla-catalogo .bitacora-detalle tbody { display: table-row-group; }
+  .tabla-catalogo .bitacora-detalle tr { display: table-row; padding: 0; border: 0; }
+  .tabla-catalogo .bitacora-detalle th,
+  .tabla-catalogo .bitacora-detalle td { display: table-cell; width: auto; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--ic-border); }
+  .tabla-catalogo .bitacora-detalle td::before { display: none; }
+}

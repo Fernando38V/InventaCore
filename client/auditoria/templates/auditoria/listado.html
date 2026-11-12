@@ -1,0 +1,160 @@
+{% extends "base/layout_app.html" %}
+{% load static %}
+
+{% block title %}Bitácora · InventaCore{% endblock %}
+{% block nav_auditoria %}active{% endblock %}
+{% block page_title %}Bitácora{% endblock %}
+{% block page_subtitle %}Registro de las altas y cambios hechos en el sistema. Solo lectura{% endblock %}
+
+{% block app_content %}
+
+{% include "base/_avisos.html" %}
+
+{% if error_api %}
+<div class="aviso aviso--rojo" role="alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+  <span>{{ error_api }}</span>
+</div>
+{% endif %}
+
+{% if historial %}
+<div class="aviso aviso--azul bitacora-historial" role="status">
+  <svg width="16" height="16"><use href="#icon-clock"/></svg>
+  <span>Historial de <strong>{{ historial.tabla }} {{ historial.registro }}</strong>.</span>
+  <a class="filtros__limpiar" href="{% url 'auditoria:listado' %}">Ver toda la bitácora</a>
+</div>
+{% endif %}
+
+<div class="lista-header">
+  <p class="lista-header__conteo">
+    <strong>{{ total }}</strong> registro{{ total|pluralize }}
+    {% if hay_filtros %}encontrado{{ total|pluralize }}{% endif %}
+  </p>
+</div>
+
+<form class="filtros" method="get" action="{% url 'auditoria:listado' %}" id="formFiltros">
+  {% if historial %}
+  <input type="hidden" name="tabla_afectada" value="{{ f.tabla_afectada }}">
+  <input type="hidden" name="registro_id" value="{{ f.registro_id }}">
+  {% endif %}
+  <div class="filtros__busqueda">
+    <div class="filtros__campo">
+      <span class="filtros__lupa" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </span>
+      <input class="filtros__input" type="search" name="q" value="{{ f.q }}"
+             placeholder="Motivo, registro, marbete, valor…" aria-label="Buscar en la bitácora">
+    </div>
+    <button class="btn btn-primary btn-sm filtros__btn" type="submit">Buscar</button>
+  </div>
+  <div class="filtros__selects">
+    <select class="filtros__select" name="modulo" data-autosubmit aria-label="Filtrar por módulo">
+      <option value="">Todos los módulos</option>
+      {% for clave, nombre in modulos %}
+      <option value="{{ clave }}" {% if f.modulo == clave %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+    <select class="filtros__select" name="accion" data-autosubmit aria-label="Filtrar por acción">
+      <option value="">Todas las acciones</option>
+      {% for clave, nombre in acciones %}
+      <option value="{{ clave }}" {% if f.accion == clave %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+    {% if usuarios %}
+    <select class="filtros__select" name="usuario" data-autosubmit aria-label="Filtrar por usuario">
+      <option value="">Todos los usuarios</option>
+      {% for u in usuarios %}
+      <option value="{{ u.num }}" {% if f.usuario == u.num|stringformat:"s" %}selected{% endif %}>{{ u.username }} · {{ u.empleado }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <label class="bitacora-fecha">
+      <span>Desde</span>
+      <input class="filtros__select" type="date" name="fecha_desde" value="{{ f.fecha_desde }}" data-autosubmit>
+    </label>
+    <label class="bitacora-fecha">
+      <span>Hasta</span>
+      <input class="filtros__select" type="date" name="fecha_hasta" value="{{ f.fecha_hasta }}" data-autosubmit>
+    </label>
+    {% if hay_filtros %}<a class="filtros__limpiar" href="{% url 'auditoria:listado' %}">Limpiar</a>{% endif %}
+  </div>
+</form>
+
+{% if filas %}
+<div class="tabla-wrap">
+  <table class="tabla-catalogo tabla-bitacora">
+    <thead>
+      <tr>
+        <th>Fecha</th><th>Usuario</th><th>Módulo</th><th>Acción</th><th>Registro</th><th>Motivo</th><th>Cambios</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in filas %}
+      <tr>
+        <td data-label="Fecha" class="celda-id">
+          {% if fila.fecha %}{{ fila.fecha|date:"d/m/Y" }}<span class="celda-secundaria celda-bloque">{{ fila.fecha|date:"H:i" }}</span>{% else %}{{ fila.fecha_texto }}{% endif %}
+        </td>
+        <td data-label="Usuario" class="celda-fuerte">{{ fila.usuario }}<span class="celda-secundaria celda-bloque">{{ fila.usuario_nombre }}</span></td>
+        <td data-label="Módulo">{{ fila.modulo }}</td>
+        <td data-label="Acción"><span class="badge-estado badge-estado--{{ fila.tono }}">{{ fila.accion_nombre }}</span></td>
+        <td data-label="Registro">
+          {{ fila.tabla }} <strong class="bitacora-registro">{{ fila.registro }}</strong>
+          <span class="celda-bloque bitacora-enlaces">
+            {% if fila.url %}<a href="{{ fila.url }}">{{ fila.texto_enlace }}</a> · {% endif %}
+            <a href="{{ fila.url_historial }}">Historial</a>
+          </span>
+        </td>
+        <td data-label="Motivo">{% if fila.motivo %}{{ fila.motivo }}{% else %}<span class="celda-secundaria">—</span>{% endif %}</td>
+        <td data-label="Cambios">
+          {% if fila.cambios %}
+          <details class="bitacora-cambios">
+            <summary>{{ fila.cambios|length }} campo{{ fila.cambios|length|pluralize }}</summary>
+            <table class="bitacora-detalle">
+              <thead><tr><th>Campo</th>{% if not fila.es_alta %}<th>Antes</th>{% endif %}<th>{% if fila.es_alta %}Valor{% else %}Después{% endif %}</th></tr></thead>
+              <tbody>
+                {% for c in fila.cambios %}
+                <tr><td>{{ c.campo }}</td>{% if not fila.es_alta %}<td class="bitacora-detalle__antes">{{ c.antes }}</td>{% endif %}<td>{{ c.despues }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+          {% else %}<span class="celda-secundaria">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "base/_paginacion.html" %}
+
+{% else %}
+<div class="vacio">
+  <div class="vacio__icono"><svg width="26" height="26"><use href="#icon-clipboard"/></svg></div>
+  {% if error_api %}
+  <h2 class="vacio__titulo">No se pudo cargar la bitácora</h2>
+  <p class="vacio__texto">Revisa el aviso de arriba e intenta de nuevo.</p>
+  {% elif hay_filtros %}
+  <h2 class="vacio__titulo">Ningún registro coincide</h2>
+  <p class="vacio__texto">Prueba con otra búsqueda o quita alguno de los filtros aplicados.</p>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'auditoria:listado' %}">Limpiar filtros</a>
+  {% else %}
+  <h2 class="vacio__titulo">Todavía no hay registros</h2>
+  <p class="vacio__texto">Aquí aparecerán las altas y los cambios conforme se usen los módulos.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock app_content %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+  document.querySelectorAll('[data-autosubmit]').forEach(function (campo) {
+    campo.addEventListener('change', function () { document.getElementById('formFiltros').submit(); });
+  });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
+{% endblock %}

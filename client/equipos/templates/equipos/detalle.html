@@ -45,6 +45,11 @@
     </a>
     {% if usuario.rol == 'ADMIN' %}
     <a class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+       href="{% url 'auditoria:listado' %}?tabla_afectada=articulo&amp;registro_id={{ equipo.num }}">
+      <svg width="15" height="15"><use href="#icon-clipboard"/></svg>
+      Bitácora
+    </a>
+    <a class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
        href="{% url 'movimientos:nuevo' %}?articulo={{ equipo.num }}">
       <svg width="15" height="15"><use href="#icon-swap"/></svg>
       Mover artículo

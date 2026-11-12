@@ -164,6 +164,14 @@ class FichaTests(BaseEquipos):
         # la descripción sigue apareciendo, pero en su propia tarjeta
         self.assertContains(r, 'Texto libre largo de la descripción')
 
+    def test_solo_el_admin_ve_el_acceso_a_la_bitacora_del_articulo(self):
+        self.preparar()
+        self.entrar('ADMIN')
+        enlace = '/auditoria/?tabla_afectada=articulo&amp;registro_id=7'
+        self.assertContains(self.client.get('/articulos/detalle/7/'), enlace)
+        self.entrar('CONSULTA')
+        self.assertNotContains(self.client.get('/articulos/detalle/7/'), enlace)
+
     def test_admin_ve_acciones_y_consulta_no(self):
         self.preparar()
         self.entrar('ADMIN')

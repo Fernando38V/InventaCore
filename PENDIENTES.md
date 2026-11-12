@@ -92,12 +92,14 @@ Prioridad: BAJA
 - Solo el Administrador emite (DEC-001); el cliente oculta las casillas y el botón a Consulta, y rechaza el envío en el servidor.
 - Observación: las altas manuales también generan una asignación pendiente de resguardo (primera entrega al resguardante). Lo decide la API.
 
-PEND-024 — Endpoint de lectura de la bitácora (para Adad)
-Estado: SOLICITADO a Adad (08/11/2026)
-Prioridad: ALTA
+PEND-024 — Lectura de la bitácora (RF-21)
+Estado: IMPLEMENTADO Y PROBADO (11/11/2026). API: `GET /bitacora/` y `GET /bitacora/<num>/` (Adad, commit 49df2ed, contrato v14). Cliente: pantalla `/auditoria/`.
+Prioridad: —
 
-- La API escribe la bitácora pero no la publica: `api/auditoria` no tiene vistas ni rutas. Se pidió `GET /bitacora/`, solo Administrador, solo lectura, paginado (más reciente primero), con filtros q, usuario, modulo, accion, fecha_desde, fecha_hasta, y tabla_afectada con registro_id; cada fila con fecha_hora, usuario, módulo, acción, tabla, registro, motivo y valores anterior y nuevo como JSON. Los nombres de filtros y campos son propuesta del cliente; el contrato final es el de Adad.
-- Cliente: la pantalla /auditoria/ sigue como placeholder hasta que exista el endpoint.
+- API (Adad): solo Administrador (Consulta 403), solo lectura (405 a POST/PUT/PATCH/DELETE), paginada de 10, más reciente primero; filtros q, usuario, modulo, accion, fecha_desde, fecha_hasta y tabla_afectada con registro_id. Coincide con lo que se pidió.
+- Cliente: tabla con fecha (hora de Tijuana), usuario, módulo, acción, registro, motivo y cambios (antes/después; en altas solo los valores). Filtros por búsqueda, módulo, acción, usuario y fechas. Enlaces a la ficha del artículo, al movimiento y al PDF del resguardo, e historial de un registro. Botón "Bitácora" en la ficha del artículo (solo Administrador).
+- Probado: 25 pruebas automáticas nuevas (suite del cliente 269 OK) y recorrido en Chromium contra la API real con datos de prueba (listado, detalle de cambios, paginación, filtros por acción, módulo, usuario y fechas, error de fechas al revés, historial desde la ficha, enlaces, Consulta bloqueada, tamaño de celular).
+- Detalles a tener en cuenta: la lista de módulos del filtro está fija en el cliente (`auditoria/views.py`, MODULOS) porque la API no la publica; si se agrega un módulo nuevo hay que añadirlo. Las bajas lógicas (DELETE) hoy no se registran en ninguna parte, pero el filtro ya las contempla. Los registros de carga masiva (`lote-<huella>`) no tienen enlace porque no hay ficha de lote.
 
 PEND-025 — Escáner de QR y búsqueda rápida (RF-19, RF-20, RF-23)
 Estado: IMPLEMENTADO Y PROBADO en el cliente (08/11/2026); falta la prueba con un celular real y la decisión de HTTPS
@@ -135,7 +137,7 @@ Prioridad: BAJA
 
 PEND-011 — Revisión del repositorio (01/11/2026)
 
-- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Escáner de QR y buscador rápido implementados el 08/11/2026 (PEND-025, sin prueba en celular real); sigue pendiente la bitácora (PEND-024), que espera el endpoint de Adad.
+- Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Escáner de QR y buscador rápido implementados el 08/11/2026 (PEND-025, sin prueba en celular real); Bitácora conectada el 11/11/2026 (PEND-024).
 - Nombre de la Contadora en settings.py: confirmado como Lic. Jania Elizabeth Cardenas Vela (04/11/2026); moverlo a variable de entorno es opcional (repositorio privado).
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
 - client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
