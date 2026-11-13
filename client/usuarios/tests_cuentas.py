@@ -411,3 +411,34 @@ class OjitoTests(BaseCuentas):
             r = self.client.get(ruta)
             self.assertContains(r, 'type="password" data-ver-contrasena', count=campos, msg_prefix=ruta)
             self.assertContains(r, 'js/ver-contrasena.js', msg_prefix=ruta)
+
+
+class InicioDeSesionTests(TestCase):
+    """Al iniciar sesión, cualquier rol cae en el Dashboard (no en Artículos)."""
+
+    def setUp(self):
+        self.api = ApiFalsa()
+        parche = patch('usuarios.views.llamar', self.api)
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def _entrar(self, rol):
+        self.api.respuestas[('POST', 'auth/login/')] = {
+            'token': 't', 'usuario': {'num': 1, 'username': 'u', 'empleado': 'U', 'rol': rol,
+                                      'rol_nombre': rol.title()}}
+        return self.client.post('/cuentas/login/', {'usuario': 'u', 'password': 'x'})
+
+    def test_administrador_va_al_dashboard(self):
+        self.assertRedirects(self._entrar('ADMIN'), '/reportes/dashboard/',
+                             fetch_redirect_response=False)
+
+    def test_consulta_va_al_dashboard(self):
+        self.assertRedirects(self._entrar('CONSULTA'), '/reportes/dashboard/',
+                             fetch_redirect_response=False)
+
+    def test_con_sesion_abierta_el_login_manda_al_dashboard(self):
+        sesion = self.client.session
+        sesion['api_token'] = 't'
+        sesion.save()
+        self.assertRedirects(self.client.get('/cuentas/login/'), '/reportes/dashboard/',
+                             fetch_redirect_response=False)

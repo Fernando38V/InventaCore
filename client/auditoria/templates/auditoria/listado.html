@@ -20,7 +20,12 @@
 {% if historial %}
 <div class="aviso aviso--azul bitacora-historial" role="status">
   <svg width="16" height="16"><use href="#icon-clock"/></svg>
+  {% if historial.identificador %}
+  <span>Historial de <strong>{{ historial.identificador }}</strong>{% if historial.descripcion %} · {{ historial.descripcion }}{% endif %}.
+    <a href="{{ historial.url }}">Ver ficha</a></span>
+  {% else %}
   <span>Historial de <strong>{{ historial.tabla }} {{ historial.registro }}</strong>.</span>
+  {% endif %}
   <a class="filtros__limpiar" href="{% url 'auditoria:listado' %}">Ver toda la bitácora</a>
 </div>
 {% endif %}
@@ -70,11 +75,11 @@
     {% endif %}
     <label class="bitacora-fecha">
       <span>Desde</span>
-      <input class="filtros__select" type="date" name="fecha_desde" value="{{ f.fecha_desde }}" data-autosubmit>
+      <input class="filtros__select" type="date" name="fecha_desde" value="{{ f.fecha_desde }}" max="{% if f.fecha_hasta %}{{ f.fecha_hasta }}{% else %}{{ hoy }}{% endif %}" data-autosubmit>
     </label>
     <label class="bitacora-fecha">
       <span>Hasta</span>
-      <input class="filtros__select" type="date" name="fecha_hasta" value="{{ f.fecha_hasta }}" data-autosubmit>
+      <input class="filtros__select" type="date" name="fecha_hasta" value="{{ f.fecha_hasta }}" min="{{ f.fecha_desde }}" max="{{ hoy }}" data-autosubmit>
     </label>
     {% if hay_filtros %}<a class="filtros__limpiar" href="{% url 'auditoria:listado' %}">Limpiar</a>{% endif %}
   </div>

@@ -7,7 +7,7 @@ from client.api import ApiError, llamar
 def login_view(request):
     """M1 — Inicio de sesión contra POST /api/auth/login/."""
     if request.session.get('api_token'):
-        return redirect('equipos:listado')
+        return redirect('reportes:dashboard')
 
     error = None
     usuario = ''
@@ -26,7 +26,7 @@ def login_view(request):
                 request.session.cycle_key()          # nueva sesión al entrar
                 request.session['api_token'] = r['token']
                 request.session['usuario'] = r['usuario']
-                return redirect('equipos:listado')
+                return redirect('reportes:dashboard')
 
     return render(request, 'auth/login.html', {'error': error, 'usuario_escrito': usuario})
 

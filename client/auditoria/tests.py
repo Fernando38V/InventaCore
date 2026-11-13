@@ -5,9 +5,11 @@ responde. El recorrido contra la API real se hace a mano.
 
     python manage.py test auditoria
 """
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 
 from catalogos.tests import ApiFalsa, pagina
 from client.api import ApiError, SesionVencida
@@ -85,11 +87,13 @@ class PermisosTests(BaseBitacora):
 class FiltrosTests(BaseBitacora):
     def test_manda_pagina_y_todos_los_filtros(self):
         self.entrar()
+        hoy = timezone.localdate()
+        desde, hasta = (hoy - timedelta(days=10)).isoformat(), hoy.isoformat()
         self.client.get('/auditoria/?q=dell&usuario=2&modulo=articulos&accion=UPDATE'
-                        '&fecha_desde=2026-11-01&fecha_hasta=2026-11-11&page=2')
+                        '&fecha_desde=%s&fecha_hasta=%s&page=2' % (desde, hasta))
         ruta = self.ruta_bitacora()
         for parte in ('q=dell', 'usuario=2', 'modulo=articulos', 'accion=UPDATE',
-                      'fecha_desde=2026-11-01', 'fecha_hasta=2026-11-11', 'page=2'):
+                      'fecha_desde=' + desde, 'fecha_hasta=' + hasta, 'page=2'):
             self.assertIn(parte, ruta)
 
     def test_sin_filtros_solo_pide_la_pagina(self):
@@ -114,6 +118,51 @@ class FiltrosTests(BaseBitacora):
         self.assertContains(r, 'Historial de')
         self.assertContains(r, 'Ver toda la bitácora')
 
+    def test_historial_del_articulo_muestra_marbete_y_descripcion(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'bitacora/')] = pagina([registro()])
+        self.api.respuestas[('GET', 'articulos/12/')] = {
+            'num': 12, 'marbete_oficial': 'M-0456', 'folio_interno': None,
+            'descripcion': 'Laptop Dell Latitude'}
+        r = self.client.get('/auditoria/?tabla_afectada=articulo&registro_id=12')
+        self.assertContains(r, 'Marbete M-0456')
+        self.assertContains(r, 'Laptop Dell Latitude')
+        self.assertContains(r, 'href="/articulos/detalle/12/"')
+        self.assertNotContains(r, 'Historial de <strong>Artículo 12')
+
+    def test_historial_de_comodato_usa_el_folio_interno(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/12/')] = {
+            'num': 12, 'marbete_oficial': None, 'folio_interno': 'COM-0003', 'descripcion': 'Silla'}
+        r = self.client.get('/auditoria/?tabla_afectada=articulo&registro_id=12')
+        self.assertContains(r, 'Folio interno COM-0003')
+
+    def test_historial_sin_datos_del_articulo_cae_al_numero(self):
+        self.entrar()
+        self.api.respuestas[('GET', 'articulos/12/')] = ApiError(404, {'detail': 'No encontrado.'})
+        r = self.client.get('/auditoria/?tabla_afectada=articulo&registro_id=12')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Artículo 12')
+
+    def test_historial_de_otra_tabla_no_consulta_articulos(self):
+        self.entrar()
+        self.client.get('/auditoria/?tabla_afectada=movimiento&registro_id=MOV-0007')
+        self.assertFalse([ll for ll in self.api.llamadas if ll[1].startswith('articulos/')])
+
+    def test_fechas_futuras_no_se_envian_y_los_campos_limitan_a_hoy(self):
+        self.entrar()
+        hoy = timezone.localdate()
+        manana = (hoy + timedelta(days=1)).isoformat()
+        r = self.client.get('/auditoria/?fecha_desde=%s&fecha_hasta=%s' % (manana, manana))
+        self.assertNotIn('fecha_', self.ruta_bitacora())
+        self.assertContains(r, 'max="%s"' % hoy.isoformat())
+
+    def test_fecha_de_hoy_si_se_envia(self):
+        self.entrar()
+        hoy = timezone.localdate().isoformat()
+        self.client.get('/auditoria/?fecha_hasta=%s' % hoy)
+        self.assertIn('fecha_hasta=%s' % hoy, self.ruta_bitacora())
+
     def test_historial_incompleto_se_ignora(self):
         self.entrar()
         r = self.client.get('/auditoria/?registro_id=12')
@@ -124,7 +173,7 @@ class FiltrosTests(BaseBitacora):
         self.entrar()
         self.api.respuestas[('GET', 'bitacora/')] = ApiError(
             400, {'fecha_hasta': 'La fecha final no puede ser anterior a la inicial.'})
-        r = self.client.get('/auditoria/?fecha_desde=2026-11-10&fecha_hasta=2026-11-01')
+        r = self.client.get('/auditoria/?fecha_desde=2026-11-10&fecha_hasta=2026-11-01')   # al revés: decide la API
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'La fecha final no puede ser anterior a la inicial.')
 

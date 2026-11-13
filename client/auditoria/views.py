@@ -59,9 +59,12 @@ def _filtros(request):
         f['accion'] = ''
     # Las fechas inválidas no se mandan a la API: el <input type="date"> ya
     # obliga el formato y así no se pierde el resto del listado.
+    # Tampoco se aceptan fechas posteriores a hoy (no puede haber registros).
+    hoy = timezone.localdate()
     for campo in CAMPOS_FECHA:
         try:
-            date.fromisoformat(f[campo])
+            if date.fromisoformat(f[campo]) > hoy:
+                f[campo] = ''
         except ValueError:
             f[campo] = ''
     # El historial de un registro necesita las dos claves.
@@ -146,6 +149,27 @@ def _fila(b):
     }
 
 
+def _articulo_del_historial(request, f):
+    """Datos para identificar el artículo cuyo historial se está viendo: marbete o
+    folio interno (no el número interno), descripción y enlace a la ficha. Si la
+    API no lo entrega, el encabezado cae al número."""
+    if f['tabla_afectada'] != 'articulo' or not f['registro_id'].isdigit():
+        return {}
+    try:
+        a = llamar(request, 'GET', 'articulos/%s/' % f['registro_id'])
+    except SesionVencida:
+        raise
+    except ApiError:
+        return {}
+    marbete = a.get('marbete_oficial')
+    return {
+        'descripcion': a.get('descripcion') or '',
+        'identificador': ('Marbete %s' % marbete) if marbete
+                         else ('Folio interno %s' % a.get('folio_interno', '')),
+        'url': reverse('equipos:detalle', args=[int(f['registro_id'])]),
+    }
+
+
 # --- listado -----------------------------------------------------------------
 
 def listado_auditoria(request):
@@ -179,8 +203,10 @@ def listado_auditoria(request):
         'modulos': MODULOS,
         'acciones': ACCIONES,
         'usuarios': usuarios,
-        'historial': {'tabla': TABLAS.get(f['tabla_afectada'], f['tabla_afectada']),
-                      'registro': f['registro_id']} if f['registro_id'] else None,
+        'historial': dict({'tabla': TABLAS.get(f['tabla_afectada'], f['tabla_afectada']),
+                           'registro': f['registro_id']},
+                          **_articulo_del_historial(request, f)) if f['registro_id'] else None,
+        'hoy': timezone.localdate().isoformat(),
         'hay_filtros': bool(params),
         'error_api': error,
     }
