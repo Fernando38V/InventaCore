@@ -8,7 +8,6 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('perfil/', views_cuentas.perfil, name='perfil'),
-    # Usuarios y Roles: solo Administrador (usuarios/middleware.py).
     path('', views_cuentas.lista, name='listado'),
     path('usuarios/nuevo/', views_cuentas.nuevo, name='nuevo'),
     path('usuarios/<int:num>/editar/', views_cuentas.editar, name='editar'),

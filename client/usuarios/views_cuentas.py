@@ -49,7 +49,7 @@ def _usuario_o_404(request, num):
         raise
 
 
-# --- listado ------------------------------------------------------------
+# listado
 
 def _filtros(request):
     actuales = {
@@ -106,7 +106,7 @@ def lista(request):
     return render(request, 'usuarios/lista.html', contexto)
 
 
-# --- alta ----------------------------------------------------------------
+# alta
 
 def _campos_obligatorios(valores, nombres):
     return {n: 'Este campo es obligatorio.' for n in nombres if not valores.get(n)}
@@ -162,7 +162,7 @@ def nuevo(request):
     })
 
 
-# --- edición (rol) ---------------------------------------------------------
+# edición (rol)
 
 def editar(request, num):
     if _es_propia(request, num):
@@ -208,7 +208,7 @@ def editar(request, num):
     })
 
 
-# --- activar / desactivar -----------------------------------------------
+# activar / desactivar 
 
 @require_POST
 def cambiar_estado(request, num):
@@ -234,7 +234,7 @@ def cambiar_estado(request, num):
     return redirect(volver)
 
 
-# --- restablecer contraseña de otra persona -----------------------------
+# restablecer contraseña de otra persona
 
 def restablecer(request, num):
     if _es_propia(request, num):
@@ -275,7 +275,7 @@ def restablecer(request, num):
         'cuenta': cuenta, 'errores': errores, 'general': general, 'motivo': motivo})
 
 
-# --- perfil ----------------------------------------------------------------
+# perfil
 
 def perfil(request):
     """Datos de la cuenta que inició sesión y cambio de su contraseña."""
@@ -310,6 +310,6 @@ def perfil(request):
     except SesionVencida:
         raise
     except ApiError:
-        pass        # se muestran los datos guardados al iniciar sesión
+        pass    # se muestran los datos guardados al iniciar sesión
     return render(request, 'usuarios/perfil.html', {
         'yo': yo, 'errores': errores, 'general': general})

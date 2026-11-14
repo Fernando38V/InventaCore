@@ -73,7 +73,7 @@ def _filtros(request):
     return f, {k: v for k, v in f.items() if v}
 
 
-# --- presentación de cada fila ---------------------------------------------
+# Presentacion de cada fila
 
 def _texto(valor):
     if valor is None or valor == '':
@@ -170,7 +170,7 @@ def _articulo_del_historial(request, f):
     }
 
 
-# --- listado -----------------------------------------------------------------
+# listado
 
 def listado_auditoria(request):
     pagina = numero_de_pagina(request)
