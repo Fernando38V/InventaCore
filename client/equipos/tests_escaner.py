@@ -99,7 +99,8 @@ class EscanerTests(TestCase):
             r = self.client.get('/articulos/escanear/')
             self.assertEqual(r.status_code, 200, rol)
             self.assertContains(r, 'Iniciar cámara')
-            self.assertContains(r, 'Elegir o tomar foto')
+            self.assertContains(r, 'Tomar foto')
+            self.assertContains(r, 'Elegir imagen')
             self.assertContains(r, '/static/vendor/html5-qrcode/html5-qrcode.min.js')
 
     def test_la_foto_tiene_boton_para_la_camara_y_para_elegir_imagen_con_su_propio_aviso(self):

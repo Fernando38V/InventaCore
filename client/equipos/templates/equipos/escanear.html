@@ -29,7 +29,7 @@
 
   <section class="panel">
     <h2 class="panel__titulo">Con una foto del QR</h2>
-    <p class="panel__nota">Toma una foto del QR o elige una imagen. Funciona aunque la cámara en vivo no esté disponible.</p>
+    <p class="panel__nota">Toma una foto del QR o elige una imagen.</p>
     <p class="panel__nota">Para que se lea: que el QR se vea completo, con su margen blanco, bien enfocado y sin reflejos. No hace falta acercarse mucho. Si está en una pantalla, sube el brillo; mejor aún si está impreso.</p>
     <div class="escaner__acciones">
       <label class="btn btn-outline-secondary btn-sm escaner__archivo" for="fotoQr">Tomar foto</label>
@@ -93,7 +93,7 @@
       return;
     }
     if (!window.isSecureContext) {
-      aviso('La cámara en vivo solo funciona con HTTPS o desde localhost. Usa «Elegir o tomar foto» o la búsqueda por código.', true);
+      aviso('La cámara en vivo solo funciona con HTTPS o desde localhost. Usa «Tomar foto», «Elegir imagen» o la búsqueda por código.', true);
       btnIniciar.disabled = true;
     }
 
