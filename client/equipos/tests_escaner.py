@@ -5,14 +5,17 @@ parte se probó a mano con un navegador real (ver PENDIENTES.md, PEND-025).
 
     python manage.py test equipos
 """
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.messages import get_messages
 from django.contrib.staticfiles import finders
 from django.test import SimpleTestCase, TestCase
+from PIL import Image
 
 from catalogos.tests import ApiFalsa, BaseCliente
 from client.api import ApiError, SesionVencida
+from equipos import qr as codigo_qr
 
 from . import qr
 
@@ -39,12 +42,27 @@ class ImagenQrTests(BaseCliente):
         self.entrar()
 
     def test_el_qr_codifica_solo_el_identificador_sin_url(self):
-        with patch('equipos.views.qrcode.make', wraps=__import__('qrcode').make) as hacer:
+        with patch('equipos.views.codigo_qr.contenido', wraps=codigo_qr.contenido) as hacer:
             r = self.client.get('/articulos/detalle/7/qr/')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r['Content-Type'], 'image/png')
-        self.assertEqual(hacer.call_args[0][0], 'IC:7')
-        self.assertNotIn('http', hacer.call_args[0][0])
+        self.assertEqual(hacer.call_args[0][0], 7)
+        self.assertEqual(codigo_qr.contenido(7), 'IC:7')
+
+    def test_la_imagen_es_grande_y_con_el_margen_del_estandar(self):
+        r = self.client.get('/articulos/detalle/7/qr/')
+        imagen = Image.open(BytesIO(r.content)).convert('L')
+        self.assertGreaterEqual(imagen.width, 400)
+        self.assertEqual(imagen.width, imagen.height)
+        margen = codigo_qr.MARGEN * codigo_qr.PIXELES_POR_MODULO
+        franja = imagen.crop((0, 0, imagen.width, margen))
+        self.assertEqual(franja.getextrema(), (255, 255))       # 4 módulos en blanco arriba
+        lateral = imagen.crop((0, 0, margen, imagen.height))
+        self.assertEqual(lateral.getextrema(), (255, 255))
+
+    def test_los_identificadores_mas_largos_siguen_cabiendo(self):
+        imagen = codigo_qr.imagen(999999999)
+        self.assertGreaterEqual(imagen.size[0], 400)
 
     def test_la_descarga_se_nombra_como_articulo(self):
         r = self.client.get('/articulos/detalle/7/qr/?descargar=1')
@@ -83,6 +101,13 @@ class EscanerTests(TestCase):
             self.assertContains(r, 'Iniciar cámara')
             self.assertContains(r, 'Elegir o tomar foto')
             self.assertContains(r, '/static/vendor/html5-qrcode/html5-qrcode.min.js')
+
+    def test_la_foto_tiene_boton_para_la_camara_y_para_elegir_imagen_con_su_propio_aviso(self):
+        self.entrar()
+        r = self.client.get('/articulos/escanear/')
+        self.assertContains(r, 'id="fotoQr" accept="image/*" capture="environment"')
+        self.assertContains(r, 'id="archivoQr" accept="image/*"')
+        self.assertContains(r, 'id="fotoEstado"')       # el aviso queda junto al botón, no arriba
 
     def test_la_libreria_esta_guardada_en_el_proyecto_y_no_en_un_cdn(self):
         self.assertIsNotNone(finders.find('vendor/html5-qrcode/html5-qrcode.min.js'))

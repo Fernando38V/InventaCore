@@ -29,9 +29,15 @@
 
   <section class="panel">
     <h2 class="panel__titulo">Con una foto del QR</h2>
-    <p class="panel__nota">Toma la foto con la cámara del celular o elige una imagen. Funciona aunque la cámara en vivo no esté disponible.</p>
-    <label class="btn btn-outline-secondary btn-sm escaner__archivo" for="archivoQr">Elegir o tomar foto</label>
+    <p class="panel__nota">Toma una foto del QR o elige una imagen. Funciona aunque la cámara en vivo no esté disponible.</p>
+    <p class="panel__nota">Para que se lea: que el QR se vea completo, con su margen blanco, bien enfocado y sin reflejos. No hace falta acercarse mucho. Si está en una pantalla, sube el brillo; mejor aún si está impreso.</p>
+    <div class="escaner__acciones">
+      <label class="btn btn-outline-secondary btn-sm escaner__archivo" for="fotoQr">Tomar foto</label>
+      <label class="btn btn-outline-secondary btn-sm escaner__archivo" for="archivoQr">Elegir imagen</label>
+    </div>
+    <input type="file" id="fotoQr" accept="image/*" capture="environment" hidden>
     <input type="file" id="archivoQr" accept="image/*" hidden>
+    <p id="fotoEstado" class="escaner__estado" role="status" aria-live="polite"></p>
   </section>
 
   <section class="panel">
@@ -114,14 +120,63 @@
 
     btnDetener.addEventListener('click', function () { detener().then(function () { aviso(''); }); });
 
-    archivo.addEventListener('change', function () {
-      var f = archivo.files && archivo.files[0];
-      if (!f) return;
-      aviso('Leyendo la imagen…');
-      detener().then(function () { return crear().scanFile(f, false); })
-        .then(abrir)
-        .catch(function () { aviso('No se encontró un código QR en la imagen. Prueba con otra foto, más cerca y bien enfocada.', true); })
-        .then(function () { archivo.value = ''; });
+    var fotoEstado = document.getElementById('fotoEstado');
+    var entradas = [document.getElementById('fotoQr'), archivo];
+
+    function avisoFoto(texto, error) {
+      fotoEstado.textContent = texto || '';
+      fotoEstado.className = 'escaner__estado' + (error ? ' escaner__estado--error' : '');
+    }
+
+    function aCanvas(bmp, lado, margen) {
+      var mayor = Math.max(bmp.width, bmp.height);
+      var esc = (lado && mayor > lado) ? lado / mayor : 1;
+      var w = Math.round(bmp.width * esc), h = Math.round(bmp.height * esc);
+      var m = margen ? Math.round(Math.max(w, h) * 0.1) : 0;
+      var c = document.createElement('canvas');
+      c.width = w + 2 * m; c.height = h + 2 * m;
+      var x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      x.drawImage(bmp, m, m, w, h);
+      return c;
+    }
+
+    // Las fotos del celular son enormes (12 a 48 megapíxeles) y el lector falla o se
+    // queda sin memoria con ellas. Se reduce primero; si no se lee, se prueba con
+    // margen blanco y, al final, con la imagen tal cual.
+    var INTENTOS = [[1000, false], [1000, true], [640, false], [640, true], [0, false], [0, true]];
+
+    function leerImagen(f) {
+      if (!window.createImageBitmap) return crear().scanFile(f, false);
+      return createImageBitmap(f).then(function (bmp) {
+        var i = 0;
+        function siguiente() {
+          if (i >= INTENTOS.length) return Promise.reject(new Error('sin codigo'));
+          var p = INTENTOS[i++];
+          return new Promise(function (ok, fallo) {
+            try { aCanvas(bmp, p[0], p[1]).toBlob(ok, 'image/png'); } catch (e) { fallo(e); }
+          }).then(function (b) {
+            if (!b) throw new Error('sin imagen');
+            return crear().scanFile(new File([b], 'qr.png', { type: 'image/png' }), false);
+          }).catch(siguiente);
+        }
+        return siguiente();
+      }, function () { return crear().scanFile(f, false); });
+    }
+
+    entradas.forEach(function (entrada) {
+      entrada.addEventListener('change', function () {
+        var f = entrada.files && entrada.files[0];
+        if (!f) return;
+        aviso('');
+        avisoFoto('Leyendo la imagen…');
+        detener().then(function () { return leerImagen(f); })
+          .then(abrir)
+          .catch(function () {
+            avisoFoto('No se encontró un código QR en la imagen. Prueba con otra foto: el QR completo, con su margen blanco, enfocado y sin reflejos. También puedes buscarlo por código.', true);
+          })
+          .then(function () { entrada.value = ''; });
+      });
     });
 
     window.addEventListener('pagehide', function () { detener(); });

@@ -28,7 +28,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'clave-solo-para-desarrollo-loc
 DEBUG = True
 
 # aqui va la ip de la computadora 
-ALLOWED_HOSTS = [] #'127.0.0.1', 'localhost', '192.168.0.7'
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.0.5'] #'127.0.0.1', 'localhost', '192.168.0.7' 
 
 
 # Application definition

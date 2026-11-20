@@ -10,7 +10,6 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import urlencode
 
-import qrcode
 from django.contrib import messages
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render, reverse
@@ -62,7 +61,7 @@ def qr_equipo(request, num):
     GET /articulos/detalle/<num>/qr/             -> muestra el PNG
     GET /articulos/detalle/<num>/qr/?descargar=1 -> lo fuerza como descarga
     """
-    imagen = qrcode.make(codigo_qr.contenido(num), box_size=8, border=2)
+    imagen = codigo_qr.imagen(num)
 
     buffer = BytesIO()
     imagen.save(buffer, format='PNG')
