@@ -53,7 +53,8 @@
         {% elif c.tipo == 'costo' %}
         <input class="campo__control" type="text" inputmode="decimal" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" autocomplete="off" placeholder="Sin costo">
         {% else %}
-        <input class="campo__control" type="text" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" {% if c.max %}maxlength="{{ c.max }}"{% endif %} autocomplete="off">
+        <input class="campo__control" type="text" name="{{ c.nombre }}" id="{{ c.nombre }}" value="{{ c.valor }}" {% if c.max %}maxlength="{{ c.max }}"{% endif %} autocomplete="off"{% if c.sugerencias %} list="{{ c.sugerencias }}"{% endif %}>
+        {% if c.sugerencias %}{% include "equipos/_colores_sugeridos.html" %}{% endif %}
         {% endif %}
         {% if c.ayuda %}<p class="campo__ayuda">{{ c.ayuda }}</p>{% endif %}
         {% if c.error %}<p class="campo__error">{{ c.error }}</p>{% endif %}

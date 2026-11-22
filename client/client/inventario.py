@@ -1,9 +1,31 @@
 """Ayudas compartidas por las pantallas de equipos (artículos) y movimientos."""
+import re
+import unicodedata
+
 from client.utils import listar_todo
 
 UBICACION_NOLOC = 'UBI-NOLOC'     # DEC-012: ubicación y estado No localizado van juntos
 ESTADO_NOLOC = 'NOLOC'
 SIN_ESPECIFICAR = 'Sin especificar'
+
+# Colores sugeridos en el campo Color (registrar y corregir). Es solo una ayuda:
+# el color sigue siendo texto libre (máx. 25). Copia de
+# api/catalogos/datos/colores_sugeridos.csv; una prueba revisa que coincidan.
+COLORES_SUGERIDOS = (
+    'Negro', 'Café', 'Gris', 'Blanco', 'Beige', 'Arena', 'Platino', 'Negro / Beige',
+    'Blanco / Negro', 'Crema / Negro', 'Aluminio', 'Verde', 'Beige / Negro',
+    'Acero inoxidable', 'Gris / Negro', 'Rojo', 'Madera', 'Azul', 'Crema', 'Vino', 'Caqui',
+    'Crema / Café', 'Amarillo', 'Blanco / Verde', 'Naranja', 'Nogal', 'Varios',
+    'Café / Blanco', 'Rojo / Platino', 'Gris / Verde', 'Natural', 'Cerezo',
+)
+
+
+def clave_natural(texto):
+    """Orden natural sin acentos ni mayúsculas: Salón 2 antes que Salón 10,
+    Área junto a las demás con A."""
+    plano = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode().casefold()
+    return [(0, int(parte), '') if parte.isdigit() else (1, 0, parte)
+            for parte in re.split(r'(\d+)', plano) if parte]
 
 
 def opciones_catalogo(request, ruta, actual='', solo_activos=False):
@@ -20,6 +42,8 @@ def opciones_catalogo(request, ruta, actual='', solo_activos=False):
             continue
         nombre = fila['nombre'] if activo else fila['nombre'] + ' (inactivo)'
         opciones.append({'codigo': fila['codigo'], 'nombre': nombre})
+    if ruta == 'ubicaciones':         # Salón 1, 2, 3… 10, 11 (no 1, 10, 11, 2)
+        opciones.sort(key=lambda o: clave_natural(o['nombre']))
     return opciones
 
 

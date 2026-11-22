@@ -104,7 +104,9 @@
       <div class="campo">
         <label class="campo__label" for="color">Color <span class="campo__req">*</span></label>
         <input class="campo__control" type="text" name="color" id="color"
-               value="{{ v.color }}" maxlength="25" autocomplete="off">
+               value="{{ v.color }}" maxlength="25" autocomplete="off" list="colores-sugeridos">
+        {% include "equipos/_colores_sugeridos.html" %}
+        <p class="campo__ayuda">Elige uno de la lista o escribe otro.</p>
         {% if errores.color %}<p class="campo__error">{{ errores.color }}</p>{% endif %}
       </div>
 

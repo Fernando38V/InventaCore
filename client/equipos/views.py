@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 
 from client.api import ApiError, SesionVencida, llamar
 from client.inventario import (
-    ESTADO_NOLOC, UBICACION_NOLOC, marca_modelo, nombre_articulo, opciones_catalogo,
+    COLORES_SUGERIDOS, ESTADO_NOLOC, UBICACION_NOLOC, marca_modelo, nombre_articulo, opciones_catalogo,
     opciones_personal, opciones_tipos, resumen_movimiento)
 from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
@@ -38,7 +38,8 @@ CAMPOS_CORRECCION = [
     {'nombre': 'marca', 'etiqueta': 'Marca', 'nulo': True, 'max': 50},
     {'nombre': 'modelo', 'etiqueta': 'Modelo', 'nulo': True, 'max': 60},
     {'nombre': 'num_serie', 'etiqueta': 'Número de serie', 'nulo': True, 'max': 50},
-    {'nombre': 'color', 'etiqueta': 'Color', 'requerido': True, 'max': 25},
+    {'nombre': 'color', 'etiqueta': 'Color', 'requerido': True, 'max': 25,
+     'sugerencias': 'colores-sugeridos', 'ayuda': 'Elige uno de la lista o escribe otro.'},
     {'nombre': 'fecha_adquisicion', 'etiqueta': 'Fecha de adquisición', 'tipo': 'date',
      'nulo': True},
     {'nombre': 'costo_adquisicion', 'etiqueta': 'Costo de adquisición (MXN)', 'tipo': 'costo',
@@ -359,6 +360,7 @@ def registrar_equipo(request):
         'categorias': categorias, 'tipos': tipos, 'ubicaciones': ubicaciones,
         'personal': personal, 'origenes': origenes, 'estados_operativos': estados,
         'ubicacion_noloc': UBICACION_NOLOC, 'estado_noloc': ESTADO_NOLOC,
+        'colores_sugeridos': COLORES_SUGERIDOS,
     })
 
 
@@ -434,4 +436,5 @@ def corregir_equipo(request, num):
         'campos': campos_ctx, 'general': general, 'motivo': motivo,
         'error_motivo': errores.get('motivo'),
         'hoy': timezone.localdate().isoformat(),
+        'colores_sugeridos': COLORES_SUGERIDOS,
     })
