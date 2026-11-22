@@ -16,7 +16,7 @@ def tablero(**cambios):
         'por_estado_registro': [
             {'codigo': 'REG', 'nombre': 'Registrado', 'tono': 'verde', 'total': 6},
             {'codigo': 'PEND', 'nombre': 'Pendiente', 'tono': 'ambar', 'total': 4},
-            {'codigo': 'DON', 'nombre': 'Donado', 'tono': 'azul', 'total': 2}],
+            {'codigo': 'DON', 'nombre': 'Donado', 'tono': 'violeta', 'total': 2}],
         'por_ubicacion': [{'codigo': 'UBI-%02d' % i, 'nombre': 'Ubicación %d' % i, 'total': 10 - i}
                           for i in range(10)],
         'pendientes_de_datos': {'total': 4, 'articulos': [articulo(
@@ -67,6 +67,7 @@ class DashboardTests(BaseReportes):
         self.entrar('CONSULTA')
         self.api.respuestas[('GET', 'dashboard/')] = tablero()
         r = self.client.get('/reportes/dashboard/')
+        self.assertContains(r, 'reparto__barra--violeta')   # Donado, igual que en el listado
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, '<span class="kpi__valor">12</span>', html=False)
         self.assertEqual(r.context['nolocalizados'], 3)

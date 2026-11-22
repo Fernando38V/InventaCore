@@ -89,6 +89,7 @@ class AltaArticuloTests(Base):
     def test_donado_tiene_prioridad(self):
         a = self.alta(donado=True, costo_adquisicion=None, fecha_adquisicion=None)
         self.assertEqual(a['estado_registro']['codigo'], 'DON')
+        self.assertEqual(a['estado_registro']['tono'], 'violeta')   # mismo color en todo el sistema
 
     def test_marca_modelo_y_serie_son_opcionales(self):
         a = self.alta(marca='', modelo=None, num_serie='')

@@ -14,7 +14,7 @@ from catalogos.models import EstadoOperativo, Origen, TipoArticulo, Ubicacion
 from personal.models import Personal
 
 TONO_OPERATIVO = {'UTIL': 'azul', 'OBS': 'gris', 'NOLOC': 'ambar'}
-TONO_REGISTRO = {'REG': 'verde', 'PEND': 'ambar', 'DON': 'azul'}
+TONO_REGISTRO = {'REG': 'verde', 'PEND': 'ambar', 'DON': 'violeta'}  # Donado: violeta en todo el sistema
 
 
 def par(objeto):
