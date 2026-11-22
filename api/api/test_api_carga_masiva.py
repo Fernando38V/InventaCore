@@ -1,16 +1,18 @@
 """Carga masiva desde Excel (RF-24, RF-25, DEC-017)."""
 import json
 import time
+from datetime import datetime
 from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 from api.test_api_articulos_movimientos import Base
 from articulos import carga_masiva
 from articulos.models import Articulo
 from auditoria.models import Bitacora
-from catalogos.models import Categoria, TipoArticulo
+from catalogos.models import Categoria, TipoArticulo, Ubicacion
 from movimientos.models import Movimiento
 
 COLS = [c for c, *_ in carga_masiva.COLUMNAS]
@@ -73,7 +75,7 @@ class PlantillaTests(CargaBase):
         self.assertEqual(wb.sheetnames, ['Instrucciones', 'Activos', 'Comodatos', 'Enseres', 'Listas', 'Tipos'])
         for nombre in ('Activos', 'Comodatos', 'Enseres'):
             self.assertEqual([c.value for c in wb[nombre][1]], enc(nombre))
-            self.assertEqual(len(wb[nombre].data_validations.dataValidation), 6)
+            self.assertEqual(len(wb[nombre].data_validations.dataValidation), 8)
         self.assertEqual(wb['Activos']['A1'].value, 'Marbete')
         self.assertEqual(wb['Comodatos']['A1'].value, 'Folio')
         self.assertNotIn('Origen', enc())
@@ -83,6 +85,8 @@ class PlantillaTests(CargaBase):
         self.assertEqual(listas['Categoría'], ['EQUIPO DE CÓMPUTO'])
         self.assertEqual(listas['Estado operativo'], ['Obsoleto', 'Útil'])
         self.assertEqual(listas['¿Donado?'], ['Sí', 'No'])
+        self.assertEqual(len(listas['Color']), 32)
+        self.assertIn('Negro', listas['Color'])
         self.assertIn('UBI-OFI · Oficina de Informática', listas['Ubicación'])
         self.assertIn('E001 · Admin Prueba', listas['Resguardante'])
         self.assertEqual(listas['Categoría (tipos)'], ['EQUIPO DE CÓMPUTO'])
@@ -97,7 +101,7 @@ class PlantillaTests(CargaBase):
         tipos = {col[0].value: [c.value for c in col[1:] if c.value] for col in wb['Tipos'].iter_cols()}
         self.assertEqual(tipos, {'EQUIPO DE CÓMPUTO': ['Laptop'], 'MUEBLES': ['Silla']})
         formulas = {str(v.sqref)[0]: v.formula1 for v in wb['Activos'].data_validations.dataValidation}
-        self.assertEqual(formulas['C'], '=INDIRECT(VLOOKUP($B2,Listas!$G$2:$H$3,2,FALSE))')
+        self.assertEqual(formulas['C'], '=INDIRECT(VLOOKUP($B2,Listas!$H$2:$I$3,2,FALSE))')
         self.assertEqual(set(wb.defined_names), {'tip_1', 'tip_2'})
         self.assertEqual(wb.defined_names['tip_2'].attr_text, 'Tipos!$B$2:$B$2')
 
@@ -106,11 +110,17 @@ class PlantillaTests(CargaBase):
         wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
         self.assertEqual([c.value for c in wb['Tipos']['A'][1:] if c.value], ['Laptop'])
 
-    def test_la_plantilla_oculta_las_hojas_auxiliares_y_va_vacia(self):
+    def test_las_hojas_de_consulta_son_visibles_y_protegidas_y_la_plantilla_va_vacia(self):
         wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
-        estados = {h.title: h.sheet_state for h in wb.worksheets}
-        self.assertEqual(estados, {'Instrucciones': 'visible', 'Activos': 'visible', 'Comodatos': 'visible',
-                                   'Enseres': 'visible', 'Listas': 'hidden', 'Tipos': 'hidden'})
+        self.assertTrue(all(h.sheet_state == 'visible' for h in wb.worksheets))
+        for nombre in ('Listas', 'Tipos'):
+            proteccion = wb[nombre].protection
+            self.assertTrue(proteccion.sheet)
+            self.assertFalse(proteccion.password)            # sin contraseña
+            self.assertFalse(proteccion.selectLockedCells)   # False = se puede seleccionar y copiar
+            self.assertFalse(proteccion.selectUnlockedCells)
+        for nombre in ('Activos', 'Comodatos', 'Enseres'):
+            self.assertFalse(wb[nombre].protection.sheet)    # las de captura no se protegen
         for nombre in ('Activos', 'Comodatos', 'Enseres'):
             self.assertIsNone(wb[nombre]['B2'].value)  # ni filas de ejemplo que se puedan cargar
         texto = ' '.join(str(c.value) for c in wb['Instrucciones']['A'] if c.value)
@@ -118,6 +128,41 @@ class PlantillaTests(CargaBase):
         self.assertIn('EJEMPLO', texto)
         self.assertIn('S/S', texto)
         self.assertIn('5. SUBA EL ARCHIVO', texto)
+        self.assertIn('elija primero la categoría y luego el tipo', texto.lower())
+        self.assertIn('6. HOJAS DE CONSULTA', texto)
+
+    def test_color_es_lista_con_aviso_y_no_bloquea_otros_valores(self):
+        wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
+        columna = get_column_letter(enc('Activos').index('Color') + 1)
+        validaciones = {str(v.sqref)[0]: v for v in wb['Activos'].data_validations.dataValidation}
+        color = validaciones[columna]
+        self.assertEqual(color.type, 'list')
+        self.assertEqual(color.errorStyle, 'warning')
+        self.assertTrue(color.formula1.startswith('=Listas!$F$2:$F$'))
+        otras = [v for c, v in validaciones.items() if c != columna]
+        self.assertTrue(all(v.errorStyle in (None, 'stop') for v in otras))
+
+    def test_la_fecha_solo_acepta_fechas_reales_no_futuras(self):
+        wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
+        for nombre in ('Activos', 'Comodatos', 'Enseres'):
+            columna = get_column_letter(enc(nombre).index('Fecha de adquisición') + 1)
+            fecha = [v for v in wb[nombre].data_validations.dataValidation
+                     if str(v.sqref).startswith(columna + '2:')][0]
+            self.assertEqual((fecha.type, fecha.operator), ('date', 'between'))
+            self.assertEqual(fecha.formula1, 'DATE(1980,1,1)')
+            self.assertEqual(fecha.formula2, 'TODAY()')
+            self.assertTrue(fecha.showInputMessage)
+            self.assertIn('15/03/2024', fecha.prompt)
+            self.assertNotEqual(fecha.errorStyle, 'warning')    # a diferencia del color, esta sí bloquea
+
+    def test_ubicaciones_en_orden_natural_sin_renombrar(self):
+        for n in (10, 2, 11, 1):
+            Ubicacion.objects.create(codigo='UBI-S%02d' % n, nombre='Salón %d' % n)
+        wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
+        listas = {col[0].value: [c.value for c in col[1:] if c.value] for col in wb['Listas'].iter_cols()}
+        salones = [u for u in listas['Ubicación'] if 'Salón' in u]
+        self.assertEqual(salones, ['UBI-S01 · Salón 1', 'UBI-S02 · Salón 2',
+                                   'UBI-S10 · Salón 10', 'UBI-S11 · Salón 11'])
 
     def test_la_plantilla_llenada_se_puede_cargar(self):
         wb = load_workbook(BytesIO(self.c.get('/api/carga-masiva/plantilla/').content))
@@ -258,6 +303,19 @@ class ValidarTests(CargaBase):
         ])
         self.assertEqual([f['estado'] for f in r.data['filas']], ['valida', 'valida', 'error'])
         self.assertEqual(set(r.data['filas'][2]['errores']), {'fecha_adquisicion', 'costo_adquisicion'})
+
+    def test_fecha_muy_antigua_se_rechaza_aunque_se_pegue_sin_validacion(self):
+        # "20" escrito en una celda con formato de fecha es 20/01/1900; pegar valores se salta
+        # la validación de Excel, así que la API también lo revisa.
+        r = self.validar([
+            fila(fecha_adquisicion=datetime(1900, 1, 20)),
+            fila(identificador='M-2', num_serie='S2', fecha_adquisicion='31/12/1979'),
+            fila(identificador='M-3', num_serie='S3', fecha_adquisicion='01/01/1980'),
+            fila(identificador='M-4', num_serie='S4', fecha_adquisicion=datetime(2024, 3, 15)),
+        ])
+        self.assertEqual([f['estado'] for f in r.data['filas']], ['error', 'error', 'valida', 'valida'])
+        self.assertIn('anterior al 01/01/1980', r.data['filas'][0]['errores']['fecha_adquisicion'])
+        self.assertEqual(set(r.data['filas'][1]['errores']), {'fecha_adquisicion'})
 
     def test_fecha_futura_y_costo_negativo_con_las_reglas_del_alta(self):
         r = self.validar([fila(fecha_adquisicion='01/01/2099', identificador='M-002', num_serie='S2'),

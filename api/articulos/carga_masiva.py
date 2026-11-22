@@ -22,6 +22,7 @@ coincidencia sin distinguir mayúsculas, acentos ni espacios extra; una
 transacción por archivo con las filas válidas; duplicados dentro del archivo y
 contra la base; bitácora del lote.
 """
+import csv
 import hashlib
 import json
 import re
@@ -29,6 +30,7 @@ import unicodedata
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from pathlib import Path
 
 from django.db import transaction
 from django.utils import timezone
@@ -51,6 +53,29 @@ from personal.models import Personal
 MAX_FILAS = 2000
 MAX_BYTES = 5 * 1024 * 1024
 SEPARADOR = ' · '
+
+# Colores sugeridos para la columna Color: lista con aviso (errorStyle='warning'),
+# así que se puede escribir otro color. Mismo archivo que usa el catálogo inicial.
+CSV_COLORES = Path(__file__).resolve().parent.parent / 'catalogos' / 'datos' / 'colores_sugeridos.csv'
+
+
+# Fecha de adquisición: la plantilla solo deja escribir fechas desde esta (propuesta, se puede
+# cambiar aquí) hasta hoy. Un "20" escrito a mano es la fecha 20/01/1900 para Excel.
+FECHA_MINIMA = date(1980, 1, 1)
+
+
+def colores_sugeridos():
+    if not CSV_COLORES.exists():
+        return []
+    with open(CSV_COLORES, encoding='utf-8-sig', newline='') as archivo:
+        return [fila['color'].strip() for fila in csv.DictReader(archivo) if fila['color'].strip()]
+
+
+def clave_natural(texto):
+    """Orden natural sin acentos ni mayúsculas: Salón 2 antes que Salón 10."""
+    plano = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode().casefold()
+    return [(0, int(parte), '') if parte.isdigit() else (1, 0, parte)
+            for parte in re.split(r'(\d+)', plano) if parte]
 
 # Una hoja por origen. El primer dato de cada hoja es el identificador del bien:
 # marbete en Activos; folio (el que ya tiene, o vacío para que lo asigne el
@@ -191,9 +216,12 @@ INSTRUCCIONES = [
     'Descripción, Ubicación y Resguardante; en Activos, también el Marbete. En Comodatos y Enseres la '
     'primera columna es el Folio que el bien ya tiene (se respeta aunque tenga otro formato); si no '
     'tiene, déjela vacía y el sistema le asigna uno nuevo.',
-    '3. USE LAS LISTAS. Elija primero la Categoría y después el Tipo de artículo (la lista solo muestra '
-    'los tipos de esa categoría). Ubicación, Resguardante, Estado operativo y ¿Donado? también se '
-    'eligen de la lista; el resguardante se identifica por su número de empleado.',
+    '3. USE LAS LISTAS. Elija primero la categoría y luego el tipo: la lista del Tipo de artículo solo '
+    'muestra los tipos de la categoría elegida. Ubicación, Resguardante, Estado operativo y ¿Donado? '
+    'también se eligen de la lista; el resguardante se identifica por su número de empleado. Color '
+    'trae una lista de sugerencias, pero puede escribir otro: Excel le avisará y basta con aceptar. '
+    'La fecha de adquisición se escribe día/mes/año (por ejemplo 15/03/2024); no se aceptan fechas '
+    'futuras ni anteriores a 1980.',
     '4. SI PEGA DATOS DE OTRO EXCEL, use Pegado especial > Valores (solo valores), para no perder las '
     'listas. Fecha de adquisición: DD/MM/AAAA. Costo: un número (12500.50), opcional también en bienes '
     'donados. En marca, modelo y número de serie, "S/S", "S/M", "N/A" o un guion se toman como vacío. '
@@ -203,6 +231,10 @@ INSTRUCCIONES = [
     'o serie que ya existe se rechaza. No suba dos veces el mismo archivo. Máximo '
     f'{MAX_FILAS} filas entre las tres hojas. Cargue primero el inventario más reciente (2026) y después '
     'los años anteriores.',
+    '6. HOJAS DE CONSULTA. "Listas" y "Tipos" muestran los valores de los desplegables ("Tipos" tiene '
+    'los tipos de artículo de cada categoría). Están protegidas para que no se modifiquen por accidente: '
+    'puede seleccionar y copiar, pero no editar. Si falta un valor, agréguelo en el sistema y descargue '
+    'la plantilla de nuevo.',
     '',
     'EJEMPLO (no lo copie: es solo para ver el formato)',
 ]
@@ -229,7 +261,7 @@ def generar_plantilla():
         celda.alignment = Alignment(wrap_text=True, vertical='top')
     ayuda['A1'].font = Font(bold=True, size=13)
     ayuda.column_dimensions['A'].width = 120
-    for numero in (5, 6, 7, 8, 9):
+    for numero in range(5, 11):          # los puntos 1 a 6
         ayuda.row_dimensions[numero].height = 48
     fila_ejemplo = len(INSTRUCCIONES) + 1
     ayuda.cell(row=len(INSTRUCCIONES), column=1).font = Font(bold=True)
@@ -243,15 +275,15 @@ def generar_plantilla():
     tipos_hoja = libro.create_sheet('Tipos')
 
     categorias = list(Categoria.objects.filter(activo=True).order_by('nombre'))
-    ubicaciones = [_etiqueta_ubicacion(u) for u in Ubicacion.objects.filter(
-        activo=True).order_by('nombre')]
+    ubicaciones = [_etiqueta_ubicacion(u) for u in sorted(
+        Ubicacion.objects.filter(activo=True), key=lambda u: clave_natural(u.nombre))]
     personal = [_etiqueta_personal(p) for p in Personal.objects.filter(
         activo=True).order_by('primer_apellido', 'segundo_apellido', 'nombre_pila')]
     estados = [e.nombre for e in EstadoOperativo.objects.filter(activo=True).exclude(
         pk='NOLOC').order_by('codigo')]
     listas_datos = [('Categoría', [c.nombre for c in categorias]), ('Ubicación', ubicaciones),
                     ('Resguardante', personal), ('Estado operativo', estados),
-                    ('¿Donado?', ['Sí', 'No'])]
+                    ('¿Donado?', ['Sí', 'No']), ('Color', colores_sugeridos())]
     rangos = {}
     for columna, (titulo, valores) in enumerate(listas_datos, start=1):
         listas.cell(row=1, column=columna, value=titulo).font = Font(bold=True)
@@ -286,6 +318,7 @@ def generar_plantilla():
     ultimo_mapa = max(len(categorias) + 1, 2)
     mapa = "Listas!$%s$2:$%s$%d" % (letra_cat, letra_rango, ultimo_mapa)
 
+    colores_sugeridos_hoja = bool(dict(listas_datos)['Color'])
     relleno = PatternFill('solid', fgColor='1F4E78')
     relleno_obligatorio = PatternFill('solid', fgColor='9C2F2F')
     ultima = MAX_FILAS + 1
@@ -305,6 +338,26 @@ def generar_plantilla():
                         ('donado', rangos['¿Donado?']),
                         ('tipo_articulo', '=INDIRECT(VLOOKUP($%s2,%s,2,FALSE))' % (
                             columna_de['categoria'], mapa))]
+        if colores_sugeridos_hoja:
+            # Lista con aviso: si el color no está, Excel pregunta y permite continuar.
+            validacion = DataValidation(
+                type='list', formula1=rangos['Color'], allow_blank=True, showErrorMessage=True,
+                errorStyle='warning', errorTitle='Color fuera de la lista',
+                error='Este color no está en la lista de sugerencias. ¿Desea usarlo de todos modos?')
+            hoja.add_data_validation(validacion)
+            validacion.add('%s2:%s%d' % (columna_de['color'], columna_de['color'], ultima))
+        # Fecha de adquisición: Excel de escritorio no trae calendario en la celda; esta validación
+        # rechaza lo que no sea fecha (por ejemplo "20"), las futuras y las anteriores a 1980.
+        validacion = DataValidation(
+            type='date', operator='between', formula1='DATE(%d,%d,%d)' % (
+                FECHA_MINIMA.year, FECHA_MINIMA.month, FECHA_MINIMA.day),
+            formula2='TODAY()', allow_blank=True, showErrorMessage=True, showInputMessage=True,
+            promptTitle='Fecha de adquisición',
+            prompt='Escriba día/mes/año, por ejemplo 15/03/2024. Con Ctrl+; pone la fecha de hoy.',
+            errorTitle='Fecha no válida',
+            error='Escriba una fecha completa como 15/03/2024, no futura y posterior a 1980.')
+        hoja.add_data_validation(validacion)
+        validacion.add('%s2:%s%d' % (columna_de['fecha_adquisicion'], columna_de['fecha_adquisicion'], ultima))
         for clave, formula in validaciones:
             validacion = DataValidation(
                 type='list', formula1=formula, allow_blank=True, showErrorMessage=True,
@@ -318,10 +371,16 @@ def generar_plantilla():
             fila[posicion['fecha_adquisicion']].number_format = 'DD/MM/YYYY'
             fila[posicion['costo_adquisicion']].number_format = '#,##0.00'
 
-    # Las hojas que alimentan los desplegables se ocultan: la Contadora no las necesita
-    # (los desplegables siguen funcionando con las hojas ocultas).
-    listas.sheet_state = 'hidden'
-    tipos_hoja.sheet_state = 'hidden'
+    # Las hojas que alimentan los desplegables quedan visibles como consulta, pero
+    # protegidas (sin contraseña): se pueden seleccionar y copiar, no editar, para
+    # que nadie ordene o borre por accidente los rangos de los que dependen.
+    for consulta in (listas, tipos_hoja):
+        consulta.freeze_panes = 'A2'
+        proteccion = consulta.protection
+        proteccion.sheet = True
+        proteccion.selectLockedCells = False      # False = permitido
+        proteccion.selectUnlockedCells = False
+        proteccion.formatColumns = False          # puede ensanchar columnas
 
     salida = BytesIO()
     libro.save(salida)
@@ -528,6 +587,11 @@ def _validar_fila(hoja, numero, crudo, cat):
     except ValueError:
         fecha = None
         errores['fecha_adquisicion'] = 'Fecha no válida. Use DD/MM/AAAA.'
+    else:
+        if fecha and fecha < FECHA_MINIMA:
+            errores['fecha_adquisicion'] = 'Fecha no válida (anterior al %s). Use DD/MM/AAAA.' % (
+                FECHA_MINIMA.strftime('%d/%m/%Y'))
+            fecha = None
     try:
         costo = _costo(crudo.get('costo_adquisicion'))
     except ValueError:
