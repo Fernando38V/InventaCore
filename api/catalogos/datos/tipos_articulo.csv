@@ -1,0 +1,44 @@
+﻿categoria,nombre
+Mobiliario,Silla
+Mobiliario,Mesabanco
+Mobiliario,Mesa
+Mobiliario,Butaca
+Mobiliario,"Archivero, librero y estante"
+Mobiliario,Banco
+Mobiliario,Pupitre
+Mobiliario,Escritorio
+Mobiliario,Locker
+Mobiliario,Sillón
+Mobiliario,Pizarrón
+Equipo de cómputo y comunicaciones,Computadora
+Equipo de cómputo y comunicaciones,Regulador de voltaje
+Equipo de cómputo y comunicaciones,No break / UPS
+Equipo de cómputo y comunicaciones,Cámara web
+Equipo de cómputo y comunicaciones,Monitor
+Equipo de cómputo y comunicaciones,Equipo de red
+Equipo de cómputo y comunicaciones,Impresora
+Equipo de cómputo y comunicaciones,Teléfono
+Equipo de cómputo y comunicaciones,Componente de cómputo
+Equipo de cómputo y comunicaciones,Servidor
+Equipo de cómputo y comunicaciones,Escáner
+Equipo audiovisual,Televisión
+Equipo audiovisual,Audio
+Equipo audiovisual,Proyector
+Equipo audiovisual,Pantalla de proyección
+Laboratorio y taller,Báscula / balanza
+Laboratorio y taller,Microscopio
+Laboratorio y taller,Equipo de laboratorio
+Cocina y comedor,Utensilios de cocina
+Cocina y comedor,Electrodoméstico de cocina
+Cocina y comedor,Mueble y equipo de cocina
+Cocina y comedor,Estufa / horno
+Cocina y comedor,Refrigeración
+Climatización y ventilación,Aire acondicionado
+Climatización y ventilación,Ventilación y calentadores
+Seguridad y control de acceso,Cámara de vigilancia
+Seguridad y control de acceso,Control de acceso
+Seguridad y control de acceso,Extinguidor
+Seguridad y control de acceso,Botiquín
+"Maquinaria, herramientas y vehículos",Herramienta y maquinaria
+"Maquinaria, herramientas y vehículos",Vehículo
+Otros bienes,Otro (especificar en la descripción)
