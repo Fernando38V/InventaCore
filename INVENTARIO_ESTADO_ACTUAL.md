@@ -1,6 +1,6 @@
 # INVENTARIO DEL ESTADO ACTUAL — InventaCore
 
-Actualizado: 11/11/2026
+Actualizado: 21/11/2026
 Separa lo que cubre la tesina (alcance aprobado: inventario de equipo electrónico del Departamento de Informática, CONALEP Tijuana II) de lo que el software hace además (ampliaciones, DEC-009). Las decisiones están en DECISIONES.md y las dudas en PENDIENTES.md.
 
 Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta a punta contra la API real), **Pendiente** (aún no se construye).
@@ -18,22 +18,23 @@ Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta 
 | Resguardos en PDF consolidados, dos firmas, reimpresión del original (DEC-007, DEC-016) | Sí | — | Implementado y probado |
 | Dashboard y reportes: inventario, por resguardante, historial (DEC-020) | Sí | — | Implementado y probado |
 | Exportación a Excel (DEC-018) | No | Sí | Implementado y probado |
-| Carga masiva desde plantilla de Excel (DEC-017) | No | Sí | Implementado y probado en el cliente y la API; falta probar la plantilla en Excel real |
+| Carga masiva desde plantilla de Excel (DEC-017) | No | Sí | Implementado y probado en el cliente y la API; plantilla probada en Excel de Windows el 21/11/2026 (desplegables, color con aviso, hojas de consulta protegidas); falta probar la validación de fecha (PEND-021) |
 | Bitácora de auditoría (escritura) (DEC-004) | Sí | — | Implementado |
 | Lectura de la bitácora en el cliente (RF-21) | Sí | — | Implementado y probado (11/11/2026): API de Adad y pantalla `/auditoria/` con filtros, cambios e historial por registro (PEND-024) |
 | Usuarios y Roles y Perfil (RF-02, PEND-019) | Sí | — | Implementado y probado (08/11/2026) |
-| QR: código sin URL, escáner dentro del sistema y búsqueda rápida (DEC-005, RF-19, RF-20, RF-23) | Sí | — | Implementado y probado en el cliente (08/11/2026): QR `IC:<num>` sin URL, escáner con cámara, foto y búsqueda, y buscador en el Dashboard. Falta la prueba en un celular real y definir HTTPS (PEND-025) |
+| QR: código sin URL, escáner dentro del sistema y búsqueda rápida (DEC-005, RF-19, RF-20, RF-23) | Sí | — | Implementado y probado en el cliente (08/11/2026): QR `IC:<num>` sin URL, escáner con cámara, foto y búsqueda, y buscador en el Dashboard. Lectura por foto confirmada en un celular real (19/11/2026); falta la cámara en vivo, que exige HTTPS (PEND-025, PEND-028) |
 
 ## Pruebas
 
-- Cliente: 269 pruebas automáticas, todas OK (11/11/2026); 244 al 08/11/2026; 180 al 05/11/2026, con la API encendida y apagada.
+- Cliente: 291 pruebas automáticas, todas OK (21/11/2026); 269 al 11/11/2026; 244 al 08/11/2026; 180 al 05/11/2026, con la API encendida y apagada.
 - Usuarios y Roles y Perfil (08/11/2026): 44 pruebas automáticas y recorrido contra la API real (alta, contraseña débil rechazada, cambio de contraseña propia, cambio de rol, baja y alta, restablecer contraseña, Consulta sin acceso a Usuarios y Roles).
 - Bitácora (11/11/2026): 25 pruebas automáticas nuevas y recorrido en Chromium contra la API real (filtros, detalle de cambios, historial desde la ficha, enlaces, Consulta bloqueada, celular).
 - Escáner de QR y ojito de contraseña (08/11/2026): 20 pruebas automáticas nuevas y recorrido en Chromium contra la API real (13 comprobaciones OK: foto de QR válido, QR con URL, texto ajeno, artículo inexistente, cámara simulada, sin cámara, tamaño de celular, ojito). No se probó con un celular real.
 - Prueba de punta a punta (05/11/2026): altas, reubicaciones con cambio de resguardante, resguardo RES-0001 con 3 de 4 asignaciones, PDF con las dos firmas, Excel del inventario, y Consulta sin poder emitir.
 - Sin prueba automática de interfaz: la ventana de confirmación y las pantallas se probaron a mano o con navegador automatizado.
-- Falta: prueba manual de Fernando en navegador, prueba de carga con volumen real y prueba de la plantilla en Excel.
+- Catálogos iniciales, colores sugeridos, orden de ubicaciones y Donado violeta (21/11/2026, DEC-022): 14 pruebas automáticas nuevas (10 del cliente y 4 de la API) y prueba manual de Fernando en el sistema y en Excel de Windows. API: 333 pruebas en el entorno de desarrollo del asistente (SQLite); la única falla, `test_busqueda_por_palabras`, depende de MariaDB y se debe correr en el equipo de Fernando.
+- Falta: prueba de carga con volumen real, validación de fecha de la plantilla en Excel, prueba de la cámara en vivo con HTTPS y las pruebas de Informática en el servidor.
 
 ## Pendientes principales
 
-Ver PENDIENTES.md: HTTPS y prueba en celular del escáner de QR (PEND-025), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).
+Ver PENDIENTES.md: despliegue en servidor local y HTTPS (PEND-028, PEND-025), etiqueta imprimible del QR (PEND-029), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).

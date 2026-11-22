@@ -1,6 +1,6 @@
 # DECISIONES — InventaCore
 
-Última actualización: 08/11/2026
+Última actualización: 21/11/2026
 Aquí solo van decisiones que Fernando aprobó. Las propuestas y dudas van en PENDIENTES.md.
 Fuente de las decisiones DEC-017 a DEC-019 y de los cambios del 01/11/2026: reunión con la Contadora (29/10/2026) y confirmaciones de Fernando (29/10 y 01/11/2026).
 
@@ -167,3 +167,15 @@ Decisión: El costo de adquisición de un bien Donado es opcional: ni se exige n
 - Implementado: la API lo acepta (04/11/2026) y el cliente ya no lo bloquea en el alta ni en la corrección. Probado: un Donado con costo 850.00 se guardó y siguió como Donado.
 - Se descarta un valor 0 por defecto: un 0 afirma que el bien costó cero, que no es lo mismo que no tener el dato, y entra en sumas y reportes.
   Impacto: RF de alta y de corrección; frontend (quitar el bloqueo); pruebas.
+
+## DEC-022 — Catálogos iniciales, colores sugeridos, orden de ubicaciones y color de Donado
+
+Estado: CONFIRMADA (21/11/2026; Fernando aprobó los cambios y los probó en el sistema y en Excel de Windows)
+Decisión:
+
+- El sistema arranca con una base limpia y catálogos iniciales del CONALEP Tijuana II (9 categorías, 43 tipos de artículo y 83 ubicaciones, según los CSV del 21/11/2026) que se cargan con `python manage.py cargar_catalogos_iniciales` desde `api/catalogos/datos/`. El comando es idempotente (omite lo que ya existe por nombre, no modifica ni desactiva nada, tiene `--simular`) y los códigos los genera el sistema (DEC-015). Los departamentos quedan fuera hasta definir cuáles y cuántos son.
+- Color sigue siendo texto libre, obligatorio y de máximo 25 caracteres (DEC-011). El alta, la corrección y la plantilla ofrecen 32 colores sugeridos sin bloquear otros: el cliente con una lista de sugerencias (constante `COLORES_SUGERIDOS` en `client/client/inventario.py`, con una prueba que la compara con el CSV) y la plantilla con una lista que avisa, pero deja continuar.
+- Las ubicaciones se muestran en orden natural (Salón 1, 2, 3… 10, 11) en los desplegables del cliente y en la lista de la plantilla, sin cambiar códigos ni nombres.
+- Donado se muestra en violeta en todo el sistema (listado, ficha, dashboard y alta). El tono lo define la API (`TONO_REGISTRO`, `'DON': 'violeta'`), una sola fuente.
+- Plantilla de carga masiva: las hojas Listas y Tipos quedan visibles como consulta y protegidas contra edición, sin contraseña; se puede seleccionar y copiar. Reemplaza el "ocultar" de PEND-021 y de DEC-017.
+  Impacto: `api/` (plantilla, serializador y comando) y `client/`; pruebas; contrato de la API (nota del 21/11/2026).

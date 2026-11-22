@@ -357,7 +357,17 @@ Cambios de la v13 (DEC-017 y DEC-021, 05/11/2026):
   confirmación con ese número; la API no la exige.
 - Confirmar trae `folios_nuevos` y cada artículo cargado `folio_nuevo`; el `identificador` es el folio asignado.
 - La plantilla oculta las hojas *Listas* y *Tipos* (los desplegables siguen funcionando), trae las instrucciones
-  en 5 pasos con un ejemplo en la hoja *Instrucciones*, y sus hojas de datos van vacías.
+  en 5 pasos con un ejemplo en la hoja *Instrucciones*, y sus hojas de datos van vacías. (Cambió el 21/11/2026:
+  ver abajo.)
+- Cambios del 21/11/2026 (DEC-022, parche de Fernando sobre `api/`; Adad debe revisarlo): *Listas* y *Tipos* quedan
+  visibles y protegidas sin contraseña (se puede seleccionar y copiar, no editar); *Listas* trae la columna Color
+  (32 sugerencias de `catalogos/datos/colores_sugeridos.csv`) y la columna Color de la plantilla usa una lista
+  con aviso (`errorStyle='warning'`), que deja escribir otro color; las ubicaciones van en orden natural
+  (Salón 1, 2… 10); las instrucciones son 6 puntos; la columna auxiliar de tipos pasó de G:H a H:I.
+  El tono del estado de registro Donado cambió de `azul` a `violeta` (`TONO_REGISTRO` en `articulos/serializers.py`;
+  el ejemplo de arriba con `"tono": "azul"` para DON es anterior). Propuesta (sin confirmar): la plantilla valida la
+  Fecha de adquisición como fecha entre 01/01/1980 y hoy, y la carga masiva rechaza fechas anteriores al 01/01/1980
+  (`FECHA_MINIMA` en `articulos/carga_masiva.py`).
 - Costo en un bien Donado (DEC-021): opcional y editable. `PATCH /articulos/{num}/` con `costo_adquisicion`
   funciona también en un Donado (con `motivo` y bitácora; el estado de registro sigue siendo Donado). `null` lo
   deja vacío; nunca se guarda 0 por omisión. Antes respondía `400` "En un bien Donado el costo no se modifica."

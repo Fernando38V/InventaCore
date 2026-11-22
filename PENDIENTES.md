@@ -1,6 +1,6 @@
 # PENDIENTES — InventaCore
 
-Última actualización: 12/11/2026
+Última actualización: 21/11/2026
 Dudas abiertas, propuestas por validar y preguntas para la Contadora o Adad. No implementar como definitivo nada de aquí.
 
 ## Cerrados el 29/10 y 01/11/2026 (pasaron a DECISIONES.md)
@@ -73,16 +73,19 @@ Prioridad: MEDIA
 
 PEND-021 — Ajustes a la carga masiva y a la plantilla (04/11/2026)
 Prioridad: ALTA (antes de entregar la plantilla a la Contadora)
-Estado (06/11/2026): casi todo implementado. Cliente: costo en Donados, casilla de folios nuevos, columna de avisos y pantalla de carga. API (Adad, commit a043816): S/S y similares como vacío, aviso de posible duplicado, hojas Listas y Tipos ocultas. Falta revisar en Excel real la plantilla (instrucciones, ejemplo, columnas obligatorias).
+Estado (06/11/2026): casi todo implementado. Cliente: costo en Donados, casilla de folios nuevos, columna de avisos y pantalla de carga. API (Adad, commit a043816): S/S y similares como vacío, aviso de posible duplicado, hojas Listas y Tipos ocultas.
+Actualización (21/11/2026): Fernando probó la plantilla en Excel de Windows (ver abajo). Las hojas Listas y Tipos ya no se ocultan: quedan visibles y protegidas (DEC-022). Falta probar la validación de fecha (propuesta, al final de esta lista).
 
 - S/S, S/M, N/A o guion en marca, modelo o serie: tratarlos como vacío (`_texto()` en `api/articulos/carga_masiva.py`) con aviso que no bloquea.
 - Comodato o Enser sin folio: la vista previa muestra "se asignarán N folios nuevos" y una casilla obligatoria; el resultado lista los folios asignados. Sin la casilla, el botón Confirmar no se habilita.
 - Posible duplicado en filas sin folio ni serie: aviso por fila (no rechazo) cuando coinciden tipo, descripción, marca, modelo, color, ubicación y resguardante con un artículo existente o con otra fila del archivo.
-- Plantilla: ocultar las hojas Listas y Tipos; instrucciones en 5 pasos con "pegar solo valores", columnas obligatorias marcadas y una fila de ejemplo; entregarla vacía y generada con los catálogos reales (se genera con `generar_plantilla()`, no se edita el .xlsx).
+- Plantilla: ocultar las hojas Listas y Tipos (reemplazado el 21/11/2026: visibles y protegidas, DEC-022); instrucciones en 5 pasos con "pegar solo valores", columnas obligatorias marcadas y una fila de ejemplo; entregarla vacía y generada con los catálogos reales (se genera con `generar_plantilla()`, no se edita el .xlsx).
 - Propuesta (no es decisión): "revertir lote" solo para Administrador dentro de las primeras 24 horas, porque hoy un artículo cargado por error no se puede borrar ni dar de baja. Pendiente de decidir.
 - Quitar el bloqueo del costo en bienes Donados en el cliente (DEC-021): HECHO.
 - Preguntar a la Contadora: si usa Excel o Google Sheets (el desplegable dependiente usa INDIRECT) y si todos los bienes tienen folio o marbete.
-- Probar en Excel real que los desplegables dependientes funcionan.
+- Probar en Excel real que los desplegables dependientes funcionan: HECHO el 21/11/2026 (Fernando, Excel de Windows). Categoría y tipo dependientes OK; ubicaciones en orden natural; color con aviso al escribir uno que no está en la lista; Listas y Tipos protegidas, con selección y copia permitidas; carga masiva de 2 Activos sin aviso de hojas ignoradas.
+- Observación (21/11/2026): al pegar valores en una celda con lista, Excel no valida (por ejemplo, pegar tipos de artículo en la columna Categoría). Es normal en Excel: la API vuelve a validar todo al subir el archivo y rechaza la fila.
+- Fecha de adquisición en la plantilla. Hallazgo de Fernando (21/11/2026): la celda aceptaba cualquier cosa; un "20" quedaba como 20/01/1900 y la API lo habría aceptado. Excel de escritorio no trae selector de calendario en la celda (hacerlo requeriría ActiveX o macros, un .xlsm solo para Windows con avisos de seguridad). PROPUESTA (no es decisión, falta probarla en Excel): validación de fecha entre 01/01/1980 y hoy, con mensaje al seleccionar la celda y aviso de error que bloquea; y, porque pegar se salta la validación, la carga masiva rechaza fechas anteriores al 01/01/1980. El límite de 1980 es una propuesta y se puede cambiar (`FECHA_MINIMA`).
 
 PEND-022 — Resguardos como pestañas dentro de Movimientos
 Estado: PROPUESTA implementada (05/11/2026); falta que Fernando la acepte
@@ -104,7 +107,7 @@ Prioridad: —
 - Detalles a tener en cuenta: la lista de módulos del filtro está fija en el cliente (`auditoria/views.py`, MODULOS) porque la API no la publica; si se agrega un módulo nuevo hay que añadirlo. Las bajas lógicas (DELETE) hoy no se registran en ninguna parte, pero el filtro ya las contempla. Los registros de carga masiva (`lote-<huella>`) no tienen enlace porque no hay ficha de lote.
 
 PEND-025 — Escáner de QR y búsqueda rápida (RF-19, RF-20, RF-23)
-Estado: IMPLEMENTADO Y PROBADO en el cliente (08/11/2026); falta la prueba con un celular real y la decisión de HTTPS
+Estado: IMPLEMENTADO Y PROBADO en el cliente (08/11/2026); la lectura por foto se confirmó en un celular real (19/11/2026); falta la cámara en vivo, que depende de HTTPS (PEND-028)
 Prioridad: MEDIA
 
 - Objetivo (confirmado): consulta rápida de un artículo, abriendo su ficha completa desde el celular. No incluye toma de inventario por escaneo.
@@ -113,9 +116,9 @@ Prioridad: MEDIA
 - Hecho: buscador rápido en el Dashboard (RF-23) y botón "Escanear QR" en el Dashboard y en el listado de artículos.
 - Probado: pruebas automáticas del cliente (244 OK) y recorrido en navegador real contra la API (Chromium): foto de QR válido abre la ficha; QR con URL, texto ajeno y artículo inexistente muestran mensaje claro; cámara simulada lee el QR y abre la ficha; sin cámara muestra mensaje y deja la foto y la búsqueda; pantalla sin desborde en tamaño de celular.
 - Prueba con celular real (15/11/2026, Fernando): la cámara en vivo no está disponible por HTTP (esperado). Al fotografiar con el celular la imagen del QR abierta en la laptop, la lectura fallaba, incluso con la cámara nativa del celular. Con simulaciones de fotos difíciles (visor oscuro, QR chico, ángulo, reflejo y trama de pantalla) el QR anterior (200 px, margen de 2 módulos) fallaba y el nuevo se leía. Ajuste: imagen más grande (14 px por módulo, unos 400 px), margen de 4 módulos (estándar) y corrección de errores Q; pista de uso en la pantalla del escáner. Falta repetir la prueba con el celular real y con un QR impreso.
-- Prueba del 19/11/2026 (iPhone, foto tomada a la pantalla de la laptop con el QR ya agrandado): seguía sin leerse. Causa probable, sin confirmar: las fotos del celular son de 12 a 48 megapíxeles y el lector falla con ellas; además el aviso de error salía arriba, fuera de la vista. Ajuste: la foto se reduce antes de leerla (con reintentos con margen blanco y, al final, la imagen original), botones separados "Tomar foto" y "Elegir imagen", y el aviso junto a esos botones. Probado con 281 pruebas automáticas y en navegador con una foto simulada de 24 MP. Falta confirmarlo con el celular real.
-- NO probado: cámara de un celular real y navegadores de celular (iOS Safari, Chrome Android). La cámara en vivo exige HTTPS o localhost; sin HTTPS el botón de cámara se desactiva y queda la foto del QR (funciona por HTTP).
-- Pendiente de decisión: cómo dar HTTPS en el despliegue (túnel para demostración, certificado local o certificado real del servidor de la institución). HTTPS también protege las contraseñas en tránsito: consultarlo con el asesor y el área de Informática.
+- Prueba del 19/11/2026 (iPhone, foto tomada a la pantalla de la laptop con el QR ya agrandado): seguía sin leerse. Causa probable, sin confirmar: las fotos del celular son de 12 a 48 megapíxeles y el lector falla con ellas; además el aviso de error salía arriba, fuera de la vista. Ajuste: la foto se reduce antes de leerla (con reintentos con margen blanco y, al final, la imagen original), botones separados "Tomar foto" y "Elegir imagen", y el aviso junto a esos botones. Probado con 281 pruebas automáticas y en navegador con una foto simulada de 24 MP. Confirmado por Fernando con el celular real (19/11/2026): al tomar la foto del QR, lo lee.
+- NO probado: la cámara en vivo en un celular real (exige HTTPS) y otros navegadores de celular (por ejemplo Chrome Android). La cámara en vivo exige HTTPS o localhost; sin HTTPS el botón de cámara se desactiva y queda la foto del QR (funciona por HTTP).
+- Pendiente de decisión: cómo dar HTTPS en el despliegue; ver PEND-028. HTTPS también protege las contraseñas en tránsito.
 - Si en el futuro se imprimen etiquetas, usar solo el formato `IC:<num>`. Hasta el 08/11/2026 no se han impreso etiquetas.
 
 PEND-023 — Carga masiva: folio obligatorio
@@ -171,6 +174,25 @@ Prioridad: MEDIA (ampliación del software)
 - Primera versión: una foto por artículo; varias fotos quedan fuera.
   Impacto si se aprueba: modelo y migración (campo de imagen), API de subida y lectura, cliente (alta, ficha), pruebas, DER y diccionario.
 
+PEND-028 — Despliegue en un servidor local del plantel
+Estado: RESPUESTA DEL ASESOR (19/11/2026); falta confirmarla con el área de Informática. No es decisión.
+Prioridad: ALTA (la estadía termina el 26/11/2026)
+
+- Respuestas del asesor empresarial a las preguntas de Fernando: el sistema se usará solo dentro del plantel, sobre la red administrativa, que cubre todo el plantel; no ve necesario un dominio porque no se expondrá a internet (si Informática lo considera necesario, no hay inconveniente, es solo una sugerencia); y se alojaría en un servidor local, no en la nube, por el poco uso esperado (unos 3 usuarios principales).
+- Consecuencia para el escáner de QR (PEND-025): la cámara en vivo exige HTTPS o localhost; "Tomar foto" y "Elegir imagen" funcionan por HTTP (probado). Opciones, sin decidir: (1) sin HTTPS, solo con foto; (2) certificado propio, gratis, instalado en cada equipo que escanee; (3) dominio de pago con certificado Let's Encrypt apuntando a la IP interna (unos 10 a 15 USD al año, precio aproximado sin verificar). Fernando prefiere lo gratuito y lo presentará a Informática con las opciones.
+- Por confirmar con Informática: sistema operativo del servidor, IP fija, que los equipos y celulares que escanean estén en la red administrativa, que el servidor se alcance desde ambos edificios, y quién da mantenimiento después del 26/11/2026 (entregar manual de uso y de mantenimiento).
+- Lista mínima para el servidor (propuesta): Python 3.12.x; MariaDB como servicio, no XAMPP, con usuario propio y contraseña (hoy es root sin contraseña); DEBUG apagado y SECRET_KEY fuera del repositorio; ALLOWED_HOSTS con la IP del servidor; API solo en 127.0.0.1 y solo el cliente accesible desde la red; servidor de aplicaciones en lugar de runserver, con servicios que arranquen solos; archivos estáticos (`collectstatic`); respaldos diarios de inventacore_db en otro equipo, con una restauración probada; migraciones primero api/ y luego client/; base limpia con catálogos iniciales (DEC-022) y los 3 usuarios ADMINISTRADOR.
+- La API usa MariaDB (`inventacore_db`); el cliente usa su propia base SQLite (PEND-011).
+- Sugerencia para Adad (opcional): desactivar en producción la interfaz navegable de DRF.
+
+PEND-029 — Etiqueta imprimible del QR (marbete)
+Estado: PROPUESTA (mockup en SVG, no está en el repositorio); falta validarla con la Contadora y la institución
+Prioridad: MEDIA
+
+- Tres formatos propuestos (A, B y C) que replican la etiqueta actual del CONALEP más el QR. El QR conserva el formato `IC:<num>` sin URL (DEC-005). El resguardante va en los formatos A y B (decisión de Fernando); si cambia, la institución reimprime.
+- El marbete de los Activos (SAACG.NET) es un dato oficial que el sistema no genera; Comodatos y Enseres usan el folio interno (DEC-010). No lleva cuenta contable (RF-26).
+- Falta: plantilla de la Contadora y tamaño de papel o de etiqueta. Después, construir la impresión de una etiqueta desde la ficha y por lote desde el listado (solo cliente). Imprimir y pegar las etiquetas corresponde a la institución (DEC-005).
+
 ## Para la Contadora o la institución
 
 PEND-007 — Personal que deja la institución
@@ -191,7 +213,7 @@ PEND-011 — Revisión del repositorio (01/11/2026)
 - Frontend: login real, rol real y pantallas de catálogos y personal conectadas a la API (01/11/2026). Artículos (la URL pasó de /equipos/ a /articulos/, con redirección), movimientos y carga masiva conectados (04/11/2026). Resguardos (pestañas dentro de Movimientos), Dashboard y Reportes con Excel conectados a la API y unidos a main (05/11/2026). Suite del cliente: 180 pruebas OK. Usuarios y Roles y Perfil conectados el 08/11/2026 (PEND-019). Escáner de QR y buscador rápido implementados el 08/11/2026 (PEND-025, sin prueba en celular real); Bitácora conectada el 11/11/2026 (PEND-024).
 - Nombre de la Contadora en settings.py: confirmado como Lic. Jania Elizabeth Cardenas Vela (04/11/2026); moverlo a variable de entorno es opcional (repositorio privado).
 - SECRET_KEY y usuario root sin contraseña en settings.py: aceptable en desarrollo, mover a variables de entorno antes de desplegar.
-- client/ apunta a la misma base inventacore_db como root aunque no tiene modelos.
+- Corregido (verificado el 21/11/2026 en `client/client/settings.py`): client/ usa su propia base SQLite (`db.sqlite3`) y ya no apunta a inventacore_db; solo api/ usa MariaDB.
 
 PEND-012 — Avances de Adad
 
@@ -229,7 +251,7 @@ Prioridad: BAJA
 - Actualizar RF/RNF, DER y diccionario solo en lo que cambió (DEC-001 a DEC-018), derivando DER y diccionario del esquema final.
 - RF nuevos por redactar: carga masiva y exportación a Excel (ampliación, no alcance de la tesina).
 - Renombrar EQUIPO a ARTICULO en DER y diccionario.
-- Tesina: decidir si dice MySQL o MariaDB, corregir 5.14 y Kanban.
+- Tesina: decidir si dice MySQL o MariaDB (en desarrollo XAMPP trae MariaDB y Django la detecta sola), corregir 5.14 y Kanban.
 - INVENTARIO_ESTADO_ACTUAL.md: dos columnas, alcance de la tesina y alcance del software.
 - Evidencia de pruebas de resguardos, dashboard y reportes (05/11/2026): capturas, PDF RES-0001 de ejemplo y las pruebas automáticas del cliente (`python manage.py test`). Guardarlas para la tesina.
 - Evidencia de pruebas de catálogos y personal: pruebas automáticas del cliente (`python manage.py test catalogos`) y pruebas manuales del 01/11/2026 con capturas y registros de bitácora. Guardar las capturas.
