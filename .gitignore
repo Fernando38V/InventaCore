@@ -53,3 +53,7 @@ api/resguardos_pdf/
 ~$*
 
 api/pruebas_locales/
+
+#env
+.env
+*.env
