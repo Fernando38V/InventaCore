@@ -186,12 +186,14 @@ Prioridad: ALTA (la estadía termina el 26/11/2026)
 - Sugerencia para Adad (opcional): desactivar en producción la interfaz navegable de DRF.
 
 PEND-029 — Etiqueta imprimible del QR (marbete)
-Estado: PROPUESTA (mockup en SVG, no está en el repositorio); falta validarla con la Contadora y la institución
+Estado: PARCIAL — formato A implementado (DEC-023); faltan las medidas reales, la prueba en papel y los formatos B y C
 Prioridad: MEDIA
 
-- Tres formatos propuestos (A, B y C) que replican la etiqueta actual del CONALEP más el QR. El QR conserva el formato `IC:<num>` sin URL (DEC-005). El resguardante va en los formatos A y B (decisión de Fernando); si cambia, la institución reimprime.
-- El marbete de los Activos (SAACG.NET) es un dato oficial que el sistema no genera; Comodatos y Enseres usan el folio interno (DEC-010). No lleva cuenta contable (RF-26).
-- Falta: plantilla de la Contadora y tamaño de papel o de etiqueta. Después, construir la impresión de una etiqueta desde la ficha y por lote desde el listado (solo cliente). Imprimir y pegar las etiquetas corresponde a la institución (DEC-005).
+- Hecho (24/11/2026): formato A (réplica de la etiqueta del CONALEP + QR `IC:<núm>`), impresión desde la ficha y por lote desde el listado, y logos. Ver DEC-023.
+- Falta: que Fernando mida una etiqueta física (tamaño, márgenes y separación de la hoja) para corregir `client/equipos/marbete.py`, que hoy usa las medidas de los PDF de la institución (101.6 × 50.8 mm, 2 × 5); después, una primera impresión de prueba en papel normal y luego en la hoja de etiquetas.
+- Diferido: formato B (compacta, 60 × 30 mm) y formato C (solo QR, 20 × 20 mm), para bienes pequeños. Requieren una hoja de etiquetas distinta y sus medidas; cada formato nuevo se acomoda a una sola hoja ya medida.
+- El marbete de los Activos (SAACG.NET) es un dato oficial que el sistema no genera; Comodatos y Enseres usan el folio interno (DEC-010). No lleva cuenta contable (RF-26). Imprimir y pegar las etiquetas corresponde a la institución (DEC-005).
+- Posible mejora, no decidida: el resguardante sale como nombre de pila primero y la etiqueta física lo trae con apellidos primero; igualarlo requiere campos separados en la API (decisión con Adad).
 
 ## Para la Contadora o la institución
 

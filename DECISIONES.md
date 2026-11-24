@@ -179,3 +179,16 @@ Decisión:
 - Donado se muestra en violeta en todo el sistema (listado, ficha, dashboard y alta). El tono lo define la API (`TONO_REGISTRO`, `'DON': 'violeta'`), una sola fuente.
 - Plantilla de carga masiva: las hojas Listas y Tipos quedan visibles como consulta y protegidas contra edición, sin contraseña; se puede seleccionar y copiar. Reemplaza el "ocultar" de PEND-021 y de DEC-017.
   Impacto: `api/` (plantilla, serializador y comando) y `client/`; pruebas; contrato de la API (nota del 21/11/2026).
+
+## DEC-023 — Marbete imprimible (formato A) e impresión por lote
+
+Estado: CONFIRMADA (24/11/2026; Fernando lo revisó en pantalla y en el PDF de impresión, y leyó el QR con un celular)
+Decisión:
+
+- El marbete replica la etiqueta física del CONALEP (encabezado institucional, logos de la SE / Gobierno de Baja California y de CONALEP) y agrega el QR `IC:<núm>` (DEC-005). Hoja carta de 10 etiquetas de 4 × 2 pulgadas (2 × 5). Es la variante A de PEND-029.
+- Renglones, de arriba abajo: marbete o folio interno (identificador); número de serie, solo si el artículo lo tiene; nombre del bien; resguardante. El nombre del bien es el **tipo de artículo**, igual que en las etiquetas físicas ("MONITOR"); en el Excel de la Contadora esa información está en la columna "Descripción".
+- La descripción del artículo (notas y observaciones, DEC-011) **no se imprime**. Marca, modelo, color, ubicación y costo tampoco. La línea extra de los lockers (56101520) no va porque no existe en el modelo.
+- Se imprime desde la ficha (un artículo, con "Lugar en la hoja" para reutilizar una hoja a medias) y desde el listado: casillas de selección que se conservan al cambiar de página, buscar o filtrar (en esa pestaña del navegador) y el botón "Imprimir marbetes". La primera hoja empieza en el lugar elegido y las demás en el 1. Tope de 50 etiquetas por impresión (una consulta a la API por artículo).
+- Todo es del cliente: no cambia `api/`, el modelo ni los endpoints. Todos los roles, incluido Consulta, pueden imprimir.
+- Los formatos B (compacta, 60 × 30 mm) y C (solo QR, 20 × 20 mm) quedan diferidos hasta contar con una hoja de etiquetas para bienes pequeños y sus medidas (PEND-029).
+  Impacto: `client/` (vista, plantillas, `equipos/marbete.py`, logos en `static/img/marbete/`); pruebas.
