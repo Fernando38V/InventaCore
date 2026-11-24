@@ -1,0 +1,128 @@
+{% extends "base/public_base.html" %}
+{% load static l10n %}
+
+{% block title %}Marbete {{ identificador }} · InventaCore{% endblock %}
+
+{% block extra_css %}
+{% localize off %}
+<style>
+  :root {
+    --m-ancho: {{ medidas.ancho }}mm;
+    --m-alto: {{ medidas.alto }}mm;
+    --m-hoja-ancho: {{ medidas.hoja_ancho }}mm;
+    --m-hoja-alto: {{ medidas.hoja_alto }}mm;
+  }
+  @page { size: letter; margin: 0; }
+
+  body { background: #eef1ef; }
+  .marbete-panel { max-width: 760px; margin: 24px auto 16px; padding: 0 16px; }
+  .marbete-panel__nota { font-size: .85rem; color: #5b6b63; }
+
+  .marbete-hoja {
+    position: relative; width: var(--m-hoja-ancho); height: var(--m-hoja-alto);
+    margin: 0 auto 32px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  .marbete {
+    position: absolute; 
+    width: var(--m-ancho); height: var(--m-alto); box-sizing: border-box;
+    border: .2mm solid #c9cfcc; border-radius: 3mm; overflow: hidden;
+    padding: 2mm 2.5mm; color: #000; background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    display: grid; grid-template-columns: 1fr 27mm; grid-template-rows: auto 1fr;
+    column-gap: 2mm;
+  }
+  .marbete__encabezado {
+    grid-column: 1 / 3; display: grid; grid-template-columns: 24mm 1fr 24mm;
+    align-items: center; min-height: 13mm;
+  }
+  .marbete__logo { max-width: 24mm; max-height: 13mm; object-fit: contain; }
+  .marbete__logo--derecho { justify-self: end; }
+  .marbete__institucion { text-align: center; font-size: 7pt; line-height: 1.15; }
+  .marbete__cuerpo {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; gap: 1.2mm; min-width: 0;
+  }
+  .marbete__identificador { font-size: 14pt; font-weight: 700; line-height: 1.1; }
+  .marbete__serie { font-size: 9pt; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+  .marbete__nombre {
+    font-size: 10pt; font-weight: 700; line-height: 1.15; text-transform: uppercase;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .marbete__nombre--chico { font-size: 8pt; -webkit-line-clamp: 3; }
+  .marbete__resguardante {
+    font-size: 7pt; font-weight: 700; text-transform: uppercase; margin-top: 1.5mm;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  .marbete__qr { display: flex; align-items: center; justify-content: center; }
+  .marbete__qr img { width: 27mm; height: 27mm; image-rendering: pixelated; }
+
+  @media print {
+    body { background: #fff; }
+    .no-imprimir { display: none !important; }
+    .marbete-hoja { margin: 0; box-shadow: none; height: calc(var(--m-hoja-alto) - 1mm); overflow: hidden; }
+    .marbete-hoja + .marbete-hoja { break-before: page; }
+    .marbete { border-color: transparent; }  
+  }
+</style>
+{% endlocalize %}
+{% endblock %}
+
+{% block content %}
+<div class="marbete-panel no-imprimir">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ volver_url }}">{{ volver_texto }}</a>
+    <form method="get" class="d-flex align-items-center gap-2 ms-auto">
+      {% for n in nums %}<input type="hidden" name="num" value="{{ n }}">{% endfor %}
+      <label for="posicion" class="small mb-0">Lugar en la hoja</label>
+      <select id="posicion" name="posicion" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        {% for p in posiciones %}<option value="{{ p }}"{% if p == posicion %} selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm btn-outline-secondary">Cambiar</button></noscript>
+    </form>
+    <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">Imprimir</button>
+  </div>
+  <p class="marbete-panel__nota mb-1">
+    Hoja carta de 10 etiquetas (2 × 5) de {{ medidas.ancho|unlocalize }} × {{ medidas.alto|unlocalize }} mm.
+    Al imprimir, usa escala 100 % (sin "Ajustar a la página") y sin márgenes.
+  </p>
+  {% if total_etiquetas > 1 %}
+  <p class="marbete-panel__nota mb-1">
+    {{ total_etiquetas }} etiquetas en {{ hojas|length }} hoja{{ hojas|length|pluralize }};
+    la primera empieza en el lugar {{ posicion }}.
+  </p>
+  {% endif %}
+  {% for aviso in avisos %}
+  <p class="marbete-panel__nota mb-1 text-warning-emphasis">{{ aviso }}</p>
+  {% endfor %}
+  {% if sin_resguardante %}
+  <p class="marbete-panel__nota mb-1">
+    {% if total_etiquetas == 1 %}Este artículo no tiene resguardante; el renglón queda vacío.
+    {% else %}{{ sin_resguardante }} de las etiquetas no tiene resguardante; ese renglón queda vacío.{% endif %}
+  </p>
+  {% endif %}
+</div>
+
+{% for hoja in hojas %}
+<div class="marbete-hoja">
+  {% for lugar in hoja %}{% with e=lugar.etiqueta %}
+  <div class="marbete" data-posicion="{{ lugar.posicion }}" style="top: {{ lugar.arriba|unlocalize }}mm; left: {{ lugar.izquierda|unlocalize }}mm;">
+    <div class="marbete__encabezado">
+      <div>{% if logo_izquierdo %}<img class="marbete__logo" src="{% static logo_izquierdo %}" alt="">{% endif %}</div>
+      <div class="marbete__institucion">{% for linea in encabezado %}{{ linea }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
+      <div>{% if logo_derecho %}<img class="marbete__logo marbete__logo--derecho" src="{% static logo_derecho %}" alt="">{% endif %}</div>
+    </div>
+    <div class="marbete__cuerpo">
+      <div class="marbete__identificador">{{ e.identificador }}</div>
+      {% if e.num_serie %}<div class="marbete__serie">{{ e.num_serie }}</div>{% endif %}
+      <div class="marbete__nombre{% if e.nombre_chico %} marbete__nombre--chico{% endif %}">{{ e.nombre }}</div>
+      <div class="marbete__resguardante">{{ e.resguardante }}</div>
+    </div>
+    <div class="marbete__qr">
+      <img src="{% url 'equipos:qr' e.num %}" alt="Código QR del artículo">
+    </div>
+  </div>
+  {% endwith %}{% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

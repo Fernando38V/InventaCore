@@ -107,6 +107,7 @@
   <table class="tabla-equipos">
     <thead>
       <tr>
+        <th class="col-marbete"><input type="checkbox" id="marcarPagina" class="form-check-input" aria-label="Seleccionar los artículos de esta página para imprimir su marbete"></th>
         <th>Identificador</th>
         <th>Artículo</th>
         <th>Tipo</th>
@@ -119,6 +120,10 @@
     <tbody>
       {% for eq in equipos %}
       <tr>
+        <td class="col-marbete" data-label="Marbete">
+          <input type="checkbox" class="form-check-input marcar-marbete" value="{{ eq.num }}"
+                 aria-label="Seleccionar {{ eq.identificador }} para imprimir su marbete">
+        </td>
         <td data-label="Identificador">
           <a class="celda-id" href="{% url 'equipos:detalle' eq.num %}">{{ eq.identificador }}</a>
           <span class="celda-secundaria">{{ eq.origen.nombre }}</span>
@@ -208,7 +213,51 @@
 
 {% block extra_js %}
 {{ block.super }}
+<div id="barraMarbetes" class="barra-marbetes" hidden>
+  <span><strong id="cuentaMarbetes">0</strong> seleccionado(s) para marbete</span>
+  <a id="imprimirMarbetes" class="btn btn-primary btn-sm" href="{% url 'equipos:marbetes' %}">Imprimir marbetes</a>
+  <button type="button" id="vaciarMarbetes" class="btn btn-outline-secondary btn-sm">Vaciar selección</button>
+</div>
 <script>
+  // Selección de artículos para imprimir marbetes: se guarda en esta pestaña (sessionStorage)
+  // para que siga al cambiar de página, buscar o filtrar. El tope por impresión es de 50.
+  (function () {
+    var CLAVE = 'ic_marbetes', TOPE = 50;
+    function leer() { try { return JSON.parse(sessionStorage.getItem(CLAVE)) || []; } catch (e) { return []; } }
+    function guardar(l) { try { sessionStorage.setItem(CLAVE, JSON.stringify(l)); } catch (e) {} }
+    var cajas = Array.prototype.slice.call(document.querySelectorAll('.marcar-marbete'));
+    var todas = document.getElementById('marcarPagina');
+    var barra = document.getElementById('barraMarbetes');
+    function pintar() {
+      var l = leer();
+      cajas.forEach(function (c) { c.checked = l.indexOf(c.value) !== -1; });
+      if (todas) todas.checked = cajas.length > 0 && cajas.every(function (c) { return c.checked; });
+      document.getElementById('cuentaMarbetes').textContent = l.length;
+      barra.hidden = l.length === 0;
+      var q = l.slice(0, TOPE).map(function (n) { return 'num=' + encodeURIComponent(n); }).join('&');
+      document.getElementById('imprimirMarbetes').href = '{% url "equipos:marbetes" %}?' + q;
+    }
+    cajas.forEach(function (c) {
+      c.addEventListener('change', function () {
+        var l = leer(), i = l.indexOf(c.value);
+        if (c.checked && i === -1) l.push(c.value);
+        if (!c.checked && i !== -1) l.splice(i, 1);
+        guardar(l); pintar();
+      });
+    });
+    if (todas) todas.addEventListener('change', function () {
+      var l = leer();
+      cajas.forEach(function (c) {
+        var i = l.indexOf(c.value);
+        if (todas.checked && i === -1) l.push(c.value);
+        if (!todas.checked && i !== -1) l.splice(i, 1);
+      });
+      guardar(l); pintar();
+    });
+    document.getElementById('vaciarMarbetes').addEventListener('click', function () { guardar([]); pintar(); });
+    pintar();
+  })();
+
   document.querySelectorAll('[data-autosubmit]').forEach(function (sel) {
     sel.addEventListener('change', function () {
       document.getElementById('formFiltros').submit();
@@ -220,6 +269,14 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/catalogos.css' %}">
 <style>
+  .col-marbete { width: 38px; text-align: center; }
+  .barra-marbetes {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1030;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+    background: #fff; border: 1px solid var(--ic-border); border-radius: 12px;
+    padding: 10px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: .9rem;
+  }
+  .barra-marbetes[hidden] { display: none; }
   .lista-header {
     display: flex;
     align-items: center;
@@ -531,6 +588,7 @@
   }
 
   @media (max-width: 760px) {
+    .col-marbete { width: auto; text-align: left; }
 
     .filtros__selects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 

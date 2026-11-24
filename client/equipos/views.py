@@ -11,6 +11,7 @@ from io import BytesIO
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.staticfiles import finders
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render, reverse
 from django.utils import timezone
@@ -22,6 +23,7 @@ from client.inventario import (
     opciones_personal, opciones_tipos, resumen_movimiento)
 from client.utils import contexto_paginacion, errores_api, es_admin, numero_de_pagina
 
+from . import marbete as medidas_marbete
 from . import qr as codigo_qr
 
 FILTROS = ('categoria', 'ubicacion', 'estado_operativo', 'estado_registro', 'origen')
@@ -73,6 +75,100 @@ def qr_equipo(request, num):
         respuesta['Content-Disposition'] = (
             'attachment; filename="QR-articulo-{}.png"'.format(num))
     return respuesta
+
+
+def _etiqueta(equipo):
+    """Lo que lleva impreso un marbete: identificador, tipo de artículo (nombre del bien),
+    resguardante y el QR del artículo. La descripción (notas) no se imprime."""
+    nombre = (equipo.get('tipo_articulo') or {}).get('nombre') or ''
+    return {
+        'num': equipo['num'],
+        'identificador': equipo.get('identificador') or equipo.get('marbete_oficial')
+                         or equipo.get('folio_interno') or '',
+        'num_serie': (equipo.get('num_serie') or '').strip(),
+        'nombre': nombre,
+        'nombre_chico': len(nombre) > medidas_marbete.NOMBRE_CORTO,
+        'resguardante': (equipo.get('resguardante') or {}).get('nombre', ''),
+    }
+
+
+def _contexto_marbetes(etiquetas, inicio):
+    m = medidas_marbete
+    hojas = m.repartir(etiquetas, inicio)
+    return {
+        'hojas': hojas,
+        'total_etiquetas': len(etiquetas),
+        'sin_resguardante': sum(1 for e in etiquetas if not e['resguardante']),
+        'encabezado': m.ENCABEZADO,
+        'logo_izquierdo': m.LOGO_IZQUIERDO if finders.find(m.LOGO_IZQUIERDO) else '',
+        'logo_derecho': m.LOGO_DERECHO if finders.find(m.LOGO_DERECHO) else '',
+        'posicion': m.leer_posicion(inicio),
+        'posiciones': m.posiciones(),
+        'medidas': {'ancho': m.ANCHO_MM, 'alto': m.ALTO_MM,
+                    'hoja_ancho': m.HOJA_ANCHO_MM, 'hoja_alto': m.HOJA_ALTO_MM},
+    }
+
+
+def marbete_equipo(request, num):
+    """Marbete imprimible desde la ficha: réplica de la etiqueta del CONALEP
+    (encabezado, marbete o folio, tipo de artículo y resguardante) más el QR `IC:<num>`.
+
+    GET /articulos/detalle/<num>/marbete/?posicion=N   (N = lugar en la hoja, 1 a 10)
+    Medidas provisionales en equipos/marbete.py.
+    """
+    equipo = _obtener_articulo(request, num)
+    contexto = _contexto_marbetes([_etiqueta(equipo)], request.GET.get('posicion'))
+    contexto.update({
+        'identificador': contexto['hojas'][0][0]['etiqueta']['identificador'],
+        'volver_url': reverse('equipos:detalle', args=[num]),
+        'volver_texto': 'Volver a la ficha',
+        'nums': [],
+    })
+    return render(request, 'equipos/marbete.html', contexto)
+
+
+def marbetes_lote(request):
+    """Marbetes de varios artículos acomodados en hojas de 10.
+
+    GET /articulos/marbetes/?num=3&num=8&…&posicion=N
+    Los números vienen de la selección que se hace en el listado. La primera hoja
+    empieza en el lugar `posicion` (para reutilizar una hoja a medias); las demás en el 1.
+    """
+    nums = []
+    for valor in request.GET.getlist('num'):
+        if valor.isdigit() and int(valor) not in nums:
+            nums.append(int(valor))
+    if not nums:
+        messages.error(request, 'Selecciona al menos un artículo del listado para imprimir sus marbetes.')
+        return redirect('equipos:listado')
+
+    avisos = []
+    if len(nums) > medidas_marbete.MAX_LOTE:
+        avisos.append('Solo se imprimen los primeros %d artículos de la selección (%d en total); '
+                      'imprime el resto en otra tanda.' % (medidas_marbete.MAX_LOTE, len(nums)))
+        nums = nums[:medidas_marbete.MAX_LOTE]
+
+    etiquetas, faltan = [], []
+    for n in nums:
+        try:
+            etiquetas.append(_etiqueta(_obtener_articulo(request, n)))
+        except Http404:
+            faltan.append(n)
+    if faltan:
+        avisos.append('No se encontraron %d artículo(s) de la selección y se omitieron.' % len(faltan))
+    if not etiquetas:
+        messages.error(request, 'Ninguno de los artículos seleccionados existe.')
+        return redirect('equipos:listado')
+
+    contexto = _contexto_marbetes(etiquetas, request.GET.get('posicion'))
+    contexto.update({
+        'identificador': '%d marbetes' % len(etiquetas),
+        'volver_url': reverse('equipos:listado'),
+        'volver_texto': 'Volver al listado',
+        'nums': [e['num'] for e in etiquetas],
+        'avisos': avisos,
+    })
+    return render(request, 'equipos/marbete.html', contexto)
 
 
 # --- auxiliares ---------------------------------------------------------
