@@ -167,7 +167,7 @@
       <div><dt>Tipo de movimiento</dt><dd id="rsTipo">Sin seleccionar</dd></div>
       <div><dt>Nueva ubicación</dt><dd id="rsUbicacion">—</dd></div>
       <div><dt>Nuevo resguardante</dt><dd id="rsResguardante">—</dd></div>
-      <div><dt>Estado al recuperar</dt><dd id="rsEstado">—</dd></div>
+      <div id="rsEstadoFila" hidden><dt>Estado al recuperar</dt><dd id="rsEstado">—</dd></div>
       <div><dt>Fecha</dt><dd id="rsFecha">Sin capturar</dd></div>
     </dl>
     <p class="mov-resumen__nota">
@@ -323,6 +323,8 @@
     document.getElementById('rsResguardante').textContent =
       (!bloqueResguardante.hidden && textoSelect(resguardanteSel)) || '—';
     var est = estadoElegido();
+    // Solo aplica al recuperar un artículo No localizado (DEC-012); si no, la fila no se muestra.
+    document.getElementById('rsEstadoFila').hidden = bloqueEstado.hidden;
     document.getElementById('rsEstado').textContent =
       (!bloqueEstado.hidden && est) ? est.parentElement.textContent.trim() : '—';
     document.getElementById('rsFecha').textContent = fechaInput.value || 'Sin capturar';
@@ -597,6 +599,7 @@
     flex-direction: column;
     gap: 1px;
   }
+  .mov-resumen__lista > div[hidden] { display: none; }
 
   .mov-resumen__lista dt {
     font-size: 11px;
