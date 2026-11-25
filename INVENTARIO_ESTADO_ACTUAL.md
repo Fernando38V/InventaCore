@@ -15,11 +15,11 @@ Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta 
 | Identificadores por origen: marbete, folio, QR (DEC-005, DEC-010) | Sí | — | Implementado y probado |
 | Movimientos: reubicación y cambio de resguardante, reparación, retorno (DEC-006) | Sí | — | Implementado y probado |
 | Estado de registro y estado operativo, No localizado (DEC-008, DEC-012) | Sí | — | Implementado y probado |
-| Resguardos en PDF consolidados, dos firmas, reimpresión del original (DEC-007, DEC-016) | Sí | — | Implementado y probado |
+| Resguardos en PDF consolidados, dos firmas, reimpresión del original (DEC-007, DEC-016, DEC-024) | Sí | — | Implementado y probado; formato de la Contadora desde el 24/11/2026 |
 | Dashboard y reportes: inventario, por resguardante, historial (DEC-020) | Sí | — | Implementado y probado |
 | Exportación a Excel (DEC-018) | No | Sí | Implementado y probado |
 | Carga masiva desde plantilla de Excel (DEC-017) | No | Sí | Implementado y probado en el cliente y la API; plantilla probada en Excel de Windows el 21/11/2026 (desplegables, color con aviso, hojas de consulta protegidas); validación de fecha de adquisición probada por Fernando (PEND-021) |
-| Marbete imprimible con QR: hoja carta de 10 etiquetas, desde la ficha y por lote desde el listado (DEC-023, PEND-029) | No | Sí | Implementado y probado en el cliente (24/11/2026), revisado por Fernando en pantalla y en PDF; falta la prueba en papel con las medidas reales y los formatos B y C |
+| Marbete imprimible con QR: hoja carta de 10 etiquetas, desde la ficha y por lote desde el listado (DEC-023, PEND-029) | No | Sí | Implementado y probado (24/11/2026): revisado en pantalla y PDF, impreso en la hoja de etiquetas de la institución y pegado en bienes; QR leído con celular. Formatos B y C diferidos |
 | Bitácora de auditoría (escritura) (DEC-004) | Sí | — | Implementado |
 | Lectura de la bitácora en el cliente (RF-21) | Sí | — | Implementado y probado (11/11/2026): API de Adad y pantalla `/auditoria/` con filtros, cambios e historial por registro (PEND-024) |
 | Usuarios y Roles y Perfil (RF-02, PEND-019) | Sí | — | Implementado y probado (08/11/2026) |
@@ -34,9 +34,10 @@ Estados: **Implementado y probado** (con pruebas automáticas y prueba de punta 
 - Prueba de punta a punta (05/11/2026): altas, reubicaciones con cambio de resguardante, resguardo RES-0001 con 3 de 4 asignaciones, PDF con las dos firmas, Excel del inventario, y Consulta sin poder emitir.
 - Sin prueba automática de interfaz: la ventana de confirmación y las pantallas se probaron a mano o con navegador automatizado.
 - Catálogos iniciales, colores sugeridos, orden de ubicaciones y Donado violeta (21/11/2026, DEC-022): 14 pruebas automáticas nuevas (10 del cliente y 4 de la API) y prueba manual de Fernando en el sistema y en Excel de Windows. API: 333 pruebas en el entorno de desarrollo del asistente (SQLite); la única falla, `test_busqueda_por_palabras`, depende de MariaDB y se debe correr en el equipo de Fernando.
-- Marbete imprimible (24/11/2026, DEC-023): 30 pruebas automáticas nuevas (medidas y reparto en hojas, contenido, tipo de artículo, serie opcional, logos, lote, tope de 50, casillas del listado) y recorrido en Chrome (selección que se conserva, PDF de 2 hojas carta). Fernando revisó la vista y el PDF y leyó el QR con un celular real. Todavía no se imprime en papel: faltan las medidas de una etiqueta física.
+- Marbete imprimible (24/11/2026, DEC-023): 30 pruebas automáticas nuevas (medidas y reparto en hojas, contenido, tipo de artículo, serie opcional, logos, lote, tope de 50, casillas del listado) y recorrido en Chrome (selección que se conserva, PDF de 2 hojas carta). Fernando revisó la vista y el PDF y leyó el QR con un celular real. Prueba en papel (24/11/2026): 10 marbetes impresos en la hoja de etiquetas de la institución, dos pegados en bienes; la etiqueta física mide 10 × 5 cm, sin cambios de medidas.
+- Resguardo con el formato de la Contadora y lista de por emitir corregida (24/11/2026, DEC-024): 3 pruebas automáticas nuevas en la API (formato del PDF, pendientes que ya pasaron a otra persona, artículo que regresa a la misma persona). API: 336 pruebas en el entorno del asistente (SQLite); la única falla sigue siendo `test_busqueda_por_palabras` (MariaDB).
 - Falta: prueba de carga con volumen real, prueba de la cámara en vivo con HTTPS y las pruebas de Informática en el servidor.
 
 ## Pendientes principales
 
-Ver PENDIENTES.md: despliegue en servidor local y HTTPS (PEND-028, PEND-025), etiqueta imprimible del QR: medidas reales, prueba en papel y formatos B y C (PEND-029), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).
+Ver PENDIENTES.md: despliegue en servidor local y HTTPS (PEND-028, PEND-025), formatos B y C de la etiqueta (PEND-029), folio obligatorio en carga masiva (PEND-023), "revertir lote" (propuesta), preguntas a la Contadora (Excel o Google Sheets) y despliegue (SECRET_KEY y credenciales de base de datos en variables de entorno).

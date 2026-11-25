@@ -54,6 +54,7 @@ Firmas: dos, la de la Contadora (responsable de seguimiento) y la del resguardan
 El cambio de resguardante (incluido cuando alguien deja la institución) se hace con REUB y se documenta con este mismo resguardo.
 No se genera comprobante en altas históricas de bienes no localizados ni en la carga masiva.
 Implementación: resguardos emitidos, consultados y descargados en PDF desde la API de Adad y el cliente (05/11/2026, ver DEC-016 y PEND-022).
+Actualización (24/11/2026): el diseño del PDF deja de ser propio y replica el formato de la Contadora; ver DEC-024.
 
 ## DEC-008 — Estados de registro
 
@@ -192,3 +193,16 @@ Decisión:
 - Todo es del cliente: no cambia `api/`, el modelo ni los endpoints. Todos los roles, incluido Consulta, pueden imprimir.
 - Los formatos B (compacta, 60 × 30 mm) y C (solo QR, 20 × 20 mm) quedan diferidos hasta contar con una hoja de etiquetas para bienes pequeños y sus medidas (PEND-029).
   Impacto: `client/` (vista, plantillas, `equipos/marbete.py`, logos en `static/img/marbete/`); pruebas.
+
+## DEC-024 — Formato del resguardo como el de la Contadora y lista de resguardos por emitir
+
+Estado: CONFIRMADA (24/11/2026; Fernando lo pidió tras mostrar el sistema a su jefe, que aprobó el resguardo funcional y estas mejoras)
+Decisión:
+
+- El PDF del resguardo replica el formato "Resguardo de Bienes" que usaba la Contadora, adaptado al sistema: logo de CONALEP Baja California, encabezado institucional, NOMBRE, ÁREA (departamento y plantel) y FECHA en blanco para llenarse al firmar (generar el PDF no es firmarlo, DEC-007), la declaración del formato, la tabla con encabezado en verde institucional y renglones alternos en verde claro, número de bienes, leyenda de reporte de cambios y las dos firmas. Sin "Monto revalúo".
+- Columnas: No., Número de inventario, Descripción, Marca, Modelo, Número de serie y Costo. La columna Descripción lleva el **tipo de artículo** (como en el formato de la Contadora y en el marbete, DEC-023); la descripción del artículo (notas) no se imprime. Marca y modelo vacíos se imprimen "S/M" y serie vacía "S/S", como en el formato de la Contadora.
+- Se quita el número de empleado: el formato de la Contadora no lo trae y el nombre identifica al resguardante.
+- La lista "Resguardos por emitir" (`GET /resguardos/pendientes/`) solo ofrece asignaciones vigentes: el artículo sigue a cargo de esa persona y no tiene una asignación posterior. Antes ofrecía asignaciones de artículos que ya habían pasado a otra persona, que la emisión rechazaba ("ya no está a cargo de este resguardante"). La emisión también rechaza el mismo artículo dos veces en un resguardo.
+- Los resguardos ya emitidos no cambian: el PDF guardado se conserva tal cual (hash, DEC-007); solo los nuevos salen con el formato nuevo.
+  Impacto: `api/movimientos/` (`resguardos.py`, `resguardo_pdf.py`, logo en `recursos/`); pruebas. Cambio hecho por Fernando en `api/`; Adad lo revisa y prueba.
+
