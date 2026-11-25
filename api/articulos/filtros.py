@@ -1,13 +1,14 @@
 """Filtros del inventario, compartidos por la lista, la exportación y los reportes."""
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 
-from articulos.models import Articulo
+from articulos.models import Articulo, ArticuloFoto
 
 
 def con_relaciones(consulta):
     return consulta.select_related(
         'tipo_articulo__categoria', 'origen', 'ubicacion', 'resguardante',
-        'estado_operativo', 'estado_registro')
+        'estado_operativo', 'estado_registro').annotate(
+        tiene_foto=Exists(ArticuloFoto.objects.filter(articulo=OuterRef('pk'))))
 
 
 def filtrar_articulos(consulta, p):

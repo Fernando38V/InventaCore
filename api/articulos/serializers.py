@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
+from articulos.models import ArticuloFoto
 from catalogos.models import EstadoOperativo, Origen, TipoArticulo, Ubicacion
 from personal.models import Personal
 
@@ -38,6 +39,15 @@ def faltantes_de(articulo):
     if articulo.fecha_adquisicion is None:
         faltan.append('la fecha de adquisición')
     return faltan
+
+
+def _tiene_foto(a):
+    # La lista y la ficha traen `tiene_foto` ya calculado (con_relaciones); en otros
+    # lugares se consulta, sin leer nunca la imagen.
+    marca = getattr(a, 'tiene_foto', None)
+    if marca is None:
+        marca = ArticuloFoto.objects.filter(articulo_id=a.pk).exists()
+    return bool(marca)
 
 
 class ArticuloSerializer(serializers.BaseSerializer):
@@ -70,6 +80,7 @@ class ArticuloSerializer(serializers.BaseSerializer):
             'estado_registro': dict(par(a.estado_registro),
                                     tono=TONO_REGISTRO.get(a.estado_registro_id, 'gris')),
             'faltantes': faltantes_de(a),
+            'tiene_foto': _tiene_foto(a),
         }
 
 
