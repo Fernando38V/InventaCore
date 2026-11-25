@@ -1,4 +1,4 @@
-# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva y Bitácora (v14)
+# Contrato de la API — Artículos, Movimientos, Resguardos, Dashboard, Reportes y Carga masiva y Bitácora y Foto del artículo (v15)
 
 Backend: `http://127.0.0.1:8000/api/`. Todas las peticiones (menos el login) llevan
 `Authorization: Token <token>`. El rol CONSULTA solo puede hacer GET; ADMIN puede todo.
@@ -479,6 +479,23 @@ Los filtros se pueden combinar. Un filtro inválido responde 400 con `{campo: me
 - `accion_nombre` es el texto para mostrar: Alta, Modificación o Baja lógica.
 - `registro_id` es texto (puede ser `12`, `MOV-0001` o `lote-<huella>` en una carga masiva).
 - Nunca se incluyen contraseñas.
+
+## Foto del artículo — `/articulos/<num>/foto/` (PEND-027)
+
+Una foto opcional por artículo. La imagen se guarda **en la base de datos**, en la tabla `articulo_foto` (columna LONGBLOB, una fila por artículo, aparte de `articulo` para que las listas nunca lean los bytes). Un solo respaldo de la BD cubre las fotos. MariaDB necesita `max_allowed_packet` de al menos 8 MB.
+
+| Método | Quién | Qué hace |
+|---|---|---|
+| `GET` | Administrador y Consulta | Devuelve la imagen (`image/jpeg`). 404 si no hay foto o falta el archivo. |
+| `POST` | Administrador | `multipart/form-data`: `foto` (archivo) y `motivo`. Agrega o reemplaza. Responde con el artículo (`tiene_foto: true`). |
+| `DELETE` | Administrador | Quita la foto. `motivo` obligatorio. Responde con el artículo. |
+
+- Se acepta JPG, PNG o WebP (se revisa el contenido, no la extensión), hasta 5 MB. Se corrige la orientación, se quitan los metadatos (EXIF/GPS), se reduce a 1200 px por lado y se guarda como JPEG.
+- `motivo`: opcional la primera vez (la bitácora dice "Foto agregada"); obligatorio al reemplazar y al quitar.
+- Subir exactamente la misma foto da 400. Errores como `{campo: mensaje}` (`foto`, `motivo`).
+- Cada cambio queda en la bitácora (UPDATE de `articulo`, campo `foto` con una huella corta de la imagen, nunca los bytes).
+- El artículo (ficha, lista y `todos`) trae `tiene_foto` (booleano). La carga masiva no lleva foto.
+- Para mostrarla en pantalla: el navegador no puede mandar el token en un `<img src>`; pedir la imagen con `fetch` + token y usar `URL.createObjectURL(blob)`, o que el proxy de Django (client) la solicite al API.
 
 ## Errores
 

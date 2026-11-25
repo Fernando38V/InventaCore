@@ -70,6 +70,7 @@ class Articulo(models.Model):
             restriccion_check(
                 Q(num_serie__isnull=True) | ~Q(num_serie=''),
                 'chk_articulo_serie'),
+
             # DEC-011: color y descripción obligatorios, y no vacíos.
             restriccion_check(~Q(color='') & ~Q(descripcion=''),
                               'chk_articulo_color_descripcion'),
@@ -105,3 +106,20 @@ class Articulo(models.Model):
 
     def __str__(self):
         return '%s - %s' % (self.identificador, self.descripcion)
+
+
+class ArticuloFoto(models.Model):
+    """Foto del artículo (PEND-027): una por artículo, guardada en la base de datos.
+    `imagen` es el JPEG ya procesado (máx. 1200 px); `hash` es su SHA-256."""
+    articulo = models.OneToOneField(
+        Articulo, primary_key=True, on_delete=models.PROTECT,
+        db_column='articulo', related_name='foto_detalle')
+    imagen = models.BinaryField()
+    tipo_mime = models.CharField(max_length=20, default='image/jpeg')
+    hash = models.CharField(max_length=64)
+    fecha = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'articulo_foto'
+        verbose_name = 'foto de artículo'
+        verbose_name_plural = 'fotos de artículos'
