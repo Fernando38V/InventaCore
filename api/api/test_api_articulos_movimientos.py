@@ -620,6 +620,56 @@ class ResguardosTests(Base):
         self.assertIn(b'Responsable de seguimiento', texto)
         self.assertIn(b'M1', texto)
 
+    def texto_pdf(self, respuesta):
+        import base64
+        import re
+        import zlib
+        crudo = self.c.get(respuesta.data['pdf']).content
+        texto = b''
+        for flujo in re.findall(rb'stream\r?\n(.*?)endstream', crudo, re.S):
+            try:
+                texto += zlib.decompress(base64.a85decode(flujo.strip(), adobe=True))
+            except Exception:
+                continue
+        return crudo, texto
+
+    def test_el_pdf_sigue_el_formato_de_la_contadora(self):
+        crudo, texto = self.texto_pdf(self.emitir())
+        self.assertIn(b'Resguardo de Bienes', texto)
+        self.assertIn(b'NOMBRE:', texto)
+        self.assertIn(b'FECHA:', texto)
+        self.assertIn(b'LAPTOP', texto)                 # descripción = tipo de artículo
+        self.assertNotIn(b'Laptop de oficina', texto)   # la descripción (notas) no se imprime
+        self.assertNotIn(b'empleado', texto)            # sin número de empleado
+        self.assertNotIn(b'E900', texto)
+        self.assertIn(b'S/M', texto)                    # a2 no tiene marca
+        self.assertIn(b'/Subtype /Image', crudo)        # logo de CONALEP Baja California
+
+    def test_pendientes_no_ofrece_lo_que_ya_paso_a_otra_persona(self):
+        self.mov(tipo='REUB', articulo=self.a1['num'], resguardante=str(self.beto.num),
+                 motivo='Cambio de persona')
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.ana.num)
+        self.assertEqual([m['folio'] for m in r.data['results']], [self.m2])
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.beto.num)
+        self.assertEqual(r.data['count'], 1)
+        # lo que se ofrece se puede emitir sin errores
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.ana.num)
+        folios = [m['folio'] for m in r.data['results']]
+        self.assertEqual(self.emitir(folios).status_code, 201)
+
+    def test_si_regresa_a_la_misma_persona_solo_se_ofrece_la_ultima_asignacion(self):
+        self.mov(tipo='REUB', articulo=self.a1['num'], resguardante=str(self.beto.num),
+                 motivo='Préstamo')
+        self.mov(tipo='REUB', articulo=self.a1['num'], resguardante=str(self.ana.num),
+                 motivo='Regresa')
+        ultima = Movimiento.objects.filter(articulo_id=self.a1['num']).order_by(
+            '-fecha_movimiento', '-folio').first().folio
+        r = self.c.get('/api/resguardos/pendientes/?resguardante=%d' % self.ana.num)
+        self.assertEqual(sorted(m['folio'] for m in r.data['results']), sorted([ultima, self.m2]))
+        r = self.emitir([self.m1, ultima])               # el mismo artículo dos veces
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('ya está en este resguardo', str(r.data['movimientos']))
+
     def test_una_asignacion_no_se_documenta_dos_veces(self):
         self.assertEqual(self.emitir([self.m1]).status_code, 201)
         r = self.emitir([self.m1, self.m2])

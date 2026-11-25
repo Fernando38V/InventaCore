@@ -1,32 +1,43 @@
-"""PDF del resguardo (RF-18, DEC-007).
+"""PDF del resguardo (RF-18, DEC-007, DEC-024).
 
-Estructura del formato institucional: encabezado, datos del resguardante,
-tabla de artículos (número de inventario, descripción, marca, modelo, serie y
-costo), número de bienes, leyenda de responsabilidad y dos firmas: la de la
-Contadora (responsable de seguimiento) y la del resguardante. Sin "Monto
-revalúo". Se genera con reportlab.
+Replica el formato "Resguardo de Bienes" que usaba la Contadora, adaptado al sistema:
+encabezado con el logo de CONALEP Baja California, NOMBRE, ÁREA y FECHA (en blanco,
+se llena al firmar), la leyenda del formato, tabla de artículos (número de inventario,
+descripción = tipo de artículo, marca, modelo, número de serie y costo) con encabezado
+en verde institucional, número de bienes y dos firmas: la de la Contadora (responsable
+de seguimiento) y la del resguardante. Sin "Monto revalúo" ni número de empleado.
+Se genera con reportlab.
 """
 from io import BytesIO
+from pathlib import Path
 
 from django.utils import timezone
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
-    KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
+    Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
+ENCABEZADO = ('COLEGIO DE EDUCACIÓN PROFESIONAL TÉCNICA DEL ESTADO', 'BAJA CALIFORNIA')
+LOGO = Path(__file__).resolve().parent / 'recursos' / 'logo_conalep_bc.png'
+VERDE = colors.HexColor('#00704A')        # verde institucional (encabezado de la tabla)
+VERDE_CLARO = colors.HexColor('#EAF4EE')  # renglones alternos
+
+DECLARACION = (
+    'Para el desempeño de las actividades oficiales que tengo a mi cargo en esta Entidad, '
+    'he recibido los artículos que se describen a continuación, comprometiéndome a '
+    'mantenerlos en óptimas condiciones.')
 LEYENDA = (
-    'El resguardante declara recibir los bienes que se listan, en buen estado, y se '
-    'responsabiliza de su uso, cuidado y custodia. Cualquier cambio de ubicación o de '
-    'resguardante, así como la pérdida, el daño o el envío a reparación de un bien, '
-    'deberá reportarse al área responsable del inventario para su registro.')
+    'Cualquier cambio de ubicación o de resguardante, así como la pérdida, el daño o el '
+    'envío a reparación de un bien, deberá reportarse al área responsable del inventario '
+    'para su registro.')
 
 
-def _esc(texto):
-    return (str(texto) if texto is not None else '—').replace('&', '&amp;').replace(
-        '<', '&lt;').replace('>', '&gt;')
+def _esc(texto, vacio='—'):
+    texto = '' if texto is None else str(texto).strip()
+    return (texto or vacio).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
 def generar_pdf(resguardo, resguardante, articulos, contadora, institucion):
@@ -34,69 +45,89 @@ def generar_pdf(resguardo, resguardante, articulos, contadora, institucion):
     estilos = getSampleStyleSheet()
     normal = ParagraphStyle('n', parent=estilos['Normal'], fontSize=9, leading=11)
     celda = ParagraphStyle('c', parent=normal, fontSize=8, leading=9.5)
-    titulo = ParagraphStyle('t', parent=estilos['Title'], fontSize=15, spaceAfter=2)
+    cabeza = ParagraphStyle('h', parent=celda, textColor=colors.white, fontName='Helvetica-Bold')
+    institucional = ParagraphStyle('i', parent=normal, fontName='Helvetica-Bold', fontSize=11,
+                                   leading=13.5, alignment=TA_CENTER)
+    subtitulo = ParagraphStyle('s', parent=institucional, fontSize=11, leading=13)
+    derecha = ParagraphStyle('d', parent=normal, fontSize=8, leading=10, alignment=TA_RIGHT)
     centro = ParagraphStyle('ce', parent=normal, alignment=TA_CENTER)
-    leyenda = ParagraphStyle('l', parent=normal, alignment=TA_JUSTIFY)
+    justificado = ParagraphStyle('j', parent=normal, alignment=TA_JUSTIFY)
+    declaracion = ParagraphStyle('de', parent=justificado, fontName='Helvetica-Bold')
 
     salida = BytesIO()
     doc = SimpleDocTemplate(
-        salida, pagesize=letter, leftMargin=1.8 * cm, rightMargin=1.8 * cm,
-        topMargin=1.6 * cm, bottomMargin=1.8 * cm,
+        salida, pagesize=letter, leftMargin=1.6 * cm, rightMargin=1.6 * cm,
+        topMargin=1.4 * cm, bottomMargin=1.8 * cm,
         title='Resguardo %s' % resguardo.folio, author=institucion)
+    ancho = letter[0] - 3.2 * cm
 
     emision = timezone.localtime(resguardo.fecha_emision).strftime('%d/%m/%Y %H:%M')
-    datos = [
-        Paragraph(_esc(institucion), centro),
-        Paragraph('RESGUARDO DE BIENES', titulo),
-        Paragraph('Folio %s · Emitido el %s' % (resguardo.folio, emision), centro),
-        Spacer(1, 0.5 * cm),
-    ]
-    departamento = getattr(resguardante.departamento, 'nombre', None)
-    ficha = Table([
-        [Paragraph('<b>Resguardante:</b> %s' % _esc(resguardante.nombre_completo), normal),
-         Paragraph('<b>No. de empleado:</b> %s' % _esc(resguardante.numero_empleado), normal)],
-        [Paragraph('<b>Puesto:</b> %s' % _esc(resguardante.puesto), normal),
-         Paragraph('<b>Departamento:</b> %s' % _esc(departamento), normal)],
-    ], colWidths=[10 * cm, 7.4 * cm])
-    ficha.setStyle(TableStyle([('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
-                               ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                               ('TOPPADDING', (0, 0), (-1, -1), 4),
-                               ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]))
-    datos += [ficha, Spacer(1, 0.5 * cm)]
+    logo = Image(str(LOGO), width=2.6 * cm, height=1.85 * cm) if LOGO.exists() else ''
+    titulo = [Paragraph(_esc(linea), institucional) for linea in ENCABEZADO]
+    titulo.append(Paragraph('Resguardo de Bienes', subtitulo))
+    encabezado = Table([[logo, titulo, '']], colWidths=[2.8 * cm, ancho - 5.6 * cm, 2.8 * cm])
+    encabezado.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                                    ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                                    ('RIGHTPADDING', (0, 0), (-1, -1), 0)]))
 
-    filas = [[Paragraph('<b>%s</b>' % t, celda) for t in (
-        'No.', 'No. de inventario', 'Descripción', 'Marca', 'Modelo', 'Serie', 'Costo')]]
+    departamento = getattr(resguardante.departamento, 'nombre', None)
+    area = ' - '.join(x for x in (departamento, institucion) if x)
+    linea = ('LINEBELOW', (1, 0), (1, 0), 0.6, colors.black)
+    datos_persona = Table([
+        [Paragraph('<b>NOMBRE:</b>', normal), Paragraph(_esc(resguardante.nombre_completo).upper(), normal),
+         Paragraph('<b>FECHA:</b>', normal), ''],
+        [Paragraph('<b>ÁREA:</b>', normal), Paragraph(_esc(area).upper(), normal), '', ''],
+    ], colWidths=[1.8 * cm, ancho - 6.6 * cm, 1.6 * cm, 3.2 * cm])
+    datos_persona.setStyle(TableStyle([
+        linea, ('LINEBELOW', (1, 1), (1, 1), 0.6, colors.black),
+        ('LINEBELOW', (3, 0), (3, 0), 0.6, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'), ('LEFTPADDING', (0, 0), (-1, -1), 2)]))
+
+    filas = [[Paragraph(t, cabeza) for t in (
+        'No.', 'Número de inventario', 'Descripción', 'Marca', 'Modelo', 'Número de serie',
+        'Costo')]]
     for i, a in enumerate(articulos, start=1):
         costo = '—' if a.costo_adquisicion is None else '${:,.2f}'.format(a.costo_adquisicion)
-        filas.append([Paragraph(str(i), celda), Paragraph(_esc(a.identificador), celda),
-                      Paragraph(_esc(a.descripcion), celda), Paragraph(_esc(a.marca), celda),
-                      Paragraph(_esc(a.modelo), celda), Paragraph(_esc(a.num_serie), celda),
+        tipo = getattr(a.tipo_articulo, 'nombre', None)
+        filas.append([Paragraph('%d.' % i, celda), Paragraph(_esc(a.identificador), celda),
+                      Paragraph(_esc(tipo).upper(), celda),
+                      Paragraph(_esc(a.marca, 'S/M').upper(), celda),
+                      Paragraph(_esc(a.modelo, 'S/M').upper(), celda),
+                      Paragraph(_esc(a.num_serie, 'S/S').upper(), celda),
                       Paragraph(costo, celda)])
     tabla = Table(filas, repeatRows=1, colWidths=[
-        0.9 * cm, 3.0 * cm, 4.6 * cm, 2.1 * cm, 2.2 * cm, 2.3 * cm, 2.7 * cm])
-    tabla.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E8EEF4')),
+        0.9 * cm, 3.6 * cm, 4.1 * cm, 2.2 * cm, 2.3 * cm, 2.9 * cm, ancho - 16.0 * cm])
+    estilo = [
+        ('BACKGROUND', (0, 0), (-1, 0), VERDE),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.4, colors.HexColor('#9FBFAF')),
+        ('BOX', (0, 0), (-1, -1), 0.6, VERDE),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
-    datos += [tabla, Spacer(1, 0.4 * cm),
-              Paragraph('<b>Número de bienes:</b> %d' % len(articulos), normal),
-              Spacer(1, 0.4 * cm), Paragraph(LEYENDA, leyenda), Spacer(1, 1.8 * cm)]
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]
+    estilo += [('BACKGROUND', (0, n), (-1, n), VERDE_CLARO) for n in range(2, len(filas), 2)]
+    tabla.setStyle(TableStyle(estilo))
+
+    datos = [encabezado, Paragraph(
+                 'Folio <b>%s</b> · Emitido el %s' % (resguardo.folio, emision), derecha),
+             Spacer(1, 0.35 * cm), datos_persona, Spacer(1, 0.35 * cm),
+             Paragraph(DECLARACION, declaracion), Spacer(1, 0.35 * cm),
+             tabla, Spacer(1, 0.4 * cm),
+             Paragraph('<b>Número de bienes:</b> %d' % len(articulos), normal),
+             Spacer(1, 0.3 * cm), Paragraph(LEYENDA, justificado), Spacer(1, 1.8 * cm)]
 
     firmas = Table([
         ['_' * 38, '_' * 38],
         [Paragraph('<b>%s</b>' % _esc(contadora), centro),
          Paragraph('<b>%s</b>' % _esc(resguardante.nombre_completo), centro)],
         [Paragraph('Responsable de seguimiento', centro), Paragraph('Resguardante', centro)],
-    ], colWidths=[8.7 * cm, 8.7 * cm])
+    ], colWidths=[ancho / 2, ancho / 2])
     firmas.setStyle(TableStyle([('ALIGN', (0, 0), (-1, 0), 'CENTER')]))
     datos.append(KeepTogether([firmas]))
 
     def pie(canvas, documento):
         canvas.saveState()
         canvas.setFont('Helvetica', 7.5)
-        canvas.drawString(1.8 * cm, 1.0 * cm, 'Resguardo %s' % resguardo.folio)
-        canvas.drawRightString(letter[0] - 1.8 * cm, 1.0 * cm, 'Página %d' % documento.page)
+        canvas.drawString(1.6 * cm, 1.0 * cm, 'Resguardo %s' % resguardo.folio)
+        canvas.drawRightString(letter[0] - 1.6 * cm, 1.0 * cm, 'Página %d' % documento.page)
         canvas.restoreState()
 
     doc.build(datos, onFirstPage=pie, onLaterPages=pie)

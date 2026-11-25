@@ -10,6 +10,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -37,9 +38,20 @@ def nombre_contadora():
 
 
 def pendientes(resguardante=None):
-    """Movimientos que requieren resguardo y todavía no están en ninguno."""
+    """Asignaciones que requieren resguardo, todavía no están en ninguno y siguen vigentes.
+
+    Vigente: el artículo sigue a cargo de esa persona y no tiene una asignación posterior.
+    Una asignación que ya pasó a otra persona no se puede documentar (emitir_resguardo la
+    rechaza), así que tampoco se ofrece en la lista.
+    """
+    posterior = Movimiento.objects.filter(
+        articulo=OuterRef('articulo'), requiere_resguardo=True).filter(
+        Q(fecha_movimiento__gt=OuterRef('fecha_movimiento'))
+        | Q(fecha_movimiento=OuterRef('fecha_movimiento'), folio__gt=OuterRef('folio')))
     consulta = Movimiento.objects.filter(
-        requiere_resguardo=True, detalle_resguardo__isnull=True).select_related(
+        requiere_resguardo=True, detalle_resguardo__isnull=True,
+        articulo__resguardante_id=F('resguardante_nuevo_id')).exclude(
+        Exists(posterior)).select_related(
         'articulo', 'tipo_movimiento', 'resguardante_nuevo', 'ubicacion_destino')
     if resguardante is not None:
         consulta = consulta.filter(resguardante_nuevo_id=resguardante)
@@ -75,6 +87,14 @@ def emitir_resguardo(resguardante_num, folios, usuario):
         elif m.articulo.resguardante_id != resguardante.pk:
             errores.append('%s: %s ya no está a cargo de este resguardante.' % (
                 folio, m.articulo.identificador))
+    if not errores:
+        vistos = set()
+        for folio in folios:
+            articulo = por_folio[folio].articulo_id
+            if articulo in vistos:
+                errores.append('%s: %s ya está en este resguardo con otra asignación.' % (
+                    folio, por_folio[folio].articulo.identificador))
+            vistos.add(articulo)
     if errores:
         raise ValidationError({'movimientos': errores})
 
