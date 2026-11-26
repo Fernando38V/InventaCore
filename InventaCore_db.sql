@@ -369,6 +369,20 @@ CREATE TABLE articulo (
     )
 ) ENGINE=InnoDB;
 
+-- PEND-027: foto del artículo, una por artículo, guardada en la base de datos.
+-- Va en otra tabla para que las consultas del inventario nunca arrastren la
+-- imagen. `imagen` es el JPEG ya procesado por la API (máx. 1200 px, ~100-300 KB).
+-- Requiere max_allowed_packet de MariaDB >= 8 MB (en XAMPP: my.ini).
+CREATE TABLE articulo_foto (
+    articulo   INT          NOT NULL PRIMARY KEY,
+    imagen     LONGBLOB     NOT NULL,
+    tipo_mime  VARCHAR(20)  NOT NULL DEFAULT 'image/jpeg',
+    hash       CHAR(64)     NOT NULL,                  -- SHA-256 de la imagen
+    fecha      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_articulo_foto_articulo
+        FOREIGN KEY (articulo) REFERENCES articulo (num)
+) ENGINE=InnoDB;
+
 
 /* ==========================================================================
    BLOQUE 6 — MOVIMIENTO (historial; nunca se edita ni se elimina, RNF-06)

@@ -1,8 +1,11 @@
 from django.http import HttpResponse
 from rest_framework import mixins, viewsets
+from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from articulos import fotos
 from articulos.excel import libro_inventario, nombre_archivo
 from articulos.filtros import con_relaciones, inventario
 from articulos.models import Articulo
@@ -19,9 +22,10 @@ class ArticuloViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
     estado_operativo, estado_registro, origen, resguardante) · GET /articulos/<num>/
     · POST /articulos/ · PATCH /articulos/<num>/ (corrección con motivo)
     · GET /articulos/<num>/movimientos/ · GET /articulos/todos/ (sin paginar)
-    · GET /articulos/exportar/ (.xlsx)."""
+    · GET /articulos/exportar/ (.xlsx)
+    · GET, POST y DELETE /articulos/<num>/foto/ (PEND-027)."""
 
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
     lookup_field = 'num'
     lookup_value_regex = r'\d+'
     serializer_class = ArticuloSerializer
@@ -73,3 +77,32 @@ class ArticuloViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         consulta = MovimientoSerializer.optimizar(consulta)
         pagina = self.paginate_queryset(consulta)
         return self.get_paginated_response(MovimientoSerializer(pagina, many=True).data)
+
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='foto',
+            parser_classes=[MultiPartParser, FormParser])
+    def foto(self, request, num=None):
+        """GET: la imagen (Administrador y Consulta). POST (multipart, campo `foto`,
+        `motivo` opcional la primera vez y obligatorio al reemplazar) y DELETE
+        (`motivo` obligatorio): solo el Administrador."""
+        articulo = self.get_object()
+        if request.method == 'GET':
+            try:
+                contenido = fotos.leer_foto(articulo)
+            except fotos.FotoNoDisponible as e:
+                raise NotFound(str(e))
+            respuesta = HttpResponse(contenido, content_type='image/jpeg')
+            respuesta['Content-Disposition'] = 'inline; filename="articulo-%s.jpg"' % articulo.num
+            respuesta['Cache-Control'] = 'private, max-age=300'
+            respuesta['X-Content-Type-Options'] = 'nosniff'
+            return respuesta
+
+        motivo = (request.data.get('motivo') or '').strip()
+        if request.method == 'POST':
+            archivo = request.FILES.get('foto')
+            if archivo is None:
+                raise ValidationError({'foto': 'Adjunte la imagen (campo "foto").'})
+            fotos.guardar_foto(articulo, archivo, request.user, motivo)
+        else:
+            fotos.quitar_foto(articulo, request.user, motivo)
+        articulo = con_relaciones(Articulo.objects.filter(pk=articulo.pk)).get()
+        return Response(ArticuloSerializer(articulo).data)
