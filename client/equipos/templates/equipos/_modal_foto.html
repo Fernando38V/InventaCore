@@ -1,0 +1,90 @@
+{# Agregar o cambiar la foto del artículo (PEND-027). Solo Administrador. #}
+<div class="modal fade" id="modalFoto" tabindex="-1" aria-labelledby="modalFotoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="formFoto" enctype="multipart/form-data" action="{% url 'equipos:foto_subir' equipo.num %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <h2 class="confirmar-modal__title" id="modalFotoLabel">{% if equipo.tiene_foto %}Cambiar la foto{% else %}Agregar una foto{% endif %}</h2>
+          <p class="confirmar-modal__aviso">Elige una imagen JPG, PNG o WebP. En el celular puedes tomarla con la cámara. Se reduce antes de enviarla.</p>
+          <div class="campo campo--modal">
+            <label class="campo__label" for="fotoArchivo">Foto <span class="campo__req">*</span></label>
+            <input class="campo__control" type="file" name="foto" id="fotoArchivo" required
+                   accept="image/jpeg,image/png,image/webp">
+          </div>
+          <div id="fotoVista" class="text-center mb-2" hidden>
+            <img id="fotoVistaImg" alt="Vista previa" style="max-width:100%;max-height:220px;border-radius:8px">
+            <div class="small text-muted mt-1" id="fotoVistaInfo"></div>
+          </div>
+          <div class="campo campo--modal">
+            <label class="campo__label" for="fotoMotivo">Motivo{% if equipo.tiene_foto %} <span class="campo__req">*</span>{% else %} (opcional){% endif %}</label>
+            <textarea class="campo__control" name="motivo" id="fotoMotivo" rows="2" maxlength="255"
+                      {% if equipo.tiene_foto %}required{% endif %}
+                      placeholder="{% if equipo.tiene_foto %}Por qué se cambia la foto{% else %}Opcional{% endif %}"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary" id="fotoGuardar">Guardar foto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var MAX_LADO = 1600, CALIDAD = 0.85;     // la API la deja en 1200 px; así sube liviana
+  var form = document.getElementById('formFoto');
+  var entrada = document.getElementById('fotoArchivo');
+  var vista = document.getElementById('fotoVista');
+  var vistaImg = document.getElementById('fotoVistaImg');
+  var vistaInfo = document.getElementById('fotoVistaInfo');
+  var guardar = document.getElementById('fotoGuardar');
+  var modal = document.getElementById('modalFoto');
+  var urlVista = null;
+
+  function peso(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
+
+  // Reduce y re-codifica a JPEG en el navegador. Si no se puede (formato que el
+  // navegador no abre), se envía el original y la API decide.
+  async function reducir(archivo) {
+    try {
+      var bmp = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+      var esc = Math.min(1, MAX_LADO / Math.max(bmp.width, bmp.height));
+      var lienzo = document.createElement('canvas');
+      lienzo.width = Math.max(1, Math.round(bmp.width * esc));
+      lienzo.height = Math.max(1, Math.round(bmp.height * esc));
+      var ctx = lienzo.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+      ctx.drawImage(bmp, 0, 0, lienzo.width, lienzo.height);
+      var blob = await new Promise(function (ok) { lienzo.toBlob(ok, 'image/jpeg', CALIDAD); });
+      if (!blob) { return archivo; }
+      return new File([blob], 'foto.jpg', { type: 'image/jpeg' });
+    } catch (e) { return archivo; }
+  }
+
+  entrada.addEventListener('change', async function () {
+    var original = entrada.files[0];
+    vista.hidden = true;
+    if (!original) { return; }
+    guardar.disabled = true;
+    var listo = await reducir(original);
+    if (listo !== original && window.DataTransfer) {
+      var dt = new DataTransfer(); dt.items.add(listo); entrada.files = dt.files;
+    }
+    if (urlVista) { URL.revokeObjectURL(urlVista); }
+    urlVista = URL.createObjectURL(listo);
+    vistaImg.src = urlVista;
+    vistaInfo.textContent = listo === original ? peso(original.size) : peso(original.size) + ' → ' + peso(listo.size);
+    vista.hidden = false;
+    guardar.disabled = false;
+  });
+
+  form.addEventListener('submit', function () { guardar.disabled = true; guardar.textContent = 'Guardando…'; });
+
+  modal.addEventListener('hidden.bs.modal', function () {
+    form.reset(); vista.hidden = true; guardar.disabled = false; guardar.textContent = 'Guardar foto';
+  });
+})();
+</script>
