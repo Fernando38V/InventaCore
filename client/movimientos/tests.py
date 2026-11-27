@@ -165,6 +165,14 @@ class NuevoTests(BaseMov):
         self.assertNotContains(r, 'value="BAJA"')
         self.assertNotContains(r, 'value="ALTA"')
 
+    def test_la_fila_estado_al_recuperar_viene_oculta_y_se_muestra_solo_al_recuperar(self):
+        self.entrar()
+        html = self.client.get('/movimientos/nuevo/?articulo=7').content.decode()
+        self.assertIn('id="rsEstadoFila" hidden', html)
+        self.assertIn("rsEstadoFila').hidden = bloqueEstado.hidden", html)
+        # el CSS de la lista usa display:flex; sin esta regla `hidden` no ocultaría la fila
+        self.assertIn('.mov-resumen__lista > div[hidden] { display: none; }', html)
+
     def test_reubicacion_manda_el_cuerpo(self):
         self.entrar()
         self.api.respuestas[('POST', 'movimientos/')] = movimiento()
