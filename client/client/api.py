@@ -67,23 +67,35 @@ def descargar(request, ruta):
     return _ejecutar(urlrequest.Request(url, headers=cabeceras, method='GET'), timeout=30)
 
 
-def enviar_archivo(request, ruta, nombre, contenido, campos=None, timeout=120):
-    """POST multipart con un archivo en el campo `archivo` y campos de texto.
-    Devuelve el JSON. El tiempo de espera es mayor porque la API procesa todo
-    el archivo (la carga masiva admite hasta 2000 filas)."""
+def enviar_formulario(request, metodo, ruta, campos=None, archivo=None, campo_archivo='archivo',
+                      timeout=30):
+    """Petición multipart/form-data con campos de texto y, si se da, un archivo
+    `archivo=(nombre, bytes)` en el campo `campo_archivo`. Sirve para los endpoints que
+    no aceptan JSON (la carga masiva y la foto del artículo, incluido su DELETE con
+    motivo). Devuelve el JSON."""
     limite = uuid.uuid4().hex
     partes = []
     for clave, valor in (campos or {}).items():
         partes.append(('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n'
                        % (limite, clave, valor)).encode('utf-8'))
-    nombre_seguro = nombre.replace('"', '').replace('\r', '').replace('\n', '')
-    partes.append(('--%s\r\nContent-Disposition: form-data; name="archivo"; filename="%s"\r\n'
-                   'Content-Type: application/octet-stream\r\n\r\n'
-                   % (limite, nombre_seguro)).encode('utf-8'))
-    partes.append(contenido)
-    partes.append(('\r\n--%s--\r\n' % limite).encode('utf-8'))
+    if archivo is not None:
+        nombre, contenido = archivo
+        nombre_seguro = nombre.replace('"', '').replace('\r', '').replace('\n', '')
+        partes.append(('--%s\r\nContent-Disposition: form-data; name="%s"; filename="%s"\r\n'
+                       'Content-Type: application/octet-stream\r\n\r\n'
+                       % (limite, campo_archivo, nombre_seguro)).encode('utf-8'))
+        partes.append(contenido)
+        partes.append(b'\r\n')
+    partes.append(('--%s--\r\n' % limite).encode('utf-8'))
     url, cabeceras = _url_y_cabeceras(request, ruta, 'application/json')
     cabeceras['Content-Type'] = 'multipart/form-data; boundary=%s' % limite
-    peticion = urlrequest.Request(url, data=b''.join(partes), headers=cabeceras, method='POST')
+    peticion = urlrequest.Request(url, data=b''.join(partes), headers=cabeceras, method=metodo)
     texto = _ejecutar(peticion, timeout=timeout).decode('utf-8')
     return json.loads(texto) if texto else None
+
+
+def enviar_archivo(request, ruta, nombre, contenido, campos=None, timeout=120):
+    """POST multipart con un archivo en el campo `archivo` y campos de texto.
+    Devuelve el JSON. El tiempo de espera es mayor porque la API procesa todo
+    el archivo (la carga masiva admite hasta 2000 filas)."""
+    return enviar_formulario(request, 'POST', ruta, campos, (nombre, contenido), 'archivo', timeout)

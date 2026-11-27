@@ -150,6 +150,38 @@
 
 </div>
 
+<section class="info-card info-card--full" id="tarjetaFoto">
+  <h3 class="info-card__title">Foto del artículo</h3>
+  <div class="foto-articulo">
+    {% if equipo.tiene_foto %}
+    <button type="button" class="foto-articulo__marco" data-bs-toggle="modal" data-bs-target="#modalFotoGrande"
+            title="Ampliar la foto">
+      <img src="{% url 'equipos:foto' equipo.num %}" alt="Foto de {{ equipo.nombre }}" class="foto-articulo__img">
+    </button>
+    {% else %}
+    <div class="foto-articulo__vacia">
+      <svg width="28" height="28" aria-hidden="true"><use href="#icon-box"/></svg>
+      <span>Este artículo todavía no tiene foto.</span>
+    </div>
+    {% endif %}
+    {% if usuario.rol == 'ADMIN' %}
+    <div class="foto-articulo__acciones">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalFoto">
+        {% if equipo.tiene_foto %}Cambiar foto{% else %}Agregar foto{% endif %}
+      </button>
+      {% if equipo.tiene_foto %}
+      <button type="button" class="btn btn-outline-danger btn-sm"
+              data-bs-toggle="modal" data-bs-target="#modalEstado"
+              data-url="{% url 'equipos:foto_quitar' equipo.num %}" data-activar="0"
+              data-titulo="¿Quitar la foto?"
+              data-aviso="La foto se elimina del artículo. Queda registrado en la bitácora."
+              data-confirmar="Sí, quitar">Quitar foto</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
 <section class="info-card info-card--full">
   <h3 class="info-card__title">Descripción</h3>
   <p class="info-card__text">{{ equipo.descripcion }}</p>
@@ -189,6 +221,23 @@
 
 {% if usuario.rol == 'ADMIN' %}
 {% include "base/_modal_estado.html" %}
+
+{% include "equipos/_modal_foto.html" %}
+{% endif %}
+
+{% if equipo.tiene_foto %}
+<div class="modal fade" id="modalFotoGrande" tabindex="-1" aria-label="Foto del artículo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-body text-center">
+        <img src="{% url 'equipos:foto' equipo.num %}" alt="Foto de {{ equipo.nombre }}" style="max-width:100%;max-height:75vh">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% endblock app_content %}
@@ -290,6 +339,19 @@
     margin-bottom: 18px;
   }
   .info-card--full { grid-column: 1 / -1; margin-bottom: 18px; }
+
+  .foto-articulo { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .foto-articulo__marco {
+    padding: 0; border: 1px solid var(--ic-border); border-radius: 10px; background: #F7F9F8;
+    overflow: hidden; cursor: zoom-in; line-height: 0;
+  }
+  .foto-articulo__img { display: block; max-width: 320px; max-height: 240px; width: auto; height: auto; }
+  .foto-articulo__vacia {
+    display: flex; align-items: center; gap: 10px; padding: 18px 22px; color: var(--ic-muted, #6B7A74);
+    border: 1px dashed var(--ic-border); border-radius: 10px; font-size: 13.5px;
+  }
+  .foto-articulo__acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media (max-width: 620px) { .foto-articulo__img { max-width: 100%; } .foto-articulo__marco { width: 100%; text-align: center; } }
   .info-grid .info-card { margin-bottom: 0; }
 
   .info-card__title {
